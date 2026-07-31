@@ -1,0 +1,118 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isSignedIn() {
+      return request.auth != null;
+    }
+    function isOwner(uid) {
+      return isSignedIn() && request.auth.uid == uid;
+    }
+    // get() reads bypass rule evaluation, so this is safe from recursion.
+    function myProfile() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+    // Rector status must be "approved", not just role "rector" — new rector
+    // registrations start "pending" so signing up can't self-elevate to admin.
+    function isRector() {
+      return isSignedIn() && myProfile().role == 'rector' && myProfile().status == 'approved';
+    }
+    function isWarden() {
+      return isSignedIn() && myProfile().role == 'warden';
+    }
+
+    match /users/{userId} {
+      allow read: if isSignedIn();
+      // A new rector doc may only be created with status "pending" — never self-approved.
+      allow create: if isOwner(userId) &&
+        (request.resource.data.role != 'rector' || request.resource.data.status == 'pending');
+      // Owners can update their own doc (e.g. pushToken) but not their own role/status/
+      // hostelStatus — only an already-approved rector can grant rector status, change
+      // roles, or mark a student as having left the hostel.
+      allow update: if isRector() ||
+        (isOwner(userId) &&
+          !request.resource.data.diff(resource.data).affectedKeys().hasAny(['role', 'status', 'hostelStatus']));
+      allow delete: if false;
+    }
+
+    match /applications/{appId} {
+      allow read: if isSignedIn();
+
+      // Authenticated mobile-app students applying for themselves (existing path).
+      allow create: if isSignedIn()
+        && request.resource.data.studentId == request.auth.uid
+        && request.resource.data.status == 'pending'
+        && request.resource.data.keys().hasOnly(
+             ['studentId','studentName','applicantEmail','firstName','lastName',
+              'fatherName','address','idProof','income','status','createdAt'])
+        && request.resource.data.firstName is string && request.resource.data.firstName.size() > 0
+        && request.resource.data.lastName is string && request.resource.data.lastName.size() > 0
+        && request.resource.data.fatherName is string && request.resource.data.fatherName.size() > 0
+        && request.resource.data.address is string && request.resource.data.address.size() > 0
+        && request.resource.data.idProof is string && request.resource.data.idProof.size() > 0
+        && request.resource.data.income is number && request.resource.data.income >= 0;
+
+      // Public, unauthenticated applicants submitting via the QR-code web form. Tight
+      // by design — this is the only fully public write path in the whole database:
+      // forces status=pending, studentId=null, exact allowed field set, and validates
+      // every required field's type/non-emptiness.
+      allow create: if request.auth == null
+        && request.resource.data.studentId == null
+        && request.resource.data.status == 'pending'
+        && request.resource.data.keys().hasOnly(
+             ['studentId','studentName','applicantEmail','firstName','lastName',
+              'fatherName','address','idProof','income','status','createdAt'])
+        && request.resource.data.applicantEmail is string
+        && request.resource.data.applicantEmail.matches('.*@.*[.].*')
+        && request.resource.data.firstName is string && request.resource.data.firstName.size() > 0
+        && request.resource.data.lastName is string && request.resource.data.lastName.size() > 0
+        && request.resource.data.fatherName is string && request.resource.data.fatherName.size() > 0
+        && request.resource.data.address is string && request.resource.data.address.size() > 0
+        && request.resource.data.idProof is string && request.resource.data.idProof.size() > 0
+        && request.resource.data.income is number && request.resource.data.income >= 0
+        && request.resource.data.createdAt is number;
+
+      // Rector approves/rejects/assigns a room (unchanged) — OR a newly-registered
+      // student self-claims their own still-unclaimed web application, proven via
+      // their Auth ID token's email claim (populated automatically by Firebase Auth
+      // for email/password sign-in — no custom claims or Cloud Function needed).
+      // Can only ever set studentId/studentName, and only on a doc with no owner yet.
+      allow update: if isRector()
+        || (isSignedIn()
+            && resource.data.studentId == null
+            && request.auth.token.email is string
+            && request.auth.token.email.lower() == resource.data.applicantEmail.lower()
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['studentId','studentName'])
+            && request.resource.data.studentId == request.auth.uid);
+
+      allow delete: if false;
+    }
+
+    match /notices/{noticeId} {
+      allow read: if isSignedIn();
+      allow create, update, delete: if isRector();
+    }
+
+    match /grievances/{grievanceId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && request.resource.data.studentId == request.auth.uid;
+      allow update: if isRector();
+    }
+
+    match /payments/{paymentId} {
+      allow read: if isSignedIn() && (resource.data.studentId == request.auth.uid || isRector());
+      allow create: if isSignedIn() && request.resource.data.studentId == request.auth.uid;
+      allow update: if isRector();
+    }
+
+    match /checklogs/{logId} {
+      allow read: if isSignedIn();
+      allow create: if isWarden();
+    }
+
+    match /rooms/{roomId} {
+      allow read: if isSignedIn();
+      allow write: if isRector();
+    }
+  }
+}

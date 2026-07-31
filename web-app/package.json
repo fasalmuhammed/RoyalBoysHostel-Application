@@ -1,0 +1,8 @@
+{
+  "name": "hostel-application-web",
+  "version": "1.0.0",
+  "private": true,
+  "devDependencies": {
+    "qrcode": "^1.5.4"
+  }
+}

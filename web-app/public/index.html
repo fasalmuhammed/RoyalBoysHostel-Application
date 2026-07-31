@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Apply for Hostel</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <main class="card">
+      <img class="logo" src="icon.png" alt="Hostel Administration" />
+      <h1>Apply for Hostel</h1>
+      <p class="subtitle">Fill in your details below. We'll review your application and contact you by email.</p>
+
+      <form id="application-form" novalidate>
+        <label>
+          First Name
+          <input type="text" name="firstName" required />
+        </label>
+        <label>
+          Last Name
+          <input type="text" name="lastName" required />
+        </label>
+        <label>
+          Father's Name
+          <input type="text" name="fatherName" required />
+        </label>
+        <label>
+          Email
+          <input type="email" name="email" required placeholder="you@example.com" />
+          <span class="hint">You'll use this same email to create your account in the mobile app later.</span>
+        </label>
+        <label>
+          Residential Address
+          <textarea name="address" rows="3" required></textarea>
+        </label>
+        <label>
+          Aadhar / PAN No.
+          <input type="text" name="idProof" required />
+        </label>
+        <label>
+          Family Income (₹ per year)
+          <input type="number" name="income" min="0" step="1" required />
+        </label>
+
+        <p id="error" class="error" hidden></p>
+
+        <button type="submit" id="submit-button">Submit Application</button>
+      </form>
+
+      <div id="success" class="success" hidden>
+        <h2>Application Submitted!</h2>
+        <p>
+          Thank you — the hostel administration will review your application. Once approved, download our mobile
+          app and register using the <strong>same email</strong> you used here to access your account.
+        </p>
+      </div>
+    </main>
+
+    <script type="module" src="app.js"></script>
+  </body>
+</html>
