@@ -35,9 +35,17 @@
         "android.permission.USE_BIOMETRIC",
         "android.permission.USE_FINGERPRINT",
         "android.permission.POST_NOTIFICATIONS",
-        "android.permission.VIBRATE"
+        "android.permission.VIBRATE",
+        "android.permission.RECORD_AUDIO",
+        "android.permission.CAMERA",
+        "android.permission.USE_BIOMETRIC",
+        "android.permission.USE_FINGERPRINT",
+        "android.permission.POST_NOTIFICATIONS",
+        "android.permission.VIBRATE",
+        "android.permission.RECORD_AUDIO"
       ],
       "blockedPermissions": [
+        "android.permission.RECORD_AUDIO",
         "android.permission.RECORD_AUDIO"
       ]
     },
@@ -67,7 +75,16 @@
       "expo-font"
     ],
     "extra": {
-      "eas": {}
+      "eas": {
+        "projectId": "fbd6f7dc-74b2-43f5-8a3c-c4929fda388f"
+      }
+    },
+    "owner": "pa-va",
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/fbd6f7dc-74b2-43f5-8a3c-c4929fda388f"
     }
   }
 }
