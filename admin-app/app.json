@@ -67,7 +67,6 @@
       "expo-font"
     ],
     "extra": {
-      "router": {},
       "eas": {}
     }
   }
