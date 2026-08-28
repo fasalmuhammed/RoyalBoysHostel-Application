@@ -14,8 +14,7 @@ import {
   isBiometricEnabled,
   setBiometricEnabled,
 } from "@/services/security";
-import { scheduleBackupReminder, scheduleFeeReminder } from "@/services/reminders";
-import { parseAmount } from "@/utils/validate";
+import { scheduleBackupReminder } from "@/services/reminders";
 import type { RootStackParamList } from "@/navigation/types";
 
 type Props = NativeStackScreenProps<RootStackParamList, "Settings">;
@@ -26,8 +25,6 @@ export default function SettingsScreen({ navigation }: Props) {
   const [hostelName, setHostelName] = useState(settings.hostelName);
   const [countryCode, setCountryCode] = useState(settings.countryCode);
   const [currencySymbol, setCurrencySymbol] = useState(settings.currencySymbol);
-  const [defaultRent, setDefaultRent] = useState(String(settings.defaultRent));
-  const [feeDueDay, setFeeDueDay] = useState(String(settings.feeDueDay));
   const [reminderDays, setReminderDays] = useState(String(settings.backupReminderDays));
 
   const [biometrics, setBiometrics] = useState<BiometricSupport | null>(null);
@@ -41,12 +38,6 @@ export default function SettingsScreen({ navigation }: Props) {
   }, []);
 
   const onSave = async () => {
-    const dueDay = Number.parseInt(feeDueDay, 10);
-    if (!Number.isFinite(dueDay) || dueDay < 1 || dueDay > 28) {
-      Alert.alert("Check the due day", "The fee due day must be between 1 and 28.");
-      return;
-    }
-
     const days = Number.parseInt(reminderDays, 10);
     const safeDays = Number.isFinite(days) && days > 0 ? days : 7;
 
@@ -56,13 +47,10 @@ export default function SettingsScreen({ navigation }: Props) {
         hostelName: hostelName.trim() || "My Hostel",
         countryCode: countryCode.replace(/\D/g, "") || "91",
         currencySymbol: currencySymbol.trim() || "₹",
-        defaultRent: parseAmount(defaultRent),
-        feeDueDay: dueDay,
         backupReminderDays: safeDays,
       });
 
-      // Reschedule so the reminders track the values just saved.
-      await scheduleFeeReminder(dueDay);
+      // Reschedule so the backup nudge tracks the value just saved.
       await scheduleBackupReminder(safeDays);
 
       setSaved(true);
@@ -111,22 +99,13 @@ export default function SettingsScreen({ navigation }: Props) {
         </View>
 
         <SectionTitle title="Fees" />
-        <Input
-          label={`Default monthly rent (${currencySymbol})`}
-          value={defaultRent}
-          onChangeText={setDefaultRent}
-          keyboardType="numeric"
-          icon="cash-outline"
-          hint="Used when a student has no room assigned."
-        />
-        <Input
-          label="Fees due on day of month"
-          value={feeDueDay}
-          onChangeText={setFeeDueDay}
-          keyboardType="number-pad"
-          icon="calendar-outline"
-          hint="1–28. A reminder fires three days before."
-        />
+        <Callout tone="info" icon="cash-outline">
+          <CalloutText>
+            Rent and payment deadlines are set per student, not here — the amount follows the room
+            they are given and can differ per person. Open a student to change their rent or
+            billing cycle.
+          </CalloutText>
+        </Callout>
 
         <SectionTitle title="Security" />
         <Card>

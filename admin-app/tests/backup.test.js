@@ -19,6 +19,7 @@ const settings = h.load("services/settings");
 const backup = h.load("services/backup");
 const photos = h.load("services/photos");
 const notices = h.load("services/notices");
+const schema = h.load("db/schema");
 const db = h.load("db");
 const { File } = require("expo-file-system");
 
@@ -42,6 +43,7 @@ async function seed() {
     email: "x@example.com", course: "CSE", year: "2",
     address: "12, Main Road\nSecond line", idProof: "Aadhaar 1234",
     photoFile: null, roomId: room, status: "active",
+    monthlyRent: 6000, billingCycleDays: 30,
     joinedOn: "2026-01-15", leftOn: null, notes: "",
   });
 
@@ -124,7 +126,7 @@ async function run() {
   check("header hostel name", header.hostelName === "Green Valley Boys Hostel");
   check("header marks encryption", header.encryption !== null);
   check("header carries salt", typeof header.encryption.salt === "string" && header.encryption.salt.length > 0);
-  check("header schema version is current", header.schemaVersion === 2, "got " + header.schemaVersion);
+  check("header stamps the current schema version", header.schemaVersion === schema.SCHEMA_VERSION, "got " + header.schemaVersion);
 
   console.log("\n== wrong passphrase is rejected ==");
   let threw = null;
@@ -244,6 +246,7 @@ async function run() {
       admissionNo: "B" + i, fullName: "Bulk Student " + i, phone: "90000000" + String(i).padStart(2, "0"),
       guardianName: "G", guardianPhone: "9", email: "", course: "ME", year: "1",
       address: "addr", idProof: "", photoFile: null, roomId: null, status: "active",
+      monthlyRent: 5000, billingCycleDays: 30,
       joinedOn: "2026-02-01", leftOn: null, notes: "",
     });
     await d.runAsync("UPDATE students SET photoFile = ? WHERE id = ?;", "bulk" + i + ".jpg", id);

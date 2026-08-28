@@ -27,7 +27,8 @@ const mk = (name, roomId, extra) =>
     {
       admissionNo: "", fullName: name, phone: "9876500000", guardianName: "", guardianPhone: "",
       email: "", course: "", year: "", address: "", idProof: "", photoFile: null,
-      roomId: roomId ?? null, status: "active", joinedOn: "2026-01-01", leftOn: null, notes: "",
+      roomId: roomId ?? null, status: "active", monthlyRent: 6000, billingCycleDays: 30,
+      joinedOn: "2026-01-01", leftOn: null, notes: "",
     },
     extra || {}
   );
@@ -163,20 +164,44 @@ async function run() {
   console.log("\n== generateInvoices is safe to re-run ==");
   await students.createStudent(mk("Bulk A", billRoom));
   await students.createStudent(mk("Bulk B", billRoom));
-  const first = await fees.generateInvoices("2026-09", "2026-09-10", 4444);
+  const first = await fees.generateInvoices("2026-09");
   const activeNow = (await students.studentCounts()).active;
   check("created one bill per active student", first.created === activeNow, "created=" + first.created + " active=" + activeNow);
 
-  const second = await fees.generateInvoices("2026-09", "2026-09-10", 4444);
+  const second = await fees.generateInvoices("2026-09");
   check("re-run creates nothing", second.created === 0, "created=" + second.created);
   check("re-run reports everyone skipped", second.skipped === activeNow, "skipped=" + second.skipped);
 
   const sept = await fees.listFees("all", "2026-09", "");
   check("no duplicate september bills", sept.length === activeNow, "bills=" + sept.length);
   const roomPriced = sept.find((f) => f.studentName === "Bulk A");
-  check("priced from the room rent", roomPriced.rent === 6000, "rent=" + roomPriced.rent);
-  const fallbackPriced = sept.find((f) => f.studentName === "Roomless");
-  check("roomless student uses fallback rent", fallbackPriced.rent === 4444, "rent=" + fallbackPriced.rent);
+  check("priced from the student's own rent", roomPriced.rent === 6000, "rent=" + roomPriced.rent);
+  check("due 30 days into the period", roomPriced.dueDate === "2026-10-01", "due=" + roomPriced.dueDate);
+
+  console.log("\n== per-student rent and cycle drive the bill ==");
+  const bespokeRoom = await rooms.createRoom({
+    block: "D", roomNumber: "9", floor: "", capacity: 2,
+    rent: 6000, deposit: 0, amenities: "", notes: "",
+  });
+  const bespoke = await students.createStudent(
+    mk("Bespoke Terms", bespokeRoom, { monthlyRent: 4500, billingCycleDays: 15 })
+  );
+  const bespokeRun = await fees.generateInvoices("2026-10");
+  check("bespoke run created bills", bespokeRun.created > 0);
+  const octBills = await fees.listFees("all", "2026-10", "");
+  const bespokeBill = octBills.find((f) => f.studentName === "Bespoke Terms");
+  check("uses the student's rent, not the room's", bespokeBill.rent === 4500, "rent=" + bespokeBill.rent);
+  check("uses the student's 15-day cycle", bespokeBill.dueDate === "2026-10-16", "due=" + bespokeBill.dueDate);
+  const normalBill = octBills.find((f) => f.studentName === "Bulk A");
+  check("others keep their own 30-day cycle", normalBill.dueDate === "2026-10-31", "due=" + normalBill.dueDate);
+
+  console.log("\n== dueDateFor ==");
+  check("30 days from 1 Sep", fees.dueDateFor("2026-09") === "2026-10-01", fees.dueDateFor("2026-09"));
+  check("defaults to 30 days", fees.DEFAULT_CYCLE_DAYS === 30);
+  check("15-day cycle", fees.dueDateFor("2026-09", 15) === "2026-09-16", fees.dueDateFor("2026-09", 15));
+  check("60-day cycle crosses two months", fees.dueDateFor("2026-09", 60) === "2026-10-31", fees.dueDateFor("2026-09", 60));
+  check("bad cycle falls back to 30", fees.dueDateFor("2026-09", 0) === "2026-10-01", fees.dueDateFor("2026-09", 0));
+  check("leap-year February", fees.dueDateFor("2028-02") === "2028-03-02", fees.dueDateFor("2028-02"));
 
   console.log("\n== due-for-reminder list ==");
   const due = await fees.listDueForReminder("2026-09-30");
@@ -234,13 +259,22 @@ async function run() {
   check("BOM present for Excel", rowsCsv.charCodeAt(0) === 0xfeff);
 
   console.log("\n== settings round trip ==");
-  await settings.saveSettings({ hostelName: "Test Hostel", feeDueDay: 15 });
+  await settings.saveSettings({ hostelName: "Test Hostel", backupReminderDays: 15 });
   const loaded = await settings.loadSettings();
-  check("saved value read back", loaded.hostelName === "Test Hostel" && loaded.feeDueDay === 15);
+  check("saved value read back", loaded.hostelName === "Test Hostel" && loaded.backupReminderDays === 15);
   check("unset keys fall back to defaults", loaded.currencySymbol === "₹");
   await settings.saveSettings({ hostelName: "Renamed" });
   const reloaded = await settings.loadSettings();
-  check("partial update preserves other keys", reloaded.hostelName === "Renamed" && reloaded.feeDueDay === 15);
+  check("partial update preserves other keys", reloaded.hostelName === "Renamed" && reloaded.backupReminderDays === 15);
+
+  // Installs that predate v3 still have defaultRent/feeDueDay rows on disk.
+  // Those keys are gone from the app, and must be ignored rather than resurface.
+  const rawDb = await (h.load("db")).getDb();
+  await rawDb.runAsync("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?);", "defaultRent", "6000");
+  await rawDb.runAsync("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?);", "feeDueDay", "10");
+  const withStale = await settings.loadSettings();
+  check("retired settings are ignored", withStale.defaultRent === undefined && withStale.feeDueDay === undefined, JSON.stringify(withStale));
+  check("live settings still load alongside them", withStale.hostelName === "Renamed");
 
   console.log("\n== v1 -> v2 migration on an existing install ==");
   {
@@ -288,6 +322,47 @@ async function run() {
     check("lastSentAt defaults to null", inserted.lastSentAt === null);
 
     check("notices is included in backups", schema.BACKUP_TABLES.includes("notices"), schema.BACKUP_TABLES.join(","));
+
+    // v3 moved rent onto the student; existing rows must be backfilled from
+    // the room they occupy rather than silently dropping to zero.
+    const cols = legacy.prepare("PRAGMA table_info(students);").all().map((c) => c.name);
+    check("monthlyRent column added", cols.includes("monthlyRent"), cols.join(","));
+    check("billingCycleDays column added", cols.includes("billingCycleDays"));
+
+    const upgraded = legacy.prepare("SELECT monthlyRent, billingCycleDays FROM students WHERE id = ?;").all("legacy-1")[0];
+    check("billing cycle defaults to 30 days", upgraded.billingCycleDays === 30, "cycle=" + upgraded.billingCycleDays);
+    check("roomless student backfills to 0 rent", upgraded.monthlyRent === 0, "rent=" + upgraded.monthlyRent);
+
+    legacy.close();
+  }
+
+  console.log("\n== v2 -> v3 backfills rent from the occupied room ==");
+  {
+    const { DatabaseSync } = require("node:sqlite");
+    const schema = h.load("db/schema");
+    const legacy = new DatabaseSync(":memory:");
+    legacy.exec(schema.MIGRATIONS[1]);
+    legacy.exec(schema.MIGRATIONS[2]);
+    legacy.exec("PRAGMA user_version = 2;");
+
+    legacy.prepare(
+      "INSERT INTO rooms (id, block, roomNumber, capacity, rent, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?);"
+    ).run("r-1", "A", "101", 2, 7250, 1, 1);
+    legacy.prepare(
+      "INSERT INTO students (id, fullName, roomId, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?);"
+    ).run("s-roomed", "Roomed Student", "r-1", 1, 1);
+    legacy.prepare(
+      "INSERT INTO students (id, fullName, createdAt, updatedAt) VALUES (?, ?, ?, ?);"
+    ).run("s-roomless", "Roomless Student", 1, 1);
+
+    legacy.exec(schema.MIGRATIONS[3]);
+
+    const roomed = legacy.prepare("SELECT monthlyRent, billingCycleDays FROM students WHERE id = ?;").all("s-roomed")[0];
+    check("rent backfilled from the room", roomed.monthlyRent === 7250, "rent=" + roomed.monthlyRent);
+    check("cycle defaults to 30", roomed.billingCycleDays === 30);
+
+    const roomless = legacy.prepare("SELECT monthlyRent FROM students WHERE id = ?;").all("s-roomless")[0];
+    check("roomless student left at 0 to be set by hand", roomless.monthlyRent === 0, "rent=" + roomless.monthlyRent);
     legacy.close();
   }
 

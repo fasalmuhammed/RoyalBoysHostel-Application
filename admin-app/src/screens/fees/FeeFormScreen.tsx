@@ -13,6 +13,7 @@ import { useAsyncData } from "@/utils/hooks";
 import {
   createFee,
   currentPeriod,
+  DEFAULT_CYCLE_DAYS,
   DuplicateInvoiceError,
   dueDateFor,
   getFee,
@@ -38,7 +39,8 @@ export default function FeeFormScreen({ navigation, route }: Props) {
   const [water, setWater] = useState("");
   const [other, setOther] = useState("");
   const [discount, setDiscount] = useState("");
-  const [dueDate, setDueDate] = useState(dueDateFor(currentPeriod(), settings.feeDueDay));
+  const [cycleDays, setCycleDays] = useState(DEFAULT_CYCLE_DAYS);
+  const [dueDate, setDueDate] = useState(dueDateFor(currentPeriod()));
   const [note, setNote] = useState("");
 
   const [studentPickerOpen, setStudentPickerOpen] = useState(false);
@@ -70,16 +72,20 @@ export default function FeeFormScreen({ navigation, route }: Props) {
     })();
   }, [feeId]);
 
-  // Pre-fill the rent from the student's room, which is right nearly every time.
+  // Pre-fill from the student's own agreed terms, falling back to their room's
+  // rent for records created before rent moved onto the student.
   useEffect(() => {
     if (isEditing || !studentId) return;
     (async () => {
       const student = await getStudent(studentId);
       if (!student) return;
       setStudentName(student.fullName);
-      setRent(String(student.roomRent ?? settings.defaultRent));
+      setRent(String(student.monthlyRent > 0 ? student.monthlyRent : (student.roomRent ?? 0)));
+      const cycle = student.billingCycleDays || DEFAULT_CYCLE_DAYS;
+      setCycleDays(cycle);
+      setDueDate(dueDateFor(period, cycle));
     })();
-  }, [studentId, isEditing, settings.defaultRent]);
+  }, [studentId, isEditing, period]);
 
   const total = Math.max(
     parseAmount(rent) + parseAmount(electricity) + parseAmount(water) + parseAmount(other) -
@@ -244,7 +250,7 @@ export default function FeeFormScreen({ navigation, route }: Props) {
         onClose={() => setPeriodPickerOpen(false)}
         onSelect={(value) => {
           setPeriod(value);
-          setDueDate(dueDateFor(value, settings.feeDueDay));
+          setDueDate(dueDateFor(value, cycleDays));
         }}
         options={Array.from({ length: 14 }, (_, index) => {
           const value = shiftPeriod(currentPeriod(), 1 - index);

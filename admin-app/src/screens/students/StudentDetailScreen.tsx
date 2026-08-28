@@ -163,6 +163,16 @@ export default function StudentDetailScreen({ navigation, route }: Props) {
         <Card>
           <DetailRow label="Room" value={student.roomLabel ?? "Not assigned"} />
           <Divider />
+          <DetailRow
+            label="Monthly rent"
+            value={student.monthlyRent > 0 ? formatMoney(student.monthlyRent, symbol) : "Not set"}
+          />
+          <Divider />
+          <DetailRow
+            label="Billing cycle"
+            value={`${student.billingCycleDays || 30} days`}
+          />
+          <Divider />
           <DetailRow label="Joined on" value={formatDate(student.joinedOn)} />
           {student.leftOn ? (
             <>

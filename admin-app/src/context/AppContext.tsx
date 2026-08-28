@@ -48,8 +48,6 @@ export function AppProvider({ children }: PropsWithChildren) {
     hostelName: "My Hostel",
     countryCode: "91",
     currencySymbol: "₹",
-    defaultRent: 6000,
-    feeDueDay: 10,
     backupReminderDays: 7,
     lastBackupAt: null,
     autoBackupEnabled: true,

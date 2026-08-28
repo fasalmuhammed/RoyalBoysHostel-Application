@@ -32,8 +32,9 @@ import {
 } from "@/services/students";
 import { listRooms } from "@/services/rooms";
 import { deletePhoto, photoUri, savePhoto } from "@/services/photos";
-import { initials, toIsoDate } from "@/utils/format";
-import { isValidEmail, isValidPhone } from "@/utils/validate";
+import { formatMoney, initials, toIsoDate } from "@/utils/format";
+import { isValidEmail, isValidPhone, parseAmount } from "@/utils/validate";
+import { DEFAULT_CYCLE_DAYS } from "@/services/fees";
 import type { RootStackParamList } from "@/navigation/types";
 
 type Props = NativeStackScreenProps<RootStackParamList, "StudentForm">;
@@ -52,10 +53,16 @@ const EMPTY: StudentInput = {
   photoFile: null,
   roomId: null,
   status: "active",
+  monthlyRent: 0,
+  billingCycleDays: DEFAULT_CYCLE_DAYS,
   joinedOn: toIsoDate(),
   leftOn: null,
   notes: "",
 };
+
+function roomLabelOf(room: { block: string; roomNumber: string }): string {
+  return room.block ? `${room.block}-${room.roomNumber}` : room.roomNumber;
+}
 
 export default function StudentFormScreen({ navigation, route }: Props) {
   const studentId = route.params?.studentId;
@@ -66,6 +73,10 @@ export default function StudentFormScreen({ navigation, route }: Props) {
     ...EMPTY,
     roomId: route.params?.presetRoomId ?? null,
   });
+  // Kept as text so the field can be empty while typing; parsed on save.
+  const [rentText, setRentText] = useState("");
+  const [cycleText, setCycleText] = useState(String(DEFAULT_CYCLE_DAYS));
+  const [rentTouched, setRentTouched] = useState(false);
   const [errors, setErrors] = useState<Partial<Record<keyof StudentInput, string>>>({});
   const [saving, setSaving] = useState(false);
   const [capturing, setCapturing] = useState(false);
@@ -97,10 +108,16 @@ export default function StudentFormScreen({ navigation, route }: Props) {
         photoFile: student.photoFile,
         roomId: student.roomId,
         status: student.status,
+        monthlyRent: student.monthlyRent,
+        billingCycleDays: student.billingCycleDays,
         joinedOn: student.joinedOn,
         leftOn: student.leftOn,
         notes: student.notes,
       });
+      setRentText(student.monthlyRent > 0 ? String(student.monthlyRent) : "");
+      setCycleText(String(student.billingCycleDays || DEFAULT_CYCLE_DAYS));
+      // An existing student already has an agreed rent; never overwrite it.
+      setRentTouched(true);
       setOriginalPhoto(student.photoFile);
       setLoaded(true);
     })();
@@ -109,6 +126,18 @@ export default function StudentFormScreen({ navigation, route }: Props) {
   useEffect(() => {
     navigation.setOptions({ title: isEditing ? "Edit student" : "Add student" });
   }, [navigation, isEditing]);
+
+  /**
+   * Fills the rent from the allocated room.
+   *
+   * Only until the admin types their own figure -- `rentTouched` stops a later
+   * room change from silently overwriting a negotiated rate.
+   */
+  useEffect(() => {
+    if (rentTouched || !form.roomId || !rooms) return;
+    const room = rooms.find((r) => r.id === form.roomId);
+    if (room && room.rent > 0) setRentText(String(room.rent));
+  }, [form.roomId, rooms, rentTouched]);
 
   const set = <K extends keyof StudentInput>(key: K, value: StudentInput[K]) => {
     setForm((current) => ({ ...current, [key]: value }));
@@ -193,6 +222,14 @@ export default function StudentFormScreen({ navigation, route }: Props) {
       next.guardianPhone = "That phone number looks wrong.";
     }
     if (!isValidEmail(form.email)) next.email = "That email address looks wrong.";
+
+    if (parseAmount(rentText) < 0) next.monthlyRent = "Rent cannot be negative.";
+
+    const cycle = Number.parseInt(cycleText, 10);
+    if (!Number.isFinite(cycle) || cycle < 1 || cycle > 365) {
+      next.billingCycleDays = "Enter a cycle between 1 and 365 days.";
+    }
+
     setErrors(next);
     return Object.keys(next).length === 0;
   };
@@ -202,7 +239,12 @@ export default function StudentFormScreen({ navigation, route }: Props) {
 
     setSaving(true);
     try {
-      const payload: StudentInput = { ...form, fullName: form.fullName.trim() };
+      const payload: StudentInput = {
+        ...form,
+        fullName: form.fullName.trim(),
+        monthlyRent: parseAmount(rentText),
+        billingCycleDays: Number.parseInt(cycleText, 10) || DEFAULT_CYCLE_DAYS,
+      };
       if (studentId) {
         await updateStudent(studentId, payload);
       } else {
@@ -349,6 +391,39 @@ export default function StudentFormScreen({ navigation, route }: Props) {
             placeholder="Not assigned"
             onPress={() => setRoomPickerOpen(true)}
             error={errors.roomId}
+          />
+
+          <SectionTitle title="Fees" />
+          <Input
+            label="Monthly rent"
+            value={rentText}
+            onChangeText={(t) => {
+              setRentText(t);
+              setRentTouched(true);
+              setErrors((current) => ({ ...current, monthlyRent: undefined }));
+            }}
+            placeholder="0"
+            keyboardType="numeric"
+            icon="cash-outline"
+            error={errors.monthlyRent}
+            hint={
+              selectedRoom && !rentTouched
+                ? `Filled in from room ${roomLabelOf(selectedRoom)}. Change it if this student pays something different.`
+                : "What this student pays per billing cycle."
+            }
+          />
+          <Input
+            label="Billing cycle (days)"
+            value={cycleText}
+            onChangeText={(t) => {
+              setCycleText(t.replace(/\D/g, "").slice(0, 3));
+              setErrors((current) => ({ ...current, billingCycleDays: undefined }));
+            }}
+            placeholder={String(DEFAULT_CYCLE_DAYS)}
+            keyboardType="number-pad"
+            icon="calendar-outline"
+            error={errors.billingCycleDays}
+            hint={`Bills fall due this many days into the period. ${DEFAULT_CYCLE_DAYS} days is a normal month.`}
           />
 
           <SectionTitle title="Guardian" />

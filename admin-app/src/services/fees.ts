@@ -142,15 +142,21 @@ export interface GenerateResult {
  * the whole operation safe to re-run -- the common case is running it again
  * after a few more students have been admitted mid-month.
  */
-export async function generateInvoices(
-  period: string,
-  dueDate: string,
-  fallbackRent: number
-): Promise<GenerateResult> {
+export async function generateInvoices(period: string): Promise<GenerateResult> {
   const db = await getDb();
 
-  const candidates = await db.getAllAsync<{ id: string; rent: number | null }>(
-    `SELECT s.id AS id, r.rent AS rent
+  // Each student carries their own rent and cycle, so a batch run produces
+  // per-student amounts and deadlines rather than one blanket figure. Their
+  // room's rent is only a fallback for records created before rent moved onto
+  // the student.
+  const candidates = await db.getAllAsync<{
+    id: string;
+    monthlyRent: number;
+    billingCycleDays: number;
+    roomRent: number | null;
+  }>(
+    `SELECT s.id AS id, s.monthlyRent AS monthlyRent, s.billingCycleDays AS billingCycleDays,
+            r.rent AS roomRent
      FROM students s
      LEFT JOIN rooms r ON r.id = s.roomId
      WHERE s.status = 'active'
@@ -166,7 +172,8 @@ export async function generateInvoices(
     const now = Date.now();
     await db.withExclusiveTransactionAsync(async (txn) => {
       for (const row of candidates) {
-        const rent = row.rent ?? fallbackRent;
+        const rent = row.monthlyRent > 0 ? row.monthlyRent : (row.roomRent ?? 0);
+        const dueDate = dueDateFor(period, row.billingCycleDays);
         await txn.runAsync(
           `INSERT INTO fee_records (id, studentId, period, rent, electricity, water, other,
              discount, total, amountPaid, dueDate, note, createdAt, updatedAt)
@@ -309,9 +316,21 @@ export function currentPeriod(): string {
   return toPeriod();
 }
 
-/** Due date for a period, honouring the configured day-of-month. */
-export function dueDateFor(period: string, dueDay: number): string {
+/** A billing cycle, in days, when a student has none recorded. */
+export const DEFAULT_CYCLE_DAYS = 30;
+
+/**
+ * Due date for a billing period: the start of the month plus the student's
+ * cycle length.
+ *
+ * Rent is charged per period of occupancy, so the deadline follows the length
+ * of that period rather than a hostel-wide day of the month -- a student on a
+ * 15-day arrangement should not inherit someone else's monthly deadline.
+ */
+export function dueDateFor(period: string, cycleDays = DEFAULT_CYCLE_DAYS): string {
   const [y, m] = period.split("-").map(Number);
-  const day = Math.min(Math.max(dueDay, 1), 28);
-  return toIsoDate(new Date(y, m - 1, day));
+  const days = Number.isFinite(cycleDays) && cycleDays > 0 ? Math.round(cycleDays) : DEFAULT_CYCLE_DAYS;
+  const start = new Date(y, m - 1, 1);
+  start.setDate(start.getDate() + days);
+  return toIsoDate(start);
 }

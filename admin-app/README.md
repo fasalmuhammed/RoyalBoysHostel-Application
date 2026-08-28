@@ -19,6 +19,8 @@ Built with Expo (React Native) + TypeScript + SQLite.
 | **Encrypt-then-MAC backups** | The file leaves the phone (WhatsApp, email, Drive) carrying student photos, phone numbers and fee records. |
 | **Streaming chunks** | A backup is written and read in 256 KB pieces, so a hostel with 500 photos never has to fit the whole dataset in memory at once. |
 | **Derived fee status** | `paid` / `partial` / `unpaid` is computed in SQL from `total` vs `amountPaid`, so it can never drift from the payments actually recorded. |
+| **Rent lives on the student** | Rent follows the bed a student is given and is often negotiated per person, so a single hostel-wide default was the wrong home for it. It is captured when adding a student, pre-filled from their room. |
+| **Per-student billing cycle** | A bill falls due a set number of days into its period — 30 by default — rather than on one hostel-wide day of the month, so a student on different terms is not forced onto everyone else's deadline. |
 | **Derived room occupancy** | Counted from `students.roomId` rather than stored on the room, so it cannot go stale when a student is deleted or a backup is restored. |
 
 ---
@@ -120,7 +122,7 @@ board without going to every student's phone.
 
 **Setup (first run)** — Start fresh · Restore from a backup · Hostel details · Create PIN
 **Main** — Dashboard · Students · Rooms · Fees · More
-**Students** — list & search · add/edit with camera capture · detail with fee history
+**Students** — list & search · add/edit with camera capture, rent and billing cycle · detail with fee history
 **Rooms** — list with occupancy · add/edit · detail with bed map and move-in/move-out
 **Fees** — list by month & status · bill detail · collect payment · bulk-raise monthly bills · PDF receipt
 **Notices** — notice board by category, pinning, and one-tap send to students
@@ -137,7 +139,7 @@ npm install
 
 npm start          # Expo dev server
 npm run android    # build & run on a connected device
-npm test           # 165 tests, no device needed
+npm test           # 184 tests, no device needed
 npm run typecheck  # tsc --noEmit
 ```
 
@@ -157,7 +159,7 @@ sandboxes storage and its database can be cleared when the Expo Go app updates.
 
 ## Tests
 
-`npm test` runs 165 assertions against the real service code, using an
+`npm test` runs 184 assertions against the real service code, using an
 in-memory filesystem and a real SQLite engine (`node:sqlite`). No device or
 emulator needed.
 
@@ -169,14 +171,14 @@ fidelity, Unicode and multi-line fields preserved, photo bytes identical,
 relationships still resolve afterwards, and a 63-student dataset spanning many
 chunks, and a backup claiming a newer schema refused outright.
 
-**`tests/logic.test.js` (100)** — the v1-to-v2 migration applied to an existing
-install, room capacity enforced on create/edit/assign,
+**`tests/logic.test.js` (119)** — every migration applied to an existing install
+(including the v3 rent backfill from the occupied room), room capacity enforced on create/edit/assign,
 beds freed on move-out, deleting a room detaches students instead of deleting
 them, payment arithmetic, overpayment rejected rather than clamped, reversal
 restores the exact balance, duplicate invoices blocked, bulk invoice generation
 safe to re-run, Indian-format money, phone normalisation for `wa.me`, and CSV
-escaping including formula-injection guards, and notice filtering, pinning and
-placeholder rendering.
+escaping including formula-injection guards, notice filtering, pinning and
+placeholder rendering, and per-student rent and billing-cycle handling.
 
 ---
 
@@ -196,6 +198,20 @@ admin-app/
     navigation/    RootNavigator + route types
   tests/           harness + two suites
 ```
+
+### Fees
+
+There is no hostel-wide rent or due day. Each student carries a `monthlyRent`
+and a `billingCycleDays` (default 30), captured on the Add Student form and
+pre-filled from whichever room they are allocated — editable, because two
+students in the same room can be on different terms. Raising monthly bills
+prices each one from its own student and sets its due date to the period start
+plus that student's cycle.
+
+Setup therefore asks only for the hostel name, country code and currency
+symbol.
+
+---
 
 Adding a schema change: bump `SCHEMA_VERSION` in `src/db/schema.ts`, add the
 matching entry to `MIGRATIONS`, and add the table to `BACKUP_TABLES` and to

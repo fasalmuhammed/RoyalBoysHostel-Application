@@ -53,17 +53,21 @@ async function cancelByTag(tag: string): Promise<void> {
 }
 
 /**
- * Schedules a monthly nudge a few days before fees fall due, so the admin has
- * time to run the reminder queue before the deadline rather than after it.
+ * Monthly nudge to work through outstanding fees.
+ *
+ * Deadlines are now per student -- each one falls due a set number of days
+ * into their own billing cycle -- so there is no single hostel-wide date to
+ * fire on. This lands early in the month instead, and the Fees screen shows
+ * exactly who is overdue.
  */
-export async function scheduleFeeReminder(dueDay: number, daysBefore = 3): Promise<void> {
+export async function scheduleFeeReminder(dayOfMonth = 3): Promise<void> {
   await cancelByTag("fee-due");
   try {
-    const day = Math.min(Math.max(dueDay - daysBefore, 1), 28);
+    const day = Math.min(Math.max(dayOfMonth, 1), 28);
     await Notifications.scheduleNotificationAsync({
       content: {
-        title: "Hostel fees are due soon",
-        body: "Open Messages to send WhatsApp reminders to students with pending fees.",
+        title: "Time to check hostel fees",
+        body: "Open Fees to see who is overdue, then send WhatsApp reminders.",
         data: { tag: "fee-due", route: "Messages" },
       },
       trigger: {

@@ -5,14 +5,14 @@ import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 
 import { Callout, CalloutText, Card, SectionTitle } from "@/components/Base";
 import Button from "@/components/Button";
-import Input, { PickerField } from "@/components/Input";
+import { PickerField } from "@/components/Input";
 import { OptionPicker } from "@/components/Controls";
 import { colors, fontSize, spacing } from "@/constants/theme";
 import { useApp } from "@/context/AppContext";
 import { useAsyncData } from "@/utils/hooks";
-import { currentPeriod, dueDateFor, generateInvoices, listFees } from "@/services/fees";
+import { currentPeriod, generateInvoices, listFees } from "@/services/fees";
 import { studentCounts } from "@/services/students";
-import { formatDate, formatPeriod, shiftPeriod } from "@/utils/format";
+import { formatPeriod, shiftPeriod } from "@/utils/format";
 import type { RootStackParamList } from "@/navigation/types";
 
 type Props = NativeStackScreenProps<RootStackParamList, "GenerateInvoices">;
@@ -24,10 +24,9 @@ type Props = NativeStackScreenProps<RootStackParamList, "GenerateInvoices">;
  * is safe — the second run simply picks up students admitted since the first.
  */
 export default function GenerateInvoicesScreen({ navigation }: Props) {
-  const { settings, invalidate } = useApp();
+  const { invalidate } = useApp();
 
   const [period, setPeriod] = useState(currentPeriod());
-  const [dueDate, setDueDate] = useState(dueDateFor(currentPeriod(), settings.feeDueDay));
   const [periodPickerOpen, setPeriodPickerOpen] = useState(false);
   const [running, setRunning] = useState(false);
 
@@ -37,10 +36,7 @@ export default function GenerateInvoicesScreen({ navigation }: Props) {
   const alreadyBilled = existing?.length ?? 0;
   const toRaise = Math.max((counts?.active ?? 0) - alreadyBilled, 0);
 
-  const choosePeriod = (value: string) => {
-    setPeriod(value);
-    setDueDate(dueDateFor(value, settings.feeDueDay));
-  };
+  const choosePeriod = (value: string) => setPeriod(value);
 
   const onGenerate = async () => {
     if (toRaise === 0) {
@@ -55,8 +51,9 @@ export default function GenerateInvoicesScreen({ navigation }: Props) {
 
     Alert.alert(
       "Raise bills",
-      `${toRaise} bill(s) will be created for ${formatPeriod(period)}, priced at each student's ` +
-        "room rent. Students who already have a bill for this month are skipped.",
+      `${toRaise} bill(s) will be created for ${formatPeriod(period)}, each priced at that ` +
+        "student's own rent and due after their own billing cycle. Students who already have a " +
+        "bill for this month are skipped.",
       [
         { text: "Cancel", style: "cancel" },
         {
@@ -64,7 +61,7 @@ export default function GenerateInvoicesScreen({ navigation }: Props) {
           onPress: async () => {
             setRunning(true);
             try {
-              const result = await generateInvoices(period, dueDate, settings.defaultRent);
+              const result = await generateInvoices(period);
               invalidate();
               Alert.alert(
                 "Bills raised",
@@ -94,7 +91,7 @@ export default function GenerateInvoicesScreen({ navigation }: Props) {
       >
         <Text style={styles.title}>Raise monthly bills</Text>
         <Text style={styles.subtitle}>
-          Creates one bill per active student, using the rent set on their room.
+          Creates one bill per active student, using the rent recorded on each of them.
         </Text>
 
         <SectionTitle title="Month" />
@@ -105,14 +102,6 @@ export default function GenerateInvoicesScreen({ navigation }: Props) {
           placeholder="Choose a month"
           onPress={() => setPeriodPickerOpen(true)}
         />
-        <Input
-          label="Due date"
-          value={dueDate}
-          onChangeText={setDueDate}
-          placeholder="YYYY-MM-DD"
-          icon="alarm-outline"
-          hint={`Falls on ${formatDate(dueDate)}.`}
-        />
 
         <SectionTitle title="What will happen" />
         <Card>
@@ -121,15 +110,12 @@ export default function GenerateInvoicesScreen({ navigation }: Props) {
           <Row label="Bills to be created" value={String(toRaise)} highlight />
         </Card>
 
-        {(counts?.unassigned ?? 0) > 0 ? (
-          <Callout tone="warning" icon="alert-circle-outline">
-            <CalloutText>
-              {counts?.unassigned} active student(s) have no room. They will be billed at the
-              default rent of {settings.currencySymbol}
-              {settings.defaultRent}. Assign rooms first if that is not right.
-            </CalloutText>
-          </Callout>
-        ) : null}
+        <Callout tone="info" icon="information-circle-outline">
+          <CalloutText>
+            Each bill uses the rent recorded on that student, and falls due after their own
+            billing cycle (30 days unless you changed it). Edit a student to adjust their terms.
+          </CalloutText>
+        </Callout>
 
         <Button
           title={`Raise ${toRaise} bill${toRaise === 1 ? "" : "s"}`}

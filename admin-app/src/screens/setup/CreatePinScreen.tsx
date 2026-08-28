@@ -51,7 +51,7 @@ export default function CreatePinScreen({}: Props) {
       // Best-effort: reminders are a convenience, and a denied permission must
       // not block the admin from finishing setup.
       if (await initReminders()) {
-        await scheduleFeeReminder(settings.feeDueDay);
+        await scheduleFeeReminder();
         await scheduleBackupReminder(settings.backupReminderDays);
       }
 

@@ -24,6 +24,14 @@ export interface Student {
   photoFile: string | null;
   roomId: string | null;
   status: StudentStatus;
+  /**
+   * Agreed monthly rent for this student, in rupees. Pre-filled from their
+   * room when one is assigned, but editable -- two students in the same room
+   * can be on different terms.
+   */
+  monthlyRent: number;
+  /** Days a bill covers before it falls due. 30 unless agreed otherwise. */
+  billingCycleDays: number;
   /** ISO yyyy-mm-dd. */
   joinedOn: string;
   leftOn: string | null;
@@ -172,9 +180,6 @@ export interface AppSettings {
   /** Digits only, no +, used to build wa.me links. e.g. "91" for India. */
   countryCode: string;
   currencySymbol: string;
-  defaultRent: number;
-  /** Day of month invoices fall due, 1-28. */
-  feeDueDay: number;
   /** Warn on the dashboard when the last backup is older than this. */
   backupReminderDays: number;
   lastBackupAt: number | null;

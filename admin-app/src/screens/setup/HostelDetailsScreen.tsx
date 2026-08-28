@@ -2,17 +2,23 @@ import React, { useState } from "react";
 import { StyleSheet, Text } from "react-native";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 
-import { Screen } from "@/components/Base";
+import { Callout, CalloutText, Screen } from "@/components/Base";
 import Button from "@/components/Button";
 import Input from "@/components/Input";
 import { colors, fontSize, spacing } from "@/constants/theme";
 import { useApp } from "@/context/AppContext";
-import { parseAmount } from "@/utils/validate";
 import type { SetupStackParamList } from "@/navigation/types";
 
 type Props = NativeStackScreenProps<SetupStackParamList, "HostelDetails">;
 
-/** Collects the few settings that show up inside messages and receipts. */
+/**
+ * Setup asks only for what is genuinely hostel-wide.
+ *
+ * Rent and payment deadlines deliberately live on the student, not here: the
+ * amount follows the room a student is given and can be negotiated per person,
+ * and the period they pay for varies. Asking once at setup would have implied
+ * a single hostel price that then had to be corrected everywhere.
+ */
 export default function HostelDetailsScreen({ navigation }: Props) {
   const { settings, updateSettings } = useApp();
 
@@ -20,8 +26,7 @@ export default function HostelDetailsScreen({ navigation }: Props) {
     settings.hostelName === "My Hostel" ? "" : settings.hostelName
   );
   const [countryCode, setCountryCode] = useState(settings.countryCode);
-  const [defaultRent, setDefaultRent] = useState(String(settings.defaultRent));
-  const [feeDueDay, setFeeDueDay] = useState(String(settings.feeDueDay));
+  const [currencySymbol, setCurrencySymbol] = useState(settings.currencySymbol);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
@@ -31,19 +36,12 @@ export default function HostelDetailsScreen({ navigation }: Props) {
       return;
     }
 
-    const dueDay = Number.parseInt(feeDueDay, 10);
-    if (!Number.isFinite(dueDay) || dueDay < 1 || dueDay > 28) {
-      setError("The fee due day must be between 1 and 28.");
-      return;
-    }
-
     setSaving(true);
     try {
       await updateSettings({
         hostelName: hostelName.trim(),
         countryCode: countryCode.replace(/\D/g, "") || "91",
-        defaultRent: parseAmount(defaultRent),
-        feeDueDay: dueDay,
+        currencySymbol: currencySymbol.trim() || "₹",
       });
       navigation.navigate("CreatePin");
     } finally {
@@ -65,7 +63,7 @@ export default function HostelDetailsScreen({ navigation }: Props) {
         onChangeText={setHostelName}
         placeholder="e.g. Green Valley Boys Hostel"
         icon="business-outline"
-        error={error && !hostelName.trim() ? error : undefined}
+        error={error ?? undefined}
       />
 
       <Input
@@ -79,26 +77,20 @@ export default function HostelDetailsScreen({ navigation }: Props) {
       />
 
       <Input
-        label="Default monthly rent"
-        value={defaultRent}
-        onChangeText={setDefaultRent}
-        placeholder="6000"
-        keyboardType="numeric"
+        label="Currency symbol"
+        value={currencySymbol}
+        onChangeText={setCurrencySymbol}
+        placeholder="₹"
         icon="cash-outline"
-        hint="Used when a room has no rent of its own. You can change it per room."
       />
 
-      <Input
-        label="Fees due on day"
-        value={feeDueDay}
-        onChangeText={setFeeDueDay}
-        placeholder="10"
-        keyboardType="number-pad"
-        icon="calendar-outline"
-        hint="Day of the month invoices fall due (1–28)."
-      />
-
-      {error ? <Text style={styles.error}>{error}</Text> : null}
+      <Callout tone="info" icon="information-circle-outline">
+        <CalloutText>
+          Rent is not set here. You enter it for each student when you add them — it fills in
+          automatically from the room you allocate, and you can change it per student. Bills fall
+          due 30 days into the period unless you set a different cycle for that student.
+        </CalloutText>
+      </Callout>
 
       <Button title="Continue" onPress={onContinue} loading={saving} />
     </Screen>
@@ -114,5 +106,4 @@ const styles = StyleSheet.create({
     marginBottom: spacing.lg,
     lineHeight: 21,
   },
-  error: { color: colors.danger, fontSize: fontSize.sm, marginBottom: spacing.md },
 });

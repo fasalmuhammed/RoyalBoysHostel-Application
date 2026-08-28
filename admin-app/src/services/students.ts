@@ -125,12 +125,13 @@ export async function createStudent(input: StudentInput): Promise<string> {
     }
     await txn.runAsync(
       `INSERT INTO students (id, admissionNo, fullName, phone, guardianName, guardianPhone,
-         email, course, year, address, idProof, photoFile, roomId, status, joinedOn, leftOn,
-         notes, createdAt, updatedAt)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`,
+         email, course, year, address, idProof, photoFile, roomId, status, monthlyRent,
+         billingCycleDays, joinedOn, leftOn, notes, createdAt, updatedAt)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`,
       id, input.admissionNo, input.fullName, input.phone, input.guardianName, input.guardianPhone,
       input.email, input.course, input.year, input.address, input.idProof, input.photoFile,
-      input.roomId, input.status, input.joinedOn, input.leftOn, input.notes, now, now
+      input.roomId, input.status, input.monthlyRent, input.billingCycleDays,
+      input.joinedOn, input.leftOn, input.notes, now, now
     );
   });
 
@@ -149,11 +150,13 @@ export async function updateStudent(id: string, input: StudentInput): Promise<vo
     await txn.runAsync(
       `UPDATE students SET admissionNo = ?, fullName = ?, phone = ?, guardianName = ?,
          guardianPhone = ?, email = ?, course = ?, year = ?, address = ?, idProof = ?,
-         photoFile = ?, roomId = ?, status = ?, joinedOn = ?, leftOn = ?, notes = ?, updatedAt = ?
+         photoFile = ?, roomId = ?, status = ?, monthlyRent = ?, billingCycleDays = ?,
+         joinedOn = ?, leftOn = ?, notes = ?, updatedAt = ?
        WHERE id = ?;`,
       input.admissionNo, input.fullName, input.phone, input.guardianName, input.guardianPhone,
       input.email, input.course, input.year, input.address, input.idProof, input.photoFile,
-      input.roomId, input.status, input.joinedOn, input.leftOn, input.notes, Date.now(), id
+      input.roomId, input.status, input.monthlyRent, input.billingCycleDays,
+      input.joinedOn, input.leftOn, input.notes, Date.now(), id
     );
   });
 

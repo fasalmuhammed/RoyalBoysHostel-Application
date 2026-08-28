@@ -23,7 +23,7 @@ export default function RoomFormScreen({ navigation, route }: Props) {
   const [roomNumber, setRoomNumber] = useState("");
   const [floor, setFloor] = useState("");
   const [capacity, setCapacity] = useState("2");
-  const [rent, setRent] = useState(String(settings.defaultRent));
+  const [rent, setRent] = useState("");
   const [deposit, setDeposit] = useState("");
   const [amenities, setAmenities] = useState("");
   const [notes, setNotes] = useState("");
@@ -147,7 +147,7 @@ export default function RoomFormScreen({ navigation, route }: Props) {
           placeholder="6000"
           keyboardType="numeric"
           icon="cash-outline"
-          hint="Used to price new invoices for students in this room."
+          hint="Fills in a student's rent when you allocate them here. They can still be set individually."
         />
         <Input
           label={`Security deposit (${settings.currencySymbol})`}
