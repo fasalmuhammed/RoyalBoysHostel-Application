@@ -1,0 +1,50 @@
+import type { NavigatorScreenParams } from "@react-navigation/native";
+import type { MessageKind } from "@/types";
+
+export type MainTabParamList = {
+  Dashboard: undefined;
+  Students: { filter?: "all" | "active" | "left" | "unassigned" } | undefined;
+  Rooms: undefined;
+  Fees: { filter?: "all" | "paid" | "unpaid" | "partial" } | undefined;
+  More: undefined;
+};
+
+export type RootStackParamList = {
+  Tabs: NavigatorScreenParams<MainTabParamList>;
+
+  StudentForm: { studentId?: string; presetRoomId?: string } | undefined;
+  StudentDetail: { studentId: string };
+
+  RoomForm: { roomId?: string } | undefined;
+  RoomDetail: { roomId: string };
+
+  FeeDetail: { feeId: string };
+  FeeForm: { feeId?: string; studentId?: string } | undefined;
+  CollectFee: { feeId: string };
+  GenerateInvoices: undefined;
+
+  Messages: undefined;
+  Compose: { kind: MessageKind; studentIds?: string[]; feeIds?: string[] } | undefined;
+  SendQueue: { batchId: string };
+  Templates: undefined;
+
+  Backup: undefined;
+  Reports: undefined;
+  Settings: undefined;
+  ChangePin: undefined;
+};
+
+export type SetupStackParamList = {
+  Welcome: undefined;
+  StartChoice: undefined;
+  RestoreExisting: undefined;
+  HostelDetails: undefined;
+  CreatePin: undefined;
+};
+
+declare global {
+  // eslint-disable-next-line @typescript-eslint/no-namespace
+  namespace ReactNavigation {
+    interface RootParamList extends RootStackParamList {}
+  }
+}

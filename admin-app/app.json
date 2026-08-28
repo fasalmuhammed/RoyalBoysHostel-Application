@@ -1,0 +1,74 @@
+{
+  "expo": {
+    "name": "Hostel Manager",
+    "slug": "hostel-manager-local",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "scheme": "hostelmanager",
+    "splash": {
+      "image": "./assets/icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#6D4AFC"
+    },
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.hostelmanager.local",
+      "infoPlist": {
+        "NSCameraUsageDescription": "Take a photo of a student while adding them to the hostel register.",
+        "NSPhotoLibraryUsageDescription": "Choose an existing photo for a student's record.",
+        "NSFaceIDUsageDescription": "Unlock the hostel records with Face ID instead of your PIN."
+      }
+    },
+    "android": {
+      "package": "com.hostelmanager.local",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/icon.png",
+        "backgroundColor": "#6D4AFC"
+      },
+      "permissions": [
+        "android.permission.CAMERA",
+        "android.permission.USE_BIOMETRIC",
+        "android.permission.USE_FINGERPRINT",
+        "android.permission.POST_NOTIFICATIONS",
+        "android.permission.VIBRATE"
+      ],
+      "blockedPermissions": [
+        "android.permission.RECORD_AUDIO"
+      ]
+    },
+    "plugins": [
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Choose an existing photo for a student's record.",
+          "cameraPermission": "Take a photo of a student while adding them to the hostel register."
+        }
+      ],
+      [
+        "expo-local-authentication",
+        {
+          "faceIDPermission": "Unlock the hostel records with Face ID instead of your PIN."
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/icon.png",
+          "color": "#6D4AFC"
+        }
+      ],
+      "expo-sqlite",
+      "expo-secure-store",
+      "expo-font"
+    ],
+    "extra": {
+      "router": {},
+      "eas": {}
+    }
+  }
+}
