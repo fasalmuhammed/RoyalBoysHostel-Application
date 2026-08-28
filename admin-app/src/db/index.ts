@@ -78,6 +78,7 @@ export async function wipeAllData(): Promise<void> {
       "fee_records",
       "message_log",
       "message_templates",
+      "notices",
       "students",
       "rooms",
       "settings",

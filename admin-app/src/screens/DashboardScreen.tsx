@@ -169,7 +169,11 @@ export default function DashboardScreen({ navigation }: Props) {
         </Card>
 
         <SectionTitle title="Quick actions" />
-        <View style={styles.quickRow}>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.quickRow}
+        >
           <QuickAction
             label="Add student"
             icon="person-add-outline"
@@ -186,11 +190,16 @@ export default function DashboardScreen({ navigation }: Props) {
             onPress={() => navigation.navigate("GenerateInvoices")}
           />
           <QuickAction
+            label="Notice"
+            icon="megaphone-outline"
+            onPress={() => navigation.navigate("NoticeForm")}
+          />
+          <QuickAction
             label="WhatsApp"
             icon="logo-whatsapp"
             onPress={() => navigation.navigate("Messages")}
           />
-        </View>
+        </ScrollView>
 
         {data && data.due.length > 0 ? (
           <>
@@ -288,8 +297,9 @@ const styles = StyleSheet.create({
   miniText: { fontSize: fontSize.xs, color: colors.textMuted, fontWeight: "600" },
   quickRow: {
     flexDirection: "row",
-    justifyContent: "space-between",
-    marginBottom: spacing.lg,
+    gap: spacing.sm,
+    paddingBottom: spacing.lg,
+    paddingRight: spacing.md,
   },
   link: { color: colors.primary, fontWeight: "700", fontSize: fontSize.sm },
   dueCard: { flexDirection: "row", alignItems: "center", gap: spacing.md },

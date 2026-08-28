@@ -36,6 +36,9 @@ import ComposeScreen from "@/screens/messages/ComposeScreen";
 import SendQueueScreen from "@/screens/messages/SendQueueScreen";
 import TemplatesScreen from "@/screens/messages/TemplatesScreen";
 
+import NoticesScreen from "@/screens/notices/NoticesScreen";
+import NoticeFormScreen from "@/screens/notices/NoticeFormScreen";
+
 import StartChoiceScreen from "@/screens/setup/StartChoiceScreen";
 import RestoreExistingScreen from "@/screens/setup/RestoreExistingScreen";
 import HostelDetailsScreen from "@/screens/setup/HostelDetailsScreen";
@@ -150,6 +153,13 @@ function MainStack() {
         component={TemplatesScreen}
         options={{ ...detailOptions, title: "Templates" }}
       />
+
+      <Stack.Screen
+        name="Notices"
+        component={NoticesScreen}
+        options={{ ...detailOptions, title: "Notice board" }}
+      />
+      <Stack.Screen name="NoticeForm" component={NoticeFormScreen} options={detailOptions} />
 
       <Stack.Screen
         name="Backup"

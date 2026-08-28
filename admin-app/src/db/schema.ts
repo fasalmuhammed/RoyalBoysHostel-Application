@@ -5,7 +5,7 @@
  * stamped into every backup file. Restoring a backup created by a *newer* app
  * version is refused rather than half-applied — see services/backup.ts.
  */
-export const SCHEMA_VERSION = 1;
+export const SCHEMA_VERSION = 2;
 
 /** Ordered DDL for a fresh database. */
 const V1 = `
@@ -112,13 +112,32 @@ CREATE INDEX IF NOT EXISTS idx_payments_fee     ON payments (feeRecordId);
 CREATE INDEX IF NOT EXISTS idx_msglog_batch     ON message_log (batchId);
 `;
 
+/** Adds the notice board. Applied on top of V1, never merged into it. */
+const V2 = `
+CREATE TABLE IF NOT EXISTS notices (
+  id         TEXT PRIMARY KEY NOT NULL,
+  title      TEXT NOT NULL,
+  body       TEXT NOT NULL DEFAULT '',
+  category   TEXT NOT NULL DEFAULT 'general',
+  pinned     INTEGER NOT NULL DEFAULT 0,
+  postedOn   TEXT NOT NULL DEFAULT '',
+  lastSentAt INTEGER,
+  createdAt  INTEGER NOT NULL,
+  updatedAt  INTEGER NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_notices_category ON notices (category);
+CREATE INDEX IF NOT EXISTS idx_notices_posted   ON notices (postedOn);
+`;
+
 /**
  * Migrations indexed by the version they upgrade *to*. To add a change, bump
- * SCHEMA_VERSION and add the matching entry — never edit V1 in place, or
- * existing installs and old backups will diverge from new ones.
+ * SCHEMA_VERSION and add the matching entry — never edit an existing one in
+ * place, or existing installs and old backups will diverge from new ones.
  */
 export const MIGRATIONS: Record<number, string> = {
   1: V1,
+  2: V2,
 };
 
 /** Tables included in a backup, in dependency order (parents first). */
@@ -129,6 +148,7 @@ export const BACKUP_TABLES = [
   "payments",
   "message_templates",
   "message_log",
+  "notices",
   "settings",
 ] as const;
 

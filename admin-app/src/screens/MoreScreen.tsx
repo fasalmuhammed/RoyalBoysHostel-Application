@@ -30,6 +30,12 @@ export default function MoreScreen({ navigation }: Props) {
 
         <View style={styles.group}>
           <Row
+            icon="megaphone-outline"
+            label="Notice board"
+            sublabel="Post notices and send them to students"
+            onPress={() => navigation.navigate("Notices")}
+          />
+          <Row
             icon="logo-whatsapp"
             label="WhatsApp messages"
             sublabel="Announcements and fee reminders"

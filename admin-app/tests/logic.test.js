@@ -19,6 +19,8 @@ const settings = h.load("services/settings");
 const format = h.load("utils/format");
 const validate = h.load("utils/validate");
 const csv = h.load("services/csv");
+const notices = h.load("services/notices");
+const messaging = h.load("services/messaging");
 
 const mk = (name, roomId, extra) =>
   Object.assign(
@@ -239,6 +241,135 @@ async function run() {
   await settings.saveSettings({ hostelName: "Renamed" });
   const reloaded = await settings.loadSettings();
   check("partial update preserves other keys", reloaded.hostelName === "Renamed" && reloaded.feeDueDay === 15);
+
+  console.log("\n== v1 -> v2 migration on an existing install ==");
+  {
+    const { DatabaseSync } = require("node:sqlite");
+    const schema = h.load("db/schema");
+    const legacy = new DatabaseSync(":memory:");
+
+    // Stand up a database exactly as a v1 install would have left it.
+    legacy.exec(schema.MIGRATIONS[1]);
+    legacy.exec("PRAGMA user_version = 1;");
+    legacy.prepare(
+      "INSERT INTO students (id, fullName, createdAt, updatedAt) VALUES (?, ?, ?, ?);"
+    ).run("legacy-1", "Existing Student", 1, 1);
+
+    const hasNoticesBefore = legacy
+      .prepare("SELECT COUNT(*) AS n FROM sqlite_master WHERE type='table' AND name='notices';")
+      .all()[0].n;
+    check("v1 database has no notices table", hasNoticesBefore === 0);
+
+    // Apply every migration the running app knows about, as getDb() does.
+    let current = legacy.prepare("PRAGMA user_version;").all()[0].user_version;
+    check("starts at version 1", current === 1, "v=" + current);
+    while (current < schema.SCHEMA_VERSION) {
+      const next = current + 1;
+      legacy.exec(schema.MIGRATIONS[next]);
+      legacy.exec("PRAGMA user_version = " + next + ";");
+      current = next;
+    }
+
+    check("upgraded to current version", current === schema.SCHEMA_VERSION, "v=" + current);
+    const hasNoticesAfter = legacy
+      .prepare("SELECT COUNT(*) AS n FROM sqlite_master WHERE type='table' AND name='notices';")
+      .all()[0].n;
+    check("notices table created by the migration", hasNoticesAfter === 1);
+
+    const survivor = legacy.prepare("SELECT fullName FROM students WHERE id = ?;").all("legacy-1");
+    check("existing student data survived the upgrade", survivor.length === 1 && survivor[0].fullName === "Existing Student");
+
+    // The new table must be usable straight away, defaults included.
+    legacy.prepare(
+      "INSERT INTO notices (id, title, body, category, postedOn, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?);"
+    ).run("n-legacy", "Post-upgrade notice", "body", "general", "2026-09-01", 2, 2);
+    const inserted = legacy.prepare("SELECT pinned, lastSentAt FROM notices WHERE id = ?;").all("n-legacy")[0];
+    check("pinned defaults to 0", inserted.pinned === 0, "pinned=" + inserted.pinned);
+    check("lastSentAt defaults to null", inserted.lastSentAt === null);
+
+    check("notices is included in backups", schema.BACKUP_TABLES.includes("notices"), schema.BACKUP_TABLES.join(","));
+    legacy.close();
+  }
+
+  console.log("\n== notices ==");
+  const n1 = await notices.createNotice({
+    title: "Water supply interrupted",
+    body: "Water will be off on 12 Sep between 10am and 2pm.",
+    category: "maintenance",
+    pinned: false,
+    postedOn: "2026-09-05",
+  });
+  const n2 = await notices.createNotice({
+    title: "Independence Day event",
+    body: "Cultural programme in the common hall.",
+    category: "event",
+    pinned: false,
+    postedOn: "2026-08-14",
+  });
+  await notices.createNotice({
+    title: "Mess menu change",
+    body: "New menu effective from next week.",
+    category: "general",
+    pinned: false,
+    postedOn: "2026-09-01",
+  });
+
+  const allNotices = await notices.listNotices("all");
+  check("all notices listed", allNotices.length === 3, "n=" + allNotices.length);
+  check("newest first by postedOn", allNotices[0].title === "Water supply interrupted", allNotices[0].title);
+
+  const maintenance = await notices.listNotices("maintenance");
+  check("category filter", maintenance.length === 1 && maintenance[0].id === n1);
+
+  const nCounts = await notices.noticeCounts();
+  check("counts by category", nCounts.all === 3 && nCounts.maintenance === 1 && nCounts.event === 1, JSON.stringify(nCounts));
+
+  const searched = await notices.listNotices("all", "cultural");
+  check("search matches body text", searched.length === 1 && searched[0].id === n2, "n=" + searched.length);
+
+  console.log("\n== pinned notices sort to the top ==");
+  await notices.togglePinned(n2, true);
+  const pinnedFirst = await notices.listNotices("all");
+  check("pinned rises above newer notices", pinnedFirst[0].id === n2, pinnedFirst[0].title);
+  check("pinned flag is a real boolean", pinnedFirst[0].pinned === true, typeof pinnedFirst[0].pinned);
+  check("unpinned stay false", pinnedFirst[1].pinned === false);
+  await notices.togglePinned(n2, false);
+  const unpinned = await notices.listNotices("all");
+  check("unpinning restores date order", unpinned[0].id === n1);
+
+  console.log("\n== notice -> whatsapp message ==");
+  const msg = notices.noticeToMessage({ title: "Holiday Notice", body: "Hostel closed on 15 Aug." });
+  check("keeps {{name}} placeholder for per-student merge", msg.includes("{{name}}"), msg);
+  check("keeps {{hostel}} placeholder", msg.includes("{{hostel}}"));
+  check("title is bold for whatsapp", msg.includes("*Holiday Notice*"), msg);
+  check("body included", msg.includes("Hostel closed on 15 Aug."));
+
+  const rendered = messaging.renderTemplate(msg, { name: "Rahul Sharma", hostel: "Green Valley" });
+  check("placeholders resolve at send time", rendered.includes("Dear Rahul Sharma") && rendered.includes("- Green Valley"), rendered);
+  check("no placeholders left behind", !rendered.includes("{{"), rendered);
+
+  console.log("\n== sent stamp ==");
+  const beforeSend = await notices.getNotice(n1);
+  check("starts unsent", beforeSend.lastSentAt === null);
+  await notices.markNoticeSent(n1);
+  const afterSend = await notices.getNotice(n1);
+  check("stamped after sending", typeof afterSend.lastSentAt === "number" && afterSend.lastSentAt > 0);
+
+  console.log("\n== notice edit and delete ==");
+  await notices.updateNotice(n1, {
+    title: "Water supply restored",
+    body: "Supply is back to normal.",
+    category: "general",
+    pinned: false,
+    postedOn: "2026-09-06",
+  });
+  const edited = await notices.getNotice(n1);
+  check("edit persists", edited.title === "Water supply restored" && edited.category === "general");
+  check("sent stamp survives an edit", edited.lastSentAt !== null);
+
+  await notices.deleteNotice(n1);
+  check("deleted", (await notices.getNotice(n1)) === null);
+  check("others untouched", (await notices.listNotices("all")).length === 2);
 
   console.log("\n== search and filters ==");
   const byName = await students.listStudents("bulk", "active");

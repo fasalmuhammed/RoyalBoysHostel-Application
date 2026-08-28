@@ -24,9 +24,22 @@ export type RootStackParamList = {
   GenerateInvoices: undefined;
 
   Messages: undefined;
-  Compose: { kind: MessageKind; studentIds?: string[]; feeIds?: string[] } | undefined;
+  Compose:
+    | {
+        kind: MessageKind;
+        studentIds?: string[];
+        feeIds?: string[];
+        /** Seeds the composer, e.g. with a notice's text. */
+        presetBody?: string;
+        /** Stamped as sent once the batch is prepared. */
+        noticeId?: string;
+      }
+    | undefined;
   SendQueue: { batchId: string };
   Templates: undefined;
+
+  Notices: undefined;
+  NoticeForm: { noticeId?: string } | undefined;
 
   Backup: undefined;
   Reports: undefined;

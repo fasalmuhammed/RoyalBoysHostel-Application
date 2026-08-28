@@ -19,6 +19,7 @@ import {
   renderTemplate,
   TEMPLATE_PLACEHOLDERS,
 } from "@/services/messaging";
+import { markNoticeSent } from "@/services/notices";
 import { listStudents } from "@/services/students";
 import { listFees } from "@/services/fees";
 import { toWhatsAppNumber } from "@/utils/validate";
@@ -43,10 +44,12 @@ export default function ComposeScreen({ navigation, route }: Props) {
   const kind = route.params?.kind ?? "announcement";
   const presetStudentIds = route.params?.studentIds;
   const presetFeeIds = route.params?.feeIds;
+  const presetBody = route.params?.presetBody;
+  const noticeId = route.params?.noticeId;
 
   const { settings } = useApp();
 
-  const [body, setBody] = useState("");
+  const [body, setBody] = useState(presetBody ?? "");
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [templatePickerOpen, setTemplatePickerOpen] = useState(false);
   const [templateName, setTemplateName] = useState<string | null>(null);
@@ -88,14 +91,15 @@ export default function ComposeScreen({ navigation, route }: Props) {
 
   useEffect(() => {
     navigation.setOptions({
-      title:
-        kind === "fee_reminder"
+      title: noticeId
+        ? "Send notice"
+        : kind === "fee_reminder"
           ? "Fee reminders"
           : kind === "announcement"
             ? "Announcement"
             : "Message",
     });
-  }, [navigation, kind]);
+  }, [navigation, kind, noticeId]);
 
   // Everyone with a usable number starts ticked; the admin unticks exceptions.
   useEffect(() => {
@@ -109,15 +113,16 @@ export default function ComposeScreen({ navigation, route }: Props) {
     );
   }, [candidates, settings.countryCode]);
 
-  // Load a sensible starting template for this kind of message.
+  // Load a sensible starting template for this kind of message. A body handed
+  // in by the caller (a notice being circulated) always wins over the default.
   useEffect(() => {
-    if (!templates || body) return;
+    if (!templates || body || presetBody) return;
     const match = templates.find((t) => t.kind === kind) ?? templates[0];
     if (match) {
       setBody(match.body);
       setTemplateName(match.name);
     }
-  }, [templates, kind, body]);
+  }, [templates, kind, body, presetBody]);
 
   const reachable = useMemo(
     () => (candidates ?? []).filter((c) => toWhatsAppNumber(c.phone, settings.countryCode) !== null),
@@ -179,6 +184,9 @@ export default function ComposeScreen({ navigation, route }: Props) {
       }));
 
       const batchId = await queueBatch(kind, recipients);
+      // Best-effort: the batch is already saved, so a failure to stamp the
+      // board must not lose it.
+      if (noticeId) await markNoticeSent(noticeId).catch(() => {});
       navigation.replace("SendQueue", { batchId });
     } catch (e) {
       Alert.alert("Could not prepare messages", e instanceof Error ? e.message : "Try again.");

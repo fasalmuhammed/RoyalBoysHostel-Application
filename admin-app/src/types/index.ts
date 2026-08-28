@@ -101,6 +101,28 @@ export interface Payment {
   createdAt: number;
 }
 
+export type NoticeCategory = "general" | "event" | "maintenance" | "urgent";
+
+/**
+ * A hostel notice. Kept as a record in its own right rather than only as a
+ * sent message, so the board still reads as a board after the WhatsApp batch
+ * has been sent and cleared.
+ */
+export interface Notice {
+  id: string;
+  title: string;
+  body: string;
+  category: NoticeCategory;
+  /** Pinned notices sort to the top of the board regardless of date. */
+  pinned: boolean;
+  /** ISO yyyy-mm-dd. */
+  postedOn: string;
+  /** Epoch millis of the last WhatsApp batch raised from this notice. */
+  lastSentAt: number | null;
+  createdAt: number;
+  updatedAt: number;
+}
+
 export type MessageKind = "announcement" | "fee_reminder" | "custom";
 
 export interface MessageTemplate {

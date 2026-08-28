@@ -232,6 +232,17 @@ const stubs = {
     ImageManipulator: { manipulate: () => ({ resize: () => ({ renderAsync: async () => ({}) }) }) },
   },
   "expo-sqlite": expoSqlite,
+  // Only the surface the services touch. Nothing here drives UI; it exists so
+  // messaging.ts (which imports Linking) can be loaded outside a device.
+  "react-native": {
+    Platform: { OS: "android", select: (spec) => spec.android ?? spec.default },
+    Linking: {
+      canOpenURL: async () => false,
+      openURL: async () => {
+        throw new Error("openURL is not available in tests");
+      },
+    },
+  },
 };
 
 const origResolve = Module._resolveFilename;

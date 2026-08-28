@@ -18,6 +18,7 @@ const fees = h.load("services/fees");
 const settings = h.load("services/settings");
 const backup = h.load("services/backup");
 const photos = h.load("services/photos");
+const notices = h.load("services/notices");
 const db = h.load("db");
 const { File } = require("expo-file-system");
 
@@ -65,13 +66,28 @@ async function seed() {
   });
   await fees.recordPayment(f1, 3000, "upi", "2026-08-05", "TXN123", "part payment");
 
+  await notices.createNotice({
+    title: "Holiday Notice",
+    body: 'Hostel will be closed on 15 Aug.\nPlease inform the \"office\" before leaving.',
+    category: "general",
+    pinned: true,
+    postedOn: "2026-08-01",
+  });
+  await notices.createNotice({
+    title: "Maintenance नोटिस",
+    body: "Water supply off 10am-2pm.",
+    category: "maintenance",
+    pinned: false,
+    postedOn: "2026-08-09",
+  });
+
   return { s1, s2, s3, roomA, roomB, f1 };
 }
 
 async function snapshot() {
   const d = await db.getDb();
   const out = {};
-  for (const t of ["rooms", "students", "fee_records", "payments", "settings"]) {
+  for (const t of ["rooms", "students", "fee_records", "payments", "notices", "settings"]) {
     out[t] = await d.getAllAsync("SELECT * FROM " + t + " ORDER BY " + (t === "settings" ? "key" : "id") + ";");
   }
   return out;
@@ -85,6 +101,7 @@ async function run() {
   check("seeded 2 rooms", before.rooms.length === 2);
   check("seeded 2 invoices", before.fee_records.length === 2);
   check("seeded 1 payment", before.payments.length === 1);
+  check("seeded 2 notices", before.notices.length === 2, "n=" + before.notices.length);
 
   const paid = before.fee_records.find((f) => f.id === ids.f1);
   check("payment advanced amountPaid", paid.amountPaid === 3000, "got " + paid.amountPaid);
@@ -107,7 +124,7 @@ async function run() {
   check("header hostel name", header.hostelName === "Green Valley Boys Hostel");
   check("header marks encryption", header.encryption !== null);
   check("header carries salt", typeof header.encryption.salt === "string" && header.encryption.salt.length > 0);
-  check("header schema version", header.schemaVersion === 1);
+  check("header schema version is current", header.schemaVersion === 2, "got " + header.schemaVersion);
 
   console.log("\n== wrong passphrase is rejected ==");
   let threw = null;
@@ -169,6 +186,13 @@ async function run() {
   check("fee_records identical", norm(after.fee_records) === norm(before.fee_records));
   check("payments identical", norm(after.payments) === norm(before.payments));
   check("settings identical", norm(after.settings) === norm(before.settings));
+  check("notices identical", norm(after.notices) === norm(before.notices));
+  check("notices restored", after.notices.length === 2, "n=" + after.notices.length);
+  const restoredNotice = after.notices.find((n) => n.title === "Holiday Notice");
+  check("notice body kept newlines and quotes", restoredNotice.body.includes("\n") && restoredNotice.body.includes('\"office\"'), JSON.stringify(restoredNotice.body));
+  check("pinned flag survived", restoredNotice.pinned === 1, "pinned=" + restoredNotice.pinned);
+  const hydrated = await notices.listNotices("all");
+  check("pinned notice sorts first after restore", hydrated[0].title === "Holiday Notice", hydrated[0].title);
 
   const restoredTricky = after.students.find((s) => s.fullName === TRICKY_NAME);
   check("unicode + quotes name survived", !!restoredTricky, "names: " + after.students.map((s) => s.fullName).join(" | "));
@@ -252,6 +276,22 @@ async function run() {
     junkErr = e;
   }
   check("junk file rejected with a clear message", junkErr !== null && /not a hostel backup/i.test(junkErr.message), junkErr && junkErr.message);
+
+  console.log("\n== backup from a newer app version is refused ==");
+  const futureUri = exported.uri + ".future";
+  const futureLines = h.files.get(exported.uri).toString("utf8").split("\n");
+  const futureHeader = JSON.parse(futureLines[0]);
+  futureHeader.schemaVersion = 99;
+  futureLines[0] = JSON.stringify(futureHeader);
+  h.files.set(futureUri, Buffer.from(futureLines.join("\n"), "utf8"));
+  let futureErr = null;
+  try {
+    backup.readBackupHeader(futureUri);
+  } catch (e) {
+    futureErr = e;
+  }
+  check("newer-schema backup rejected", futureErr !== null, futureErr && futureErr.message);
+  check("tells the user to update", futureErr && /update/i.test(futureErr.message), futureErr && futureErr.message);
 
   console.log("\n== encrypted file without passphrase ==");
   let noPassErr = null;

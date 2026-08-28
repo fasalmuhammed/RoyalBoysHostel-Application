@@ -66,6 +66,14 @@ export default function MessagesScreen({ navigation }: Props) {
         />
 
         <ActionCard
+          icon="megaphone-outline"
+          tone={colors.warning}
+          title="Notice board"
+          description="Post a notice once, then send it out to students."
+          onPress={() => navigation.navigate("Notices")}
+        />
+
+        <ActionCard
           icon="document-text-outline"
           tone={colors.info}
           title="Message templates"
