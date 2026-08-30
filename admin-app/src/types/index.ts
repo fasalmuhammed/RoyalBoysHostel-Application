@@ -6,6 +6,23 @@
  * restored onto a different phone keeps every relationship intact.
  */
 
+/**
+ * A hostel branch. Both branches share one database, one backup file and one
+ * install; the active branch is a filter over that shared store.
+ */
+export interface Branch {
+  id: string;
+  /** Full name as it appears on receipts and messages. */
+  name: string;
+  /** Short label for chips and headers, e.g. "Thammanam". */
+  shortName: string;
+  /** Single letter prefixed to inmate ids, e.g. "T" -> T-14. */
+  code: string;
+  sortOrder: number;
+  createdAt: number;
+  updatedAt: number;
+}
+
 export type StudentStatus = "active" | "left";
 
 export interface Student {
@@ -23,6 +40,8 @@ export interface Student {
   /** Filename (not a full URI) inside the app's photos directory. */
   photoFile: string | null;
   roomId: string | null;
+  /** Which branch this inmate belongs to. */
+  branchId: string;
   status: StudentStatus;
   /**
    * Agreed monthly rent for this student, in rupees. Pre-filled from their
@@ -42,6 +61,8 @@ export interface Student {
 
 export interface Room {
   id: string;
+  /** Which branch this room is in. */
+  branchId: string;
   block: string;
   roomNumber: string;
   floor: string;
@@ -118,6 +139,8 @@ export type NoticeCategory = "general" | "event" | "maintenance" | "urgent";
  */
 export interface Notice {
   id: string;
+  /** Owning branch, or null when the notice applies to every branch. */
+  branchId: string | null;
   title: string;
   body: string;
   category: NoticeCategory;
@@ -180,6 +203,8 @@ export interface AppSettings {
   /** Digits only, no +, used to build wa.me links. e.g. "91" for India. */
   countryCode: string;
   currencySymbol: string;
+  /** Branch selected on the last run, used to preselect the picker. */
+  activeBranchId: string | null;
   /** Warn on the dashboard when the last backup is older than this. */
   backupReminderDays: number;
   lastBackupAt: number | null;

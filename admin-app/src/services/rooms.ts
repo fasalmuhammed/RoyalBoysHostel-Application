@@ -1,6 +1,7 @@
 import { getDb } from "@/db";
 import { Room, RoomWithOccupancy } from "@/types";
 import { newId } from "@/utils/id";
+import { branchClause, requireActiveBranchId } from "./branches";
 
 type RoomInput = Omit<Room, "id" | "createdAt" | "updatedAt">;
 
@@ -24,12 +25,23 @@ const SELECT_WITH_OCCUPANCY = `
  */
 export async function listRooms(search = ""): Promise<RoomWithOccupancy[]> {
   const db = await getDb();
-  const term = `%${search.trim().toLowerCase()}%`;
-  const where = search.trim()
-    ? "WHERE LOWER(r.block || ' ' || r.roomNumber) LIKE ? OR LOWER(r.roomNumber) LIKE ?"
-    : "";
-  const params = search.trim() ? [term, term] : [];
 
+  const clauses: string[] = [];
+  const params: string[] = [];
+
+  const branch = branchClause("r.branchId");
+  if (branch.sql) {
+    clauses.push(branch.sql);
+    params.push(...branch.params);
+  }
+
+  const term = search.trim().toLowerCase();
+  if (term) {
+    clauses.push("(LOWER(r.block || ' ' || r.roomNumber) LIKE ? OR LOWER(r.roomNumber) LIKE ?)");
+    params.push(`%${term}%`, `%${term}%`);
+  }
+
+  const where = clauses.length ? `WHERE ${clauses.join(" AND ")}` : "";
   return db.getAllAsync<RoomWithOccupancy>(
     `${SELECT_WITH_OCCUPANCY} ${where} ORDER BY r.block, CAST(r.roomNumber AS INTEGER), r.roomNumber;`,
     params
@@ -45,10 +57,11 @@ export async function createRoom(input: RoomInput): Promise<string> {
   const db = await getDb();
   const id = newId();
   const now = Date.now();
+  const branchId = input.branchId || requireActiveBranchId();
   await db.runAsync(
-    `INSERT INTO rooms (id, block, roomNumber, floor, capacity, rent, deposit, amenities, notes, createdAt, updatedAt)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`,
-    id, input.block, input.roomNumber, input.floor, input.capacity,
+    `INSERT INTO rooms (id, branchId, block, roomNumber, floor, capacity, rent, deposit, amenities, notes, createdAt, updatedAt)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`,
+    id, branchId, input.block, input.roomNumber, input.floor, input.capacity,
     input.rent, input.deposit, input.amenities, input.notes, now, now
   );
   return id;
@@ -93,11 +106,19 @@ export interface OccupancyTotals {
 
 export async function occupancyTotals(): Promise<OccupancyTotals> {
   const db = await getDb();
+  const roomBranch = branchClause("branchId");
+  const roomWhere = roomBranch.sql ? `WHERE ${roomBranch.sql}` : "";
+  const studentBranch = branchClause("branchId");
+
   const row = await db.getFirstAsync<{ rooms: number; beds: number }>(
-    "SELECT COUNT(*) AS rooms, COALESCE(SUM(capacity), 0) AS beds FROM rooms;"
+    `SELECT COUNT(*) AS rooms, COALESCE(SUM(capacity), 0) AS beds FROM rooms ${roomWhere};`,
+    roomBranch.params
   );
   const occ = await db.getFirstAsync<{ occupied: number }>(
-    "SELECT COUNT(*) AS occupied FROM students WHERE status = 'active' AND roomId IS NOT NULL;"
+    `SELECT COUNT(*) AS occupied FROM students
+     WHERE status = 'active' AND roomId IS NOT NULL
+     ${studentBranch.sql ? `AND ${studentBranch.sql}` : ""};`,
+    studentBranch.params
   );
   const beds = row?.beds ?? 0;
   const occupied = occ?.occupied ?? 0;

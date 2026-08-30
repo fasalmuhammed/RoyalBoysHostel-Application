@@ -36,6 +36,7 @@ import { deletePhoto, photoUri, savePhoto } from "@/services/photos";
 import { formatMoney, initials, toIsoDate } from "@/utils/format";
 import { isValidEmail, isValidPhone, parseAmount } from "@/utils/validate";
 import { DEFAULT_CYCLE_DAYS } from "@/services/fees";
+import { formatInmateId } from "@/services/branches";
 import type { RootStackParamList } from "@/navigation/types";
 
 type Props = NativeStackScreenProps<RootStackParamList, "StudentForm">;
@@ -53,6 +54,8 @@ const EMPTY: StudentInput = {
   idProof: "",
   photoFile: null,
   roomId: null,
+  // Left blank on purpose: createStudent stamps the active branch.
+  branchId: "",
   status: "active",
   monthlyRent: 0,
   billingCycleDays: DEFAULT_CYCLE_DAYS,
@@ -68,7 +71,7 @@ function roomLabelOf(room: { block: string; roomNumber: string }): string {
 export default function StudentFormScreen({ navigation, route }: Props) {
   const studentId = route.params?.studentId;
   const isEditing = Boolean(studentId);
-  const { invalidate } = useApp();
+  const { invalidate, activeBranch } = useApp();
 
   const [form, setForm] = useState<StudentInput>({
     ...EMPTY,
@@ -121,6 +124,7 @@ export default function StudentFormScreen({ navigation, route }: Props) {
         idProof: student.idProof,
         photoFile: student.photoFile,
         roomId: student.roomId,
+        branchId: student.branchId,
         status: student.status,
         monthlyRent: student.monthlyRent,
         billingCycleDays: student.billingCycleDays,
@@ -360,12 +364,18 @@ export default function StudentFormScreen({ navigation, route }: Props) {
               <Text style={styles.admissionLabel}>Student ID</Text>
               <Text style={styles.admissionHint}>
                 {isEditing
-                  ? "Assigned when this student was added."
-                  : "Assigned automatically when you save."}
+                  ? "Assigned when this inmate was added."
+                  : `Assigned automatically when you save, counting within ${
+                      activeBranch?.shortName ?? "this branch"
+                    }.`}
               </Text>
             </View>
             <Text style={styles.admissionValue}>
-              {isEditing ? form.admissionNo || "—" : (nextAdmissionNo ?? "…")}
+              {isEditing
+                ? formatInmateId(activeBranch?.code, form.admissionNo)
+                : nextAdmissionNo
+                  ? formatInmateId(activeBranch?.code, nextAdmissionNo)
+                  : "…"}
             </Text>
           </View>
           <Input

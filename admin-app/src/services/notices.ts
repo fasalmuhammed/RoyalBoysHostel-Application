@@ -2,6 +2,7 @@ import { getDb } from "@/db";
 import { Notice, NoticeCategory } from "@/types";
 import { newId } from "@/utils/id";
 import { toIsoDate } from "@/utils/format";
+import { branchOrSharedClause, getActiveBranchId } from "./branches";
 
 export type NoticeInput = Omit<Notice, "id" | "createdAt" | "updatedAt" | "lastSentAt">;
 
@@ -19,6 +20,13 @@ export async function listNotices(filter: NoticeFilter = "all", search = ""): Pr
 
   const clauses: string[] = [];
   const params: (string | number)[] = [];
+
+  // A notice with no branch applies to every branch, so it shows on both boards.
+  const branch = branchOrSharedClause("branchId");
+  if (branch.sql) {
+    clauses.push(branch.sql);
+    params.push(...branch.params);
+  }
 
   if (filter !== "all") {
     clauses.push("category = ?");
@@ -51,9 +59,9 @@ export async function createNotice(input: NoticeInput): Promise<string> {
   const id = newId();
   const now = Date.now();
   await db.runAsync(
-    `INSERT INTO notices (id, title, body, category, pinned, postedOn, lastSentAt, createdAt, updatedAt)
-     VALUES (?, ?, ?, ?, ?, ?, NULL, ?, ?);`,
-    id, input.title, input.body, input.category, input.pinned ? 1 : 0,
+    `INSERT INTO notices (id, branchId, title, body, category, pinned, postedOn, lastSentAt, createdAt, updatedAt)
+     VALUES (?, ?, ?, ?, ?, ?, ?, NULL, ?, ?);`,
+    id, input.branchId, input.title, input.body, input.category, input.pinned ? 1 : 0,
     input.postedOn || toIsoDate(), now, now
   );
   return id;
@@ -62,9 +70,10 @@ export async function createNotice(input: NoticeInput): Promise<string> {
 export async function updateNotice(id: string, input: NoticeInput): Promise<void> {
   const db = await getDb();
   await db.runAsync(
-    `UPDATE notices SET title = ?, body = ?, category = ?, pinned = ?, postedOn = ?, updatedAt = ?
+    `UPDATE notices SET branchId = ?, title = ?, body = ?, category = ?, pinned = ?,
+       postedOn = ?, updatedAt = ?
      WHERE id = ?;`,
-    input.title, input.body, input.category, input.pinned ? 1 : 0,
+    input.branchId, input.title, input.body, input.category, input.pinned ? 1 : 0,
     input.postedOn || toIsoDate(), Date.now(), id
   );
 }
@@ -117,13 +126,16 @@ export function noticeToMessage(notice: Pick<Notice, "title" | "body">): string 
 
 export async function noticeCounts(): Promise<Record<NoticeFilter, number>> {
   const db = await getDb();
+  const branch = branchOrSharedClause("branchId");
+  const where = branch.sql ? `WHERE ${branch.sql}` : "";
   const row = await db.getFirstAsync<Record<string, number>>(
     `SELECT COUNT(*) AS all_count,
             COALESCE(SUM(category = 'general'), 0)     AS general,
             COALESCE(SUM(category = 'event'), 0)       AS event,
             COALESCE(SUM(category = 'maintenance'), 0) AS maintenance,
             COALESCE(SUM(category = 'urgent'), 0)      AS urgent
-     FROM notices;`
+     FROM notices ${where};`,
+    branch.params
   );
   return {
     all: row?.all_count ?? 0,

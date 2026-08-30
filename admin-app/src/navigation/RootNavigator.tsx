@@ -10,6 +10,7 @@ import { useApp } from "@/context/AppContext";
 import { Loading } from "@/components/Base";
 
 import LockScreen from "@/screens/LockScreen";
+import BranchPickerScreen from "@/screens/BranchPickerScreen";
 import DashboardScreen from "@/screens/DashboardScreen";
 import MoreScreen from "@/screens/MoreScreen";
 import SettingsScreen from "@/screens/SettingsScreen";
@@ -231,7 +232,7 @@ function StartupError({ message }: { message: string }) {
  * restore path must be reachable without one.
  */
 export default function RootNavigator() {
-  const { ready, startupError, settings, hasPin, locked } = useApp();
+  const { ready, startupError, settings, hasPin, locked, activeBranch } = useApp();
 
   if (!ready) {
     return (
@@ -249,6 +250,10 @@ export default function RootNavigator() {
         <SetupFlow />
       ) : hasPin && locked ? (
         <LockScreen />
+      ) : !activeBranch ? (
+        // Nothing in the app is meaningful until a branch is chosen: every
+        // list, total and new record is scoped to one.
+        <BranchPickerScreen />
       ) : (
         <MainStack />
       )}

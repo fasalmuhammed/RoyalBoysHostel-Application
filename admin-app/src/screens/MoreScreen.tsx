@@ -17,7 +17,7 @@ type Props = CompositeScreenProps<
 >;
 
 export default function MoreScreen({ navigation }: Props) {
-  const { settings, lock } = useApp();
+  const { settings, lock, activeBranch, clearBranch } = useApp();
 
   const overdueBackup =
     settings.lastBackupAt === null ||
@@ -27,6 +27,22 @@ export default function MoreScreen({ navigation }: Props) {
     <SafeAreaView style={styles.screen} edges={["top", "left", "right"]}>
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <Text style={styles.title}>More</Text>
+
+        <Pressable style={styles.branchCard} onPress={clearBranch}>
+          <View style={styles.branchBadge}>
+            <Text style={styles.branchBadgeText}>{activeBranch?.code ?? "?"}</Text>
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.branchLabel}>Operating</Text>
+            <Text style={styles.branchName} numberOfLines={1}>
+              {activeBranch?.name ?? "No branch selected"}
+            </Text>
+          </View>
+          <View style={styles.switchPill}>
+            <Ionicons name="swap-horizontal" size={14} color={colors.primary} />
+            <Text style={styles.switchPillText}>Switch</Text>
+          </View>
+        </Pressable>
 
         <View style={styles.group}>
           <Row
@@ -120,6 +136,36 @@ const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.background },
   content: { padding: spacing.lg, paddingBottom: spacing.xl * 2 },
   title: { fontSize: fontSize.xxl, fontWeight: "800", color: colors.text, marginBottom: spacing.lg },
+  branchCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.md,
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
+    padding: spacing.md,
+    marginBottom: spacing.lg,
+  },
+  branchBadge: {
+    width: 44,
+    height: 44,
+    borderRadius: radius.md,
+    backgroundColor: colors.primaryDark,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  branchBadgeText: { color: colors.goldLight, fontSize: fontSize.lg, fontWeight: "800" },
+  branchLabel: { fontSize: fontSize.xs, color: colors.textMuted },
+  branchName: { fontSize: fontSize.md, fontWeight: "700", color: colors.text, marginTop: 1 },
+  switchPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.xs,
+    backgroundColor: colors.primaryLight,
+    borderRadius: radius.pill,
+    paddingHorizontal: spacing.sm + 2,
+    paddingVertical: 5,
+  },
+  switchPillText: { fontSize: fontSize.xs, fontWeight: "700", color: colors.primary },
   group: {
     backgroundColor: colors.surface,
     borderRadius: radius.lg,

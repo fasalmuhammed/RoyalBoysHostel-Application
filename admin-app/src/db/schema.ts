@@ -5,7 +5,7 @@
  * stamped into every backup file. Restoring a backup created by a *newer* app
  * version is refused rather than half-applied — see services/backup.ts.
  */
-export const SCHEMA_VERSION = 4;
+export const SCHEMA_VERSION = 5;
 
 /** Ordered DDL for a fresh database. */
 const V1 = `
@@ -166,6 +166,52 @@ WHERE TRIM(COALESCE(admissionNo, '')) = ''
 `;
 
 /**
+ * Splits the register into branches.
+ *
+ * Both hostels share one database, one backup file and one app install; the
+ * active branch is a filter over that shared store, not a separate dataset.
+ * That keeps a single export covering the whole organisation.
+ *
+ * Branch ids are fixed strings rather than generated uuids so a backup taken on
+ * one phone restores onto another with its branches lining up.
+ *
+ * Existing rows are assigned to Thammanam. Notices are deliberately left NULL,
+ * which reads as "applies to both branches" -- anything already announced went
+ * out before the split, so scoping it to one branch after the fact would be a
+ * guess.
+ */
+const V5 = `
+CREATE TABLE IF NOT EXISTS branches (
+  id        TEXT PRIMARY KEY NOT NULL,
+  name      TEXT NOT NULL,
+  shortName TEXT NOT NULL DEFAULT '',
+  code      TEXT NOT NULL DEFAULT '',
+  sortOrder INTEGER NOT NULL DEFAULT 0,
+  createdAt INTEGER NOT NULL,
+  updatedAt INTEGER NOT NULL
+);
+
+INSERT OR IGNORE INTO branches (id, name, shortName, code, sortOrder, createdAt, updatedAt)
+VALUES
+  ('branch-thammanam', 'Thammanam - Royal Boys Hostel', 'Thammanam', 'T', 1,
+   CAST(strftime('%s','now') AS INTEGER) * 1000, CAST(strftime('%s','now') AS INTEGER) * 1000),
+  ('branch-kannanad', 'Kannanad - Royal Boys Hostel', 'Kannanad', 'K', 2,
+   CAST(strftime('%s','now') AS INTEGER) * 1000, CAST(strftime('%s','now') AS INTEGER) * 1000);
+
+ALTER TABLE students    ADD COLUMN branchId TEXT;
+ALTER TABLE rooms       ADD COLUMN branchId TEXT;
+ALTER TABLE notices     ADD COLUMN branchId TEXT;
+ALTER TABLE message_log ADD COLUMN branchId TEXT;
+
+UPDATE students SET branchId = 'branch-thammanam' WHERE branchId IS NULL;
+UPDATE rooms    SET branchId = 'branch-thammanam' WHERE branchId IS NULL;
+
+CREATE INDEX IF NOT EXISTS idx_students_branch ON students (branchId);
+CREATE INDEX IF NOT EXISTS idx_rooms_branch    ON rooms (branchId);
+CREATE INDEX IF NOT EXISTS idx_notices_branch  ON notices (branchId);
+`;
+
+/**
  * Migrations indexed by the version they upgrade *to*. To add a change, bump
  * SCHEMA_VERSION and add the matching entry — never edit an existing one in
  * place, or existing installs and old backups will diverge from new ones.
@@ -175,10 +221,12 @@ export const MIGRATIONS: Record<number, string> = {
   2: V2,
   3: V3,
   4: V4,
+  5: V5,
 };
 
 /** Tables included in a backup, in dependency order (parents first). */
 export const BACKUP_TABLES = [
+  "branches",
   "rooms",
   "students",
   "fee_records",

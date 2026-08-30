@@ -2,6 +2,7 @@ import { getDb } from "@/db";
 import { FeeRecord, FeeRecordWithStudent, FeeStatus, Payment, PaymentMethod } from "@/types";
 import { newId } from "@/utils/id";
 import { toIsoDate, toPeriod } from "@/utils/format";
+import { branchClause } from "./branches";
 
 export type FeeInput = Omit<FeeRecord, "id" | "createdAt" | "updatedAt" | "total" | "amountPaid">;
 
@@ -47,6 +48,14 @@ export async function listFees(
 
   const clauses: string[] = [];
   const params: (string | number)[] = [];
+
+  // A bill has no branch of its own; it belongs to whichever branch the inmate
+  // being billed belongs to.
+  const branch = branchClause("s.branchId");
+  if (branch.sql) {
+    clauses.push(branch.sql);
+    params.push(...branch.params);
+  }
 
   if (period) {
     clauses.push("f.period = ?");
@@ -149,6 +158,9 @@ export async function generateInvoices(period: string): Promise<GenerateResult> 
   // per-student amounts and deadlines rather than one blanket figure. Their
   // room's rent is only a fallback for records created before rent moved onto
   // the student.
+  const branch = branchClause("s.branchId");
+  const branchAnd = branch.sql ? `AND ${branch.sql}` : "";
+
   const candidates = await db.getAllAsync<{
     id: string;
     monthlyRent: number;
@@ -160,12 +172,16 @@ export async function generateInvoices(period: string): Promise<GenerateResult> 
      FROM students s
      LEFT JOIN rooms r ON r.id = s.roomId
      WHERE s.status = 'active'
-       AND s.id NOT IN (SELECT studentId FROM fee_records WHERE period = ?);`,
-    period
+       AND s.id NOT IN (SELECT studentId FROM fee_records WHERE period = ?)
+       ${branchAnd};`,
+    [period, ...branch.params]
   );
 
+  const activeBranch = branchClause("branchId");
   const total = await db.getFirstAsync<{ n: number }>(
-    "SELECT COUNT(*) AS n FROM students WHERE status = 'active';"
+    `SELECT COUNT(*) AS n FROM students WHERE status = 'active'
+     ${activeBranch.sql ? `AND ${activeBranch.sql}` : ""};`,
+    activeBranch.params
   );
 
   if (candidates.length > 0) {
@@ -275,8 +291,19 @@ export interface FeeTotals {
 
 export async function feeTotals(period: string | null = null): Promise<FeeTotals> {
   const db = await getDb();
-  const where = period ? "WHERE f.period = ?" : "";
-  const params = period ? [period] : [];
+
+  const clauses: string[] = [];
+  const params: (string | number)[] = [];
+  if (period) {
+    clauses.push("f.period = ?");
+    params.push(period);
+  }
+  const branch = branchClause("s.branchId");
+  if (branch.sql) {
+    clauses.push(branch.sql);
+    params.push(...branch.params);
+  }
+  const where = clauses.length ? `WHERE ${clauses.join(" AND ")}` : "";
 
   const row = await db.getFirstAsync<FeeTotals>(
     `SELECT COALESCE(SUM(f.total), 0) AS billed,
@@ -285,7 +312,9 @@ export async function feeTotals(period: string | null = null): Promise<FeeTotals
             COALESCE(SUM(${STATUS_SQL} = 'paid'), 0) AS paidCount,
             COALESCE(SUM(${STATUS_SQL} = 'unpaid'), 0) AS unpaidCount,
             COALESCE(SUM(${STATUS_SQL} = 'partial'), 0) AS partialCount
-     FROM fee_records f ${where};`,
+     FROM fee_records f
+     JOIN students s ON s.id = f.studentId
+     ${where};`,
     params
   );
 
@@ -300,14 +329,16 @@ export async function feeTotals(period: string | null = null): Promise<FeeTotals
  */
 export async function listDueForReminder(throughDate: string): Promise<FeeRecordWithStudent[]> {
   const db = await getDb();
+  const reminderBranch = branchClause("s.branchId");
   return db.getAllAsync<FeeRecordWithStudent>(
     `${SELECT_WITH_STUDENT}
      WHERE f.amountPaid < f.total - 0.01
        AND f.dueDate <> ''
        AND f.dueDate <= ?
        AND s.status = 'active'
+       ${reminderBranch.sql ? `AND ${reminderBranch.sql}` : ""}
      ORDER BY f.dueDate ASC, s.fullName COLLATE NOCASE;`,
-    throughDate
+    [throughDate, ...reminderBranch.params]
   );
 }
 

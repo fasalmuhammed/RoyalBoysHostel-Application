@@ -3,6 +3,7 @@ import { Student, StudentStatus } from "@/types";
 import { newId } from "@/utils/id";
 import { toIsoDate } from "@/utils/format";
 import { deletePhoto } from "./photos";
+import { branchClause, getActiveBranchId, requireActiveBranchId } from "./branches";
 
 export type StudentInput = Omit<Student, "id" | "createdAt" | "updatedAt">;
 
@@ -10,6 +11,9 @@ export interface StudentWithRoom extends Student {
   roomLabel: string | null;
   /** Rent of the assigned room, used to pre-fill new invoices. */
   roomRent: number | null;
+  /** Branch letter, for rendering the id as `T-14`. */
+  branchCode: string | null;
+  branchName: string | null;
 }
 
 export type StudentFilter = "all" | "active" | "left" | "unassigned";
@@ -19,9 +23,12 @@ const SELECT_WITH_ROOM = `
          CASE WHEN r.id IS NULL THEN NULL
               WHEN r.block = '' THEN r.roomNumber
               ELSE r.block || '-' || r.roomNumber END AS roomLabel,
-         r.rent AS roomRent
+         r.rent AS roomRent,
+         b.code AS branchCode,
+         b.shortName AS branchName
   FROM students s
   LEFT JOIN rooms r ON r.id = s.roomId
+  LEFT JOIN branches b ON b.id = s.branchId
 `;
 
 export async function listStudents(
@@ -32,6 +39,12 @@ export async function listStudents(
 
   const clauses: string[] = [];
   const params: (string | number)[] = [];
+
+  const branch = branchClause("s.branchId");
+  if (branch.sql) {
+    clauses.push(branch.sql);
+    params.push(...branch.params);
+  }
 
   if (filter === "active" || filter === "left") {
     clauses.push("s.status = ?");
@@ -58,6 +71,7 @@ export async function getStudent(id: string): Promise<StudentWithRoom | null> {
   return db.getFirstAsync<StudentWithRoom>(`${SELECT_WITH_ROOM} WHERE s.id = ?;`, id);
 }
 
+/** Occupants are already implicitly scoped: a room belongs to one branch. */
 export async function listStudentsInRoom(roomId: string): Promise<StudentWithRoom[]> {
   const db = await getDb();
   return db.getAllAsync<StudentWithRoom>(
@@ -131,13 +145,14 @@ const ADMISSION_COUNTER_KEY = "admissionCounter";
  * bookkeeping, not a preference, and `loadSettings` ignores keys it does not
  * know about.
  */
-async function highestIssued(txn: Queryable): Promise<number> {
+async function highestIssued(txn: Queryable, branchId: string): Promise<number> {
   const row = await txn.getFirstAsync<{ highest: number | null }>(
     `SELECT MAX(
        COALESCE((SELECT CAST(value AS INTEGER) FROM settings WHERE key = ?), 0),
-       COALESCE((SELECT MAX(CAST(admissionNo AS INTEGER)) FROM students), 0)
+       COALESCE((SELECT MAX(CAST(admissionNo AS INTEGER)) FROM students WHERE branchId = ?), 0)
      ) AS highest;`,
-    ADMISSION_COUNTER_KEY
+    `${ADMISSION_COUNTER_KEY}:${branchId}`,
+    branchId
   );
   return row?.highest ?? 0;
 }
@@ -147,11 +162,11 @@ interface Writable extends Queryable {
 }
 
 /** Claims the next number and advances the counter, inside the caller's transaction. */
-async function claimAdmissionNo(txn: Writable): Promise<string> {
-  const next = (await highestIssued(txn)) + 1;
+async function claimAdmissionNo(txn: Writable, branchId: string): Promise<string> {
+  const next = (await highestIssued(txn, branchId)) + 1;
   await txn.runAsync(
     "INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value;",
-    ADMISSION_COUNTER_KEY,
+    `${ADMISSION_COUNTER_KEY}:${branchId}`,
     String(next)
   );
   return String(next);
@@ -162,19 +177,21 @@ export async function createStudent(input: StudentInput): Promise<string> {
   const id = newId();
   const now = Date.now();
 
+  const branchId = input.branchId || requireActiveBranchId();
+
   await db.withExclusiveTransactionAsync(async (txn) => {
     if (input.roomId && input.status === "active") {
       await assertRoomHasSpace(txn, input.roomId, null);
     }
     // Allocated inside the transaction so two quick saves cannot claim the
-    // same number.
-    const admissionNo = input.admissionNo.trim() || (await claimAdmissionNo(txn));
+    // same number. Numbering restarts per branch.
+    const admissionNo = input.admissionNo.trim() || (await claimAdmissionNo(txn, branchId));
     await txn.runAsync(
-      `INSERT INTO students (id, admissionNo, fullName, phone, guardianName, guardianPhone,
+      `INSERT INTO students (id, branchId, admissionNo, fullName, phone, guardianName, guardianPhone,
          email, course, year, address, idProof, photoFile, roomId, status, monthlyRent,
          billingCycleDays, joinedOn, leftOn, notes, createdAt, updatedAt)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`,
-      id, admissionNo, input.fullName, input.phone, input.guardianName, input.guardianPhone,
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`,
+      id, branchId, admissionNo, input.fullName, input.phone, input.guardianName, input.guardianPhone,
       input.email, input.course, input.year, input.address, input.idProof, input.photoFile,
       input.roomId, input.status, input.monthlyRent, input.billingCycleDays,
       input.joinedOn, input.leftOn, input.notes, now, now
@@ -194,12 +211,12 @@ export async function updateStudent(id: string, input: StudentInput): Promise<vo
       await assertRoomHasSpace(txn, input.roomId, id);
     }
     await txn.runAsync(
-      `UPDATE students SET admissionNo = ?, fullName = ?, phone = ?, guardianName = ?,
+      `UPDATE students SET fullName = ?, phone = ?, guardianName = ?,
          guardianPhone = ?, email = ?, course = ?, year = ?, address = ?, idProof = ?,
          photoFile = ?, roomId = ?, status = ?, monthlyRent = ?, billingCycleDays = ?,
          joinedOn = ?, leftOn = ?, notes = ?, updatedAt = ?
        WHERE id = ?;`,
-      input.admissionNo, input.fullName, input.phone, input.guardianName, input.guardianPhone,
+      input.fullName, input.phone, input.guardianName, input.guardianPhone,
       input.email, input.course, input.year, input.address, input.idProof, input.photoFile,
       input.roomId, input.status, input.monthlyRent, input.billingCycleDays,
       input.joinedOn, input.leftOn, input.notes, Date.now(), id
@@ -266,6 +283,23 @@ export async function reinstate(studentId: string): Promise<void> {
   );
 }
 
+/**
+ * Moves an inmate to another branch.
+ *
+ * Their existing id is kept rather than reissued: the number already appears on
+ * past receipts and exports, and renumbering would break that trail. The id is
+ * displayed with the new branch's letter from then on.
+ */
+export async function moveToBranch(studentId: string, branchId: string): Promise<void> {
+  const db = await getDb();
+  await db.runAsync(
+    "UPDATE students SET branchId = ?, roomId = NULL, updatedAt = ? WHERE id = ?;",
+    branchId,
+    Date.now(),
+    studentId
+  );
+}
+
 /** Permanently removes a student, their photo, and their fee history. */
 export async function deleteStudent(studentId: string): Promise<void> {
   const db = await getDb();
@@ -275,12 +309,14 @@ export async function deleteStudent(studentId: string): Promise<void> {
 }
 
 /**
- * The number the next new student will be given, for display on the form.
+ * The number the next new inmate will be given, for display on the form.
  * Read-only -- it does not advance the counter.
  */
-export async function peekNextAdmissionNo(): Promise<string> {
+export async function peekNextAdmissionNo(branchId?: string): Promise<string> {
   const db = await getDb();
-  return String((await highestIssued(db)) + 1);
+  const target = branchId ?? getActiveBranchId();
+  if (!target) return "1";
+  return String((await highestIssued(db, target)) + 1);
 }
 
 export interface StudentCounts {
@@ -292,12 +328,15 @@ export interface StudentCounts {
 
 export async function studentCounts(): Promise<StudentCounts> {
   const db = await getDb();
+  const branch = branchClause("branchId");
+  const where = branch.sql ? `WHERE ${branch.sql}` : "";
   const row = await db.getFirstAsync<StudentCounts>(
     `SELECT COUNT(*) AS total,
             COALESCE(SUM(status = 'active'), 0) AS active,
             COALESCE(SUM(status = 'left'), 0) AS "left",
             COALESCE(SUM(status = 'active' AND roomId IS NULL), 0) AS unassigned
-     FROM students;`
+     FROM students ${where};`,
+    branch.params
   );
   return row ?? { total: 0, active: 0, left: 0, unassigned: 0 };
 }

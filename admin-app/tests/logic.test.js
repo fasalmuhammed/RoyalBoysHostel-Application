@@ -16,6 +16,7 @@ const students = h.load("services/students");
 const rooms = h.load("services/rooms");
 const fees = h.load("services/fees");
 const settings = h.load("services/settings");
+const branches = h.load("services/branches");
 const format = h.load("utils/format");
 const validate = h.load("utils/validate");
 const csv = h.load("services/csv");
@@ -28,16 +29,18 @@ const mk = (name, roomId, extra) =>
     {
       admissionNo: "", fullName: name, phone: "9876500000", guardianName: "", guardianPhone: "",
       email: "", course: "", year: "", address: "", idProof: "", photoFile: null,
-      roomId: roomId ?? null, status: "active", monthlyRent: 6000, billingCycleDays: 30,
+      roomId: roomId ?? null, branchId: "", status: "active", monthlyRent: 6000, billingCycleDays: 30,
       joinedOn: "2026-01-01", leftOn: null, notes: "",
     },
     extra || {}
   );
 
 async function run() {
+  // Writes require a branch; migrations seed the two real ones.
+  branches.setActiveBranchId("branch-thammanam");
   console.log("== room capacity is enforced ==");
   const single = await rooms.createRoom({
-    block: "A", roomNumber: "1", floor: "", capacity: 1,
+    branchId: "", block: "A", roomNumber: "1", floor: "", capacity: 1,
     rent: 5000, deposit: 0, amenities: "", notes: "",
   });
 
@@ -84,7 +87,7 @@ async function run() {
 
   console.log("\n== deleting a room detaches, never deletes students ==");
   const doubleRoom = await rooms.createRoom({
-    block: "B", roomNumber: "2", floor: "", capacity: 2,
+    branchId: "", block: "B", roomNumber: "2", floor: "", capacity: 2,
     rent: 7000, deposit: 0, amenities: "", notes: "",
   });
   await students.assignRoom(s3, doubleRoom);
@@ -95,7 +98,7 @@ async function run() {
 
   console.log("\n== fee totals and payment arithmetic ==");
   const billRoom = await rooms.createRoom({
-    block: "C", roomNumber: "3", floor: "", capacity: 3,
+    branchId: "", block: "C", roomNumber: "3", floor: "", capacity: 3,
     rent: 6000, deposit: 0, amenities: "", notes: "",
   });
   const payer = await students.createStudent(mk("Paying Student", billRoom));
@@ -181,7 +184,7 @@ async function run() {
 
   console.log("\n== per-student rent and cycle drive the bill ==");
   const bespokeRoom = await rooms.createRoom({
-    block: "D", roomNumber: "9", floor: "", capacity: 2,
+    branchId: "", block: "D", roomNumber: "9", floor: "", capacity: 2,
     rent: 6000, deposit: 0, amenities: "", notes: "",
   });
   const bespoke = await students.createStudent(
@@ -407,6 +410,7 @@ async function run() {
 
   console.log("\n== notices ==");
   const n1 = await notices.createNotice({
+    branchId: null,
     title: "Water supply interrupted",
     body: "Water will be off on 12 Sep between 10am and 2pm.",
     category: "maintenance",
@@ -414,6 +418,7 @@ async function run() {
     postedOn: "2026-09-05",
   });
   const n2 = await notices.createNotice({
+    branchId: null,
     title: "Independence Day event",
     body: "Cultural programme in the common hall.",
     category: "event",
@@ -421,6 +426,7 @@ async function run() {
     postedOn: "2026-08-14",
   });
   await notices.createNotice({
+    branchId: null,
     title: "Mess menu change",
     body: "New menu effective from next week.",
     category: "general",
@@ -471,6 +477,7 @@ async function run() {
 
   console.log("\n== notice edit and delete ==");
   await notices.updateNotice(n1, {
+    branchId: null,
     title: "Water supply restored",
     body: "Supply is back to normal.",
     category: "general",
@@ -507,7 +514,7 @@ async function run() {
 
     console.log("\n== a saved photo survives being referenced by a student ==");
     const photoRoom = await rooms.createRoom({
-      block: "P", roomNumber: "1", floor: "", capacity: 2,
+      branchId: "", block: "P", roomNumber: "1", floor: "", capacity: 2,
       rent: 1000, deposit: 0, amenities: "", notes: "",
     });
     const withPhoto = await students.createStudent(
@@ -544,7 +551,7 @@ async function run() {
   console.log("\n== admission numbers are a sequence ==");
   {
     const seqRoom = await rooms.createRoom({
-      block: "S", roomNumber: "1", floor: "", capacity: 5,
+      branchId: "", block: "S", roomNumber: "1", floor: "", capacity: 5,
       rent: 5000, deposit: 0, amenities: "", notes: "",
     });
 
@@ -591,11 +598,11 @@ async function run() {
   console.log("\n== moving an existing student between rooms ==");
   {
     const roomX = await rooms.createRoom({
-      block: "X", roomNumber: "1", floor: "", capacity: 1,
+      branchId: "", block: "X", roomNumber: "1", floor: "", capacity: 1,
       rent: 5000, deposit: 0, amenities: "", notes: "",
     });
     const roomY = await rooms.createRoom({
-      block: "Y", roomNumber: "1", floor: "", capacity: 2,
+      branchId: "", block: "Y", roomNumber: "1", floor: "", capacity: 2,
       rent: 8000, deposit: 0, amenities: "", notes: "",
     });
 
@@ -635,6 +642,147 @@ async function run() {
     for (const id of [mover, blocker, spare]) await students.deleteStudent(id);
     await rooms.deleteRoom(roomX);
     await rooms.deleteRoom(roomY);
+  }
+
+  console.log("\n== the two branches are seeded ==");
+  {
+    const all = await branches.listBranches();
+    check("both branches exist", all.length === 2, all.map((b) => b.name).join(" | "));
+    const tham = all.find((b) => b.id === "branch-thammanam");
+    const kann = all.find((b) => b.id === "branch-kannanad");
+    check("Thammanam named in full", tham.name === "Thammanam - Royal Boys Hostel", tham.name);
+    check("Kannanad named in full", kann.name === "Kannanad - Royal Boys Hostel", kann.name);
+    check("letters are T and K", tham.code === "T" && kann.code === "K", tham.code + "/" + kann.code);
+
+    console.log("\n== inmate ids are prefixed with the branch letter ==");
+    check("T-14", branches.formatInmateId("T", "14") === "T-14");
+    check("K-1", branches.formatInmateId("K", "1") === "K-1");
+    check("no letter falls back to the bare number", branches.formatInmateId(null, "9") === "9");
+    check("no id shows a dash", branches.formatInmateId("T", "") === "—");
+  }
+
+  console.log("\n== a branch only sees its own records ==");
+  {
+    branches.setActiveBranchId("branch-thammanam");
+    const tRoom = await rooms.createRoom({
+      branchId: "", block: "T", roomNumber: "1", floor: "", capacity: 4,
+      rent: 5000, deposit: 0, amenities: "", notes: "",
+    });
+    const tOne = await students.createStudent(mk("Thammanam Resident", tRoom, { admissionNo: "" }));
+
+    branches.setActiveBranchId("branch-kannanad");
+    const kRoom = await rooms.createRoom({
+      branchId: "", block: "K", roomNumber: "1", floor: "", capacity: 4,
+      rent: 6000, deposit: 0, amenities: "", notes: "",
+    });
+    const kOne = await students.createStudent(mk("Kannanad Resident", kRoom, { admissionNo: "" }));
+
+    const kList = await students.listStudents("", "all");
+    check("Kannanad list excludes Thammanam inmates",
+      kList.every((s) => s.fullName !== "Thammanam Resident"),
+      kList.map((s) => s.fullName).join(","));
+    check("Kannanad list includes its own", kList.some((s) => s.fullName === "Kannanad Resident"));
+
+    const kRooms = await rooms.listRooms();
+    check("Kannanad rooms exclude Thammanam rooms",
+      kRooms.every((r) => r.block !== "T"), kRooms.map((r) => r.block + r.roomNumber).join(","));
+
+    branches.setActiveBranchId("branch-thammanam");
+    const tList = await students.listStudents("", "all");
+    check("Thammanam list excludes Kannanad inmates",
+      tList.every((s) => s.fullName !== "Kannanad Resident"),
+      tList.map((s) => s.fullName).join(","));
+
+    console.log("\n== numbering restarts in each branch ==");
+    const t = await students.getStudent(tOne);
+    const k = await students.getStudent(kOne);
+    check("Thammanam inmate carries the T code", t.branchCode === "T", String(t.branchCode));
+    check("Kannanad inmate carries the K code", k.branchCode === "K", String(k.branchCode));
+    check("both branches issued number 1", k.admissionNo === "1", "K number was " + k.admissionNo);
+    check("ids only differ by branch letter",
+      branches.formatInmateId(t.branchCode, t.admissionNo) !== branches.formatInmateId(k.branchCode, k.admissionNo),
+      branches.formatInmateId(t.branchCode, t.admissionNo) + " vs " + branches.formatInmateId(k.branchCode, k.admissionNo));
+
+    branches.setActiveBranchId("branch-kannanad");
+    const kSecond = await students.createStudent(mk("Kannanad Second", null, { admissionNo: "" }));
+    check("Kannanad continues its own sequence",
+      (await students.getStudent(kSecond)).admissionNo === "2",
+      (await students.getStudent(kSecond)).admissionNo);
+
+    console.log("\n== occupancy and counts are per branch ==");
+    const kOcc = await rooms.occupancyTotals();
+    check("Kannanad counts only its beds", kOcc.beds === 4, "beds=" + kOcc.beds);
+    const kCounts = await students.studentCounts();
+    check("Kannanad counts only its inmates", kCounts.total === 2, "total=" + kCounts.total);
+
+    console.log("\n== fees are scoped through the inmate ==");
+    await fees.createFee({
+      studentId: kOne, period: "2027-01", rent: 6000, electricity: 0, water: 0,
+      other: 0, discount: 0, dueDate: "2027-01-31", note: "",
+    });
+    const kFees = await fees.listFees("all", "2027-01", "");
+    check("Kannanad sees its own bill", kFees.length === 1 && kFees[0].studentName === "Kannanad Resident");
+
+    branches.setActiveBranchId("branch-thammanam");
+    const tFees = await fees.listFees("all", "2027-01", "");
+    check("Thammanam does not see Kannanad's bill", tFees.length === 0, "n=" + tFees.length);
+    const tTotals = await fees.feeTotals("2027-01");
+    check("totals exclude the other branch", tTotals.billed === 0, "billed=" + tTotals.billed);
+
+    console.log("\n== raising bills only touches the active branch ==");
+    const raised = await fees.generateInvoices("2027-02");
+    const tFeb = await fees.listFees("all", "2027-02", "");
+    check("bills raised for Thammanam only",
+      tFeb.every((f) => f.studentName !== "Kannanad Resident"),
+      tFeb.map((f) => f.studentName).join(","));
+    check("something was raised", raised.created > 0, "created=" + raised.created);
+    branches.setActiveBranchId("branch-kannanad");
+    const kFeb = await fees.listFees("all", "2027-02", "");
+    check("Kannanad got no February bills", kFeb.length === 0, "n=" + kFeb.length);
+
+    console.log("\n== moving an inmate between branches ==");
+    branches.setActiveBranchId("branch-thammanam");
+    const movedId = (await students.getStudent(tOne)).admissionNo;
+    await students.moveToBranch(tOne, "branch-kannanad");
+    const afterT = await students.listStudents("", "all");
+    check("gone from the old branch", afterT.every((s) => s.id !== tOne));
+    branches.setActiveBranchId("branch-kannanad");
+    const afterK = await students.getStudent(tOne);
+    check("now in the new branch", afterK !== null && afterK.branchCode === "K", String(afterK && afterK.branchCode));
+    check("keeps the id it was issued", afterK.admissionNo === movedId, afterK.admissionNo);
+    check("bed released on the move", afterK.roomId === null);
+
+    branches.setActiveBranchId("branch-thammanam");
+  }
+
+  console.log("\n== notices: per branch, or shared ==");
+  {
+    branches.setActiveBranchId("branch-thammanam");
+    await notices.createNotice({
+      branchId: "branch-thammanam", title: "Thammanam only", body: "Local notice",
+      category: "general", pinned: false, postedOn: "2027-01-05",
+    });
+    await notices.createNotice({
+      branchId: null, title: "Both branches", body: "Festival holiday",
+      category: "event", pinned: false, postedOn: "2027-01-06",
+    });
+
+    const tBoard = await notices.listNotices("all");
+    check("Thammanam sees its own notice", tBoard.some((n) => n.title === "Thammanam only"));
+    check("Thammanam sees the shared notice", tBoard.some((n) => n.title === "Both branches"));
+
+    branches.setActiveBranchId("branch-kannanad");
+    const kBoard = await notices.listNotices("all");
+    check("Kannanad does NOT see the other branch's notice",
+      kBoard.every((n) => n.title !== "Thammanam only"),
+      kBoard.map((n) => n.title).join(","));
+    check("Kannanad does see the shared notice", kBoard.some((n) => n.title === "Both branches"));
+
+    const kCounts = await notices.noticeCounts();
+    const kTitles = kBoard.map((n) => n.title);
+    check("counts match the visible board", kCounts.all === kTitles.length, kCounts.all + " vs " + kTitles.length);
+
+    branches.setActiveBranchId("branch-thammanam");
   }
 
   console.log("\n== search and filters ==");

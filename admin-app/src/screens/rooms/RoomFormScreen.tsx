@@ -72,6 +72,8 @@ export default function RoomFormScreen({ navigation, route }: Props) {
     setSaving(true);
     try {
       const payload = {
+        // Blank: createRoom stamps the active branch.
+        branchId: "",
         block: block.trim(),
         roomNumber: roomNumber.trim(),
         floor: floor.trim(),

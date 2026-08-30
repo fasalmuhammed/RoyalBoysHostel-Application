@@ -9,6 +9,7 @@ import Button from "@/components/Button";
 import Input from "@/components/Input";
 import { colors, fontSize, radius, spacing } from "@/constants/theme";
 import { useApp } from "@/context/AppContext";
+import { getActiveBranchId } from "@/services/branches";
 import {
   CATEGORY_LABELS,
   createNotice,
@@ -27,12 +28,14 @@ const CATEGORIES: NoticeCategory[] = ["general", "event", "maintenance", "urgent
 export default function NoticeFormScreen({ navigation, route }: Props) {
   const noticeId = route.params?.noticeId;
   const isEditing = Boolean(noticeId);
-  const { invalidate } = useApp();
+  const { invalidate, activeBranch } = useApp();
+  const branchLabel = activeBranch?.shortName ?? "this branch";
 
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
   const [category, setCategory] = useState<NoticeCategory>("general");
   const [pinned, setPinned] = useState(false);
+  const [allBranches, setAllBranches] = useState(false);
   const [postedOn, setPostedOn] = useState(toIsoDate());
   const [errors, setErrors] = useState<{ title?: string; body?: string }>({});
   const [saving, setSaving] = useState(false);
@@ -50,6 +53,7 @@ export default function NoticeFormScreen({ navigation, route }: Props) {
       setBody(notice.body);
       setCategory(notice.category);
       setPinned(notice.pinned);
+      setAllBranches(notice.branchId === null);
       setPostedOn(notice.postedOn);
     })();
   }, [noticeId]);
@@ -64,6 +68,8 @@ export default function NoticeFormScreen({ navigation, route }: Props) {
 
   const persist = async (): Promise<string | null> => {
     const payload = {
+      // null means "every branch" -- the board shows it on both.
+      branchId: allBranches ? null : getActiveBranchId(),
       title: title.trim(),
       body: body.trim(),
       category,
@@ -166,6 +172,23 @@ export default function NoticeFormScreen({ navigation, route }: Props) {
           placeholder="YYYY-MM-DD"
           icon="calendar-outline"
         />
+
+        <View style={styles.switchRow}>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.switchLabel}>Applies to both branches</Text>
+            <Text style={styles.switchHint}>
+              {allBranches
+                ? "Shows on the board at both hostels."
+                : `Only ${branchLabel} will see this notice.`}
+            </Text>
+          </View>
+          <Switch
+            value={allBranches}
+            onValueChange={setAllBranches}
+            trackColor={{ true: colors.primary, false: colors.borderStrong }}
+            thumbColor={colors.surface}
+          />
+        </View>
 
         <View style={styles.switchRow}>
           <View style={{ flex: 1 }}>

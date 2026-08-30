@@ -16,6 +16,7 @@ const students = h.load("services/students");
 const rooms = h.load("services/rooms");
 const fees = h.load("services/fees");
 const settings = h.load("services/settings");
+const branches = h.load("services/branches");
 const backup = h.load("services/backup");
 const photos = h.load("services/photos");
 const notices = h.load("services/notices");
@@ -26,14 +27,16 @@ const { File } = require("expo-file-system");
 const TRICKY_NAME = 'Anjali "AJ" Mehta शर्मा ₹';
 
 async function seed() {
+  // Writes require a branch; migrations seed the two real ones.
+  branches.setActiveBranchId("branch-thammanam");
   await settings.saveSettings({ hostelName: "Green Valley Boys Hostel", defaultRent: 6000 });
 
   const roomA = await rooms.createRoom({
-    block: "A", roomNumber: "101", floor: "1", capacity: 2,
+    branchId: "", block: "A", roomNumber: "101", floor: "1", capacity: 2,
     rent: 6000, deposit: 6000, amenities: "Wi-Fi,AC", notes: "",
   });
   const roomB = await rooms.createRoom({
-    block: "B", roomNumber: "205", floor: "2", capacity: 1,
+    branchId: "", block: "B", roomNumber: "205", floor: "2", capacity: 1,
     rent: 7500, deposit: 7500, amenities: "Wi-Fi", notes: "corner room",
   });
 
@@ -42,7 +45,7 @@ async function seed() {
     guardianName: "Guardian of " + name, guardianPhone: "9000000000",
     email: "x@example.com", course: "CSE", year: "2",
     address: "12, Main Road\nSecond line", idProof: "Aadhaar 1234",
-    photoFile: null, roomId: room, status: "active",
+    photoFile: null, roomId: room, branchId: "", status: "active",
     monthlyRent: 6000, billingCycleDays: 30,
     joinedOn: "2026-01-15", leftOn: null, notes: "",
   });
@@ -69,6 +72,7 @@ async function seed() {
   await fees.recordPayment(f1, 3000, "upi", "2026-08-05", "TXN123", "part payment");
 
   await notices.createNotice({
+    branchId: null,
     title: "Holiday Notice",
     body: 'Hostel will be closed on 15 Aug.\nPlease inform the \"office\" before leaving.',
     category: "general",
@@ -76,6 +80,7 @@ async function seed() {
     postedOn: "2026-08-01",
   });
   await notices.createNotice({
+    branchId: null,
     title: "Maintenance नोटिस",
     body: "Water supply off 10am-2pm.",
     category: "maintenance",
@@ -89,7 +94,7 @@ async function seed() {
 async function snapshot() {
   const d = await db.getDb();
   const out = {};
-  for (const t of ["rooms", "students", "fee_records", "payments", "notices", "settings"]) {
+  for (const t of ["branches", "rooms", "students", "fee_records", "payments", "notices", "settings"]) {
     out[t] = await d.getAllAsync("SELECT * FROM " + t + " ORDER BY " + (t === "settings" ? "key" : "id") + ";");
   }
   return out;
@@ -98,9 +103,29 @@ async function snapshot() {
 async function run() {
   console.log("== seed ==");
   const ids = await seed();
+  console.log("\n== a second branch, to prove the backup is not scoped ==");
+  {
+    branches.setActiveBranchId("branch-kannanad");
+    const kRoom = await rooms.createRoom({
+      branchId: "", block: "K", roomNumber: "7", floor: "", capacity: 2,
+      rent: 7000, deposit: 0, amenities: "", notes: "",
+    });
+    await students.createStudent({
+      admissionNo: "", fullName: "Kannanad Person", phone: "9871234567",
+      guardianName: "", guardianPhone: "", email: "", course: "", year: "",
+      address: "", idProof: "", photoFile: null, roomId: kRoom, branchId: "",
+      status: "active", monthlyRent: 7000, billingCycleDays: 30,
+      joinedOn: "2026-03-01", leftOn: null, notes: "",
+    });
+    const kOnly = await students.listStudents("", "all");
+    check("Kannanad sees only its own inmate", kOnly.length === 1, "n=" + kOnly.length);
+    // Export runs with a branch active; it must still capture everything.
+    branches.setActiveBranchId("branch-thammanam");
+  }
+
   const before = await snapshot();
-  check("seeded 3 students", before.students.length === 3);
-  check("seeded 2 rooms", before.rooms.length === 2);
+  check("seeded 4 inmates across both branches", before.students.length === 4, "n=" + before.students.length);
+  check("seeded 3 rooms across both branches", before.rooms.length === 3, "n=" + before.rooms.length);
   check("seeded 2 invoices", before.fee_records.length === 2);
   check("seeded 1 payment", before.payments.length === 1);
   check("seeded 2 notices", before.notices.length === 2, "n=" + before.notices.length);
@@ -113,7 +138,7 @@ async function run() {
   const exported = await backup.exportForSharing(PASS);
   check("export produced a file", exported.sizeBytes > 0, "size " + exported.sizeBytes);
   check("export reports encrypted", exported.encrypted === true);
-  check("counts: 3 students", exported.counts.students === 3);
+  check("export counts every branch", exported.counts.students === 4, "n=" + exported.counts.students);
   check("counts: 2 photos", exported.counts.photos === 2);
 
   const raw = h.files.get(exported.uri).toString("utf8");
@@ -138,7 +163,7 @@ async function run() {
   check("restore rejected", threw !== null, threw && threw.message);
   check("error names passphrase or damage", threw && /passphrase|damaged/i.test(threw.message));
   const afterFailed = await snapshot();
-  check("data untouched after failed restore", afterFailed.students.length === 3);
+  check("data untouched after failed restore", afterFailed.students.length === 4, "n=" + afterFailed.students.length);
 
   console.log("\n== tampered file is rejected ==");
   const tamperUri = exported.uri + ".tampered";
@@ -177,8 +202,8 @@ async function run() {
 
   const after = await snapshot();
   console.log("\n== fidelity ==");
-  check("students restored", after.students.length === 3, "got " + after.students.length);
-  check("rooms restored", after.rooms.length === 2);
+  check("inmates restored", after.students.length === 4, "got " + after.students.length);
+  check("rooms restored", after.rooms.length === 3, "n=" + after.rooms.length);
   check("invoices restored", after.fee_records.length === 2);
   check("payments restored", after.payments.length === 1);
 
@@ -189,6 +214,25 @@ async function run() {
   check("payments identical", norm(after.payments) === norm(before.payments));
   check("settings identical", norm(after.settings) === norm(before.settings));
   check("notices identical", norm(after.notices) === norm(before.notices));
+  check("branches identical", norm(after.branches) === norm(before.branches));
+  check("both branches restored", after.branches.length === 2, "n=" + after.branches.length);
+
+  console.log("\n== the backup covered every branch, not just the active one ==");
+  {
+    branches.setActiveBranchId("branch-thammanam");
+    const t = await students.listStudents("", "all");
+    check("Thammanam inmates came back", t.length === 3, "n=" + t.length);
+    check("and none of them belong to Kannanad",
+      t.every((s) => s.fullName !== "Kannanad Person"), t.map((s) => s.fullName).join(","));
+
+    branches.setActiveBranchId("branch-kannanad");
+    const k = await students.listStudents("", "all");
+    check("Kannanad inmate came back too", k.length === 1 && k[0].fullName === "Kannanad Person",
+      k.map((s) => s.fullName).join(","));
+    check("its room came back as well", (await rooms.listRooms()).length === 1);
+
+    branches.setActiveBranchId("branch-thammanam");
+  }
   check("notices restored", after.notices.length === 2, "n=" + after.notices.length);
   const restoredNotice = after.notices.find((n) => n.title === "Holiday Notice");
   check("notice body kept newlines and quotes", restoredNotice.body.includes("\n") && restoredNotice.body.includes('\"office\"'), JSON.stringify(restoredNotice.body));
@@ -209,7 +253,7 @@ async function run() {
 
   console.log("\n== relationships still work after restore ==");
   const list = await students.listStudents("", "active");
-  check("student list rebuilt", list.length === 3);
+  check("student list rebuilt for the active branch", list.length === 3, "n=" + list.length);
   const withRoom = list.filter((s) => s.roomLabel);
   check("room labels resolve", withRoom.length === 3, JSON.stringify(list.map((s) => s.roomLabel)));
   const occ = await rooms.occupancyTotals();
@@ -231,7 +275,7 @@ async function run() {
   photos.deleteAllPhotos();
   const autoResult = await backup.restoreBackup(auto.uri, null);
   const afterAuto = await snapshot();
-  check("auto backup restores students", afterAuto.students.length === 3, "got " + afterAuto.students.length);
+  check("auto backup restores inmates", afterAuto.students.length === 4, "got " + afterAuto.students.length);
   check("auto backup restores photos", autoResult.photosRestored === 2);
   check("auto backup fidelity", norm(afterAuto.students) === norm(before.students));
 
@@ -245,7 +289,7 @@ async function run() {
     const id = await students.createStudent({
       admissionNo: "B" + i, fullName: "Bulk Student " + i, phone: "90000000" + String(i).padStart(2, "0"),
       guardianName: "G", guardianPhone: "9", email: "", course: "ME", year: "1",
-      address: "addr", idProof: "", photoFile: null, roomId: null, status: "active",
+      address: "addr", idProof: "", photoFile: null, roomId: null, branchId: "", status: "active",
       monthlyRent: 5000, billingCycleDays: 30,
       joinedOn: "2026-02-01", leftOn: null, notes: "",
     });
@@ -257,13 +301,13 @@ async function run() {
   const bigRaw = h.files.get(bigExport.uri).toString("utf8");
   const chunkLines = bigRaw.split("\n").filter(Boolean).length - 2; // minus header, trailer
   check("large export spans multiple chunks", chunkLines > 3, "chunks=" + chunkLines);
-  check("large export counts 63 students", bigExport.counts.students === 63, JSON.stringify(bigExport.counts));
+  check("large export counts every inmate", bigExport.counts.students === 64, JSON.stringify(bigExport.counts));
 
   await db.wipeAllData();
   photos.deleteAllPhotos();
   const bigResult = await backup.restoreBackup(bigExport.uri, PASS);
   const bigAfter = await snapshot();
-  check("all 63 students restored", bigAfter.students.length === 63, "got " + bigAfter.students.length);
+  check("all 64 inmates restored", bigAfter.students.length === 64, "got " + bigAfter.students.length);
   check("all 62 photos restored", bigResult.photosRestored === 62, "got " + bigResult.photosRestored);
   check("large dataset identical", norm(bigAfter.students) === norm(bigBefore.students));
   const bulkPhoto = await photos.readPhotoBase64("bulk7.jpg");
@@ -290,7 +334,7 @@ async function run() {
     const fresh = await students.createStudent({
       admissionNo: "", fullName: "Post Restore", phone: "9800000000", guardianName: "",
       guardianPhone: "", email: "", course: "", year: "", address: "", idProof: "",
-      photoFile: null, roomId: null, status: "active", monthlyRent: 0, billingCycleDays: 30,
+      photoFile: null, roomId: null, branchId: "", status: "active", monthlyRent: 0, billingCycleDays: 30,
       joinedOn: "2026-09-01", leftOn: null, notes: "",
     });
     const freshRow = await students.getStudent(fresh);

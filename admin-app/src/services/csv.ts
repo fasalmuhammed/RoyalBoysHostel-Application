@@ -2,6 +2,7 @@ import { Directory, File, Paths } from "expo-file-system";
 
 import { getDb } from "@/db";
 import { loadSettings } from "./settings";
+import { branchClause, branchOrSharedClause, getActiveBranchId } from "./branches";
 
 /**
  * CSV report export.
@@ -75,17 +76,28 @@ export async function exportReport(kind: ReportKind, period: string | null = nul
   const db = await getDb();
   const settings = await loadSettings();
 
+  const studentBranch = branchClause("s.branchId");
+  const studentWhere = studentBranch.sql ? `WHERE ${studentBranch.sql}` : "";
+
   if (kind === "students") {
     const rows = await db.getAllAsync<Record<string, string | number | null>>(
       `SELECT s.admissionNo, s.fullName, s.phone, s.guardianName, s.guardianPhone, s.email,
               s.course, s.year, s.status, s.joinedOn, s.leftOn, s.address, s.idProof,
+              b.shortName AS branch, b.code AS branchCode,
               CASE WHEN r.id IS NULL THEN '' WHEN r.block = '' THEN r.roomNumber
                    ELSE r.block || '-' || r.roomNumber END AS room
-       FROM students s LEFT JOIN rooms r ON r.id = s.roomId
-       ORDER BY s.fullName COLLATE NOCASE;`
+       FROM students s
+       LEFT JOIN rooms r ON r.id = s.roomId
+       LEFT JOIN branches b ON b.id = s.branchId
+       ${studentWhere}
+       ORDER BY s.fullName COLLATE NOCASE;`,
+      studentBranch.params
     );
     const csv = toCsv(rows, [
-      { header: "Admission No", value: (r) => r.admissionNo },
+      // Numbering restarts per branch, so the letter is what keeps an id
+      // unambiguous in a sheet covering both hostels.
+      { header: "ID", value: (r) => (r.branchCode ? `${r.branchCode}-${r.admissionNo}` : r.admissionNo) },
+      { header: "Branch", value: (r) => r.branch },
       { header: "Name", value: (r) => r.fullName },
       { header: "Room", value: (r) => r.room },
       { header: "Phone", value: (r) => r.phone },
@@ -105,6 +117,7 @@ export async function exportReport(kind: ReportKind, period: string | null = nul
   }
 
   if (kind === "rooms") {
+    const roomBranch = branchClause("r.branchId");
     const rows = await db.getAllAsync<Record<string, string | number | null>>(
       `SELECT r.block, r.roomNumber, r.floor, r.capacity, r.rent, r.deposit, r.amenities,
               COALESCE(o.n, 0) AS occupied,
@@ -113,7 +126,9 @@ export async function exportReport(kind: ReportKind, period: string | null = nul
        LEFT JOIN (SELECT roomId, COUNT(*) AS n FROM students
                   WHERE status = 'active' AND roomId IS NOT NULL GROUP BY roomId) o
               ON o.roomId = r.id
-       ORDER BY r.block, CAST(r.roomNumber AS INTEGER);`
+       ${roomBranch.sql ? `WHERE ${roomBranch.sql}` : ""}
+       ORDER BY r.block, CAST(r.roomNumber AS INTEGER);`,
+      roomBranch.params
     );
     const csv = toCsv(rows, [
       { header: "Block", value: (r) => r.block },
@@ -131,7 +146,17 @@ export async function exportReport(kind: ReportKind, period: string | null = nul
   }
 
   if (kind === "fees") {
-    const where = period ? "WHERE f.period = ?" : "";
+    const clauses: string[] = [];
+    const feeParams: (string | number)[] = [];
+    if (period) {
+      clauses.push("f.period = ?");
+      feeParams.push(period);
+    }
+    if (studentBranch.sql) {
+      clauses.push(studentBranch.sql);
+      feeParams.push(...studentBranch.params);
+    }
+    const where = clauses.length ? `WHERE ${clauses.join(" AND ")}` : "";
     const rows = await db.getAllAsync<Record<string, string | number | null>>(
       `SELECT f.period, s.admissionNo, s.fullName, f.rent, f.electricity, f.water, f.other,
               f.discount, f.total, f.amountPaid, (f.total - f.amountPaid) AS balance, f.dueDate,
@@ -144,7 +169,7 @@ export async function exportReport(kind: ReportKind, period: string | null = nul
        LEFT JOIN rooms r ON r.id = s.roomId
        ${where}
        ORDER BY f.period DESC, s.fullName COLLATE NOCASE;`,
-      period ? [period] : []
+      feeParams
     );
     const csv = toCsv(rows, [
       { header: "Month", value: (r) => r.period },
@@ -171,7 +196,9 @@ export async function exportReport(kind: ReportKind, period: string | null = nul
      FROM payments p
      JOIN fee_records f ON f.id = p.feeRecordId
      JOIN students s ON s.id = p.studentId
-     ORDER BY p.paidOn DESC, p.createdAt DESC;`
+     ${studentWhere}
+     ORDER BY p.paidOn DESC, p.createdAt DESC;`,
+    studentBranch.params
   );
   const csv = toCsv(rows, [
     { header: "Date", value: (r) => r.paidOn },

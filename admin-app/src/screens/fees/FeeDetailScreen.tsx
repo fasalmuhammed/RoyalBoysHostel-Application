@@ -21,7 +21,7 @@ type Props = NativeStackScreenProps<RootStackParamList, "FeeDetail">;
 
 export default function FeeDetailScreen({ navigation, route }: Props) {
   const { feeId } = route.params;
-  const { settings, invalidate } = useApp();
+  const { settings, invalidate, activeBranch } = useApp();
 
   const { data, loading, reload } = useAsyncData(async () => {
     const [fee, payments] = await Promise.all([getFee(feeId), listPayments(feeId)]);
@@ -45,7 +45,7 @@ export default function FeeDetailScreen({ navigation, route }: Props) {
   const shareReceipt = async () => {
     try {
       const html = receiptHtml({
-        hostelName: settings.hostelName,
+        hostelName: activeBranch?.name ?? settings.hostelName,
         currencySymbol: symbol,
         fee,
         payments,

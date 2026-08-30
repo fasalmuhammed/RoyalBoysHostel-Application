@@ -13,6 +13,7 @@ import Avatar from "@/components/Avatar";
 import { colors, fontSize, spacing } from "@/constants/theme";
 import { useAsyncData, useDebounced } from "@/utils/hooks";
 import { listStudents, StudentFilter, studentCounts } from "@/services/students";
+import { formatInmateId } from "@/services/branches";
 import type { MainTabParamList, RootStackParamList } from "@/navigation/types";
 
 type Props = CompositeScreenProps<
@@ -98,7 +99,7 @@ export default function StudentsScreen({ navigation, route }: Props) {
                   {item.fullName}
                 </Text>
                 <Text style={styles.meta} numberOfLines={1}>
-                  {[item.admissionNo, item.course && item.year ? `${item.course} · Year ${item.year}` : item.course]
+                  {[formatInmateId(item.branchCode, item.admissionNo), item.course && item.year ? `${item.course} · Year ${item.year}` : item.course]
                     .filter(Boolean)
                     .join("  ·  ") || "No course recorded"}
                 </Text>

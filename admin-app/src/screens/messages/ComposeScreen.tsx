@@ -47,7 +47,9 @@ export default function ComposeScreen({ navigation, route }: Props) {
   const presetBody = route.params?.presetBody;
   const noticeId = route.params?.noticeId;
 
-  const { settings } = useApp();
+  const { settings, activeBranch } = useApp();
+  // Inmates identify with their own hostel, not the parent organisation.
+  const hostelLabel = activeBranch?.name ?? settings.hostelName;
 
   const [body, setBody] = useState(presetBody ?? "");
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -136,7 +138,7 @@ export default function ComposeScreen({ navigation, route }: Props) {
     return renderTemplate(body, {
       name: sample.name,
       room: sample.roomLabel,
-      hostel: settings.hostelName,
+      hostel: hostelLabel,
       balance: sample.balance,
       amount: sample.balance,
       period: sample.period,
@@ -174,7 +176,7 @@ export default function ComposeScreen({ navigation, route }: Props) {
         body: renderTemplate(body, {
           name: candidate.name,
           room: candidate.roomLabel,
-          hostel: settings.hostelName,
+          hostel: hostelLabel,
           balance: candidate.balance,
           amount: candidate.balance,
           period: candidate.period,

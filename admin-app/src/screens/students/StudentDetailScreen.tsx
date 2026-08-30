@@ -12,6 +12,7 @@ import { useApp } from "@/context/AppContext";
 import { useAsyncData } from "@/utils/hooks";
 import { deleteStudent, getStudent, markLeft, reinstate } from "@/services/students";
 import { listFeesForStudent } from "@/services/fees";
+import { formatInmateId } from "@/services/branches";
 import { formatDate, formatMoney, formatPeriod } from "@/utils/format";
 import type { RootStackParamList } from "@/navigation/types";
 
@@ -103,7 +104,8 @@ export default function StudentDetailScreen({ navigation, route }: Props) {
           <Avatar name={student.fullName} photoFile={student.photoFile} size={92} />
           <Text style={styles.name}>{student.fullName}</Text>
           <Text style={styles.meta}>
-            {[student.course, student.year ? `Year ${student.year}` : null, student.admissionNo]
+            {[student.course, student.year ? `Year ${student.year}` : null,
+              formatInmateId(student.branchCode, student.admissionNo)]
               .filter(Boolean)
               .join("  ·  ") || "No course recorded"}
           </Text>
@@ -161,6 +163,8 @@ export default function StudentDetailScreen({ navigation, route }: Props) {
 
         <SectionTitle title="Hostel" />
         <Card>
+          <DetailRow label="Branch" value={student.branchName ?? "—"} />
+          <Divider />
           <DetailRow label="Room" value={student.roomLabel ?? "Not assigned"} />
           <Divider />
           <DetailRow

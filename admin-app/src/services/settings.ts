@@ -5,6 +5,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   hostelName: "My Hostel",
   countryCode: "91",
   currencySymbol: "₹",
+  activeBranchId: null,
   backupReminderDays: 7,
   lastBackupAt: null,
   autoBackupEnabled: true,

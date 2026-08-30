@@ -81,6 +81,7 @@ export async function wipeAllData(): Promise<void> {
       "notices",
       "students",
       "rooms",
+      "branches",
       "settings",
     ]) {
       await txn.execAsync(`DELETE FROM ${table};`);

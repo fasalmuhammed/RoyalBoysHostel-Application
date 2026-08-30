@@ -24,7 +24,7 @@ type Props = CompositeScreenProps<
 >;
 
 export default function DashboardScreen({ navigation }: Props) {
-  const { settings } = useApp();
+  const { settings, activeBranch } = useApp();
   const period = currentPeriod();
 
   const { data, loading, reload } = useAsyncData(async () => {
@@ -64,7 +64,7 @@ export default function DashboardScreen({ navigation }: Props) {
           <View style={{ flex: 1 }}>
             <Text style={styles.greeting}>{greeting()}</Text>
             <Text style={styles.hostel} numberOfLines={1}>
-              {settings.hostelName}
+              {activeBranch?.shortName ?? settings.hostelName}
             </Text>
           </View>
           <Pressable
