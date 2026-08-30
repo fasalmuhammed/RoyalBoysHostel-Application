@@ -221,15 +221,39 @@ function resetDatabase() {
 }
 
 // ---------------------------------------------------------------- module stubs
+let manipCounter = 0;
+
 const stubs = {
   "expo-file-system": { File: FSFile, Directory: FSDirectory, Paths },
   "expo-crypto": {
     getRandomBytes: (n) => new Uint8Array(nodeCrypto.randomBytes(n)),
     randomUUID: () => nodeCrypto.randomUUID(),
   },
+  // Faithful enough to exercise savePhoto end to end: it produces a real
+  // temp file in the in-memory FS, the way the native module produces one in
+  // the cache directory.
   "expo-image-manipulator": {
     SaveFormat: { JPEG: "jpeg" },
-    ImageManipulator: { manipulate: () => ({ resize: () => ({ renderAsync: async () => ({}) }) }) },
+    ImageManipulator: {
+      manipulate: (uri) => {
+        const ctx = {
+          resize() {
+            return ctx;
+          },
+          async renderAsync() {
+            return {
+              async saveAsync() {
+                const out = "file:///cache/manip-" + manipCounter++ + ".jpg";
+                const src = files.get(uri) || Buffer.from("no-source");
+                files.set(out, Buffer.from(src));
+                return { uri: out };
+              },
+            };
+          },
+        };
+        return ctx;
+      },
+    },
   },
   "expo-sqlite": expoSqlite,
   // Only the surface the services touch. Nothing here drives UI; it exists so

@@ -46,11 +46,23 @@ export async function savePhoto(sourceUri: string): Promise<string> {
 
   const fileName = `${newId()}.jpg`;
   const destination = new File(photosDirectory(), fileName);
-  new File(result.uri).copy(destination);
+  const source = new File(result.uri);
+
+  source.copy(destination);
+
+  // Verify rather than assume. Returning a filename whose file never landed
+  // would leave a student row pointing at nothing, surfacing much later as a
+  // silently missing photo.
+  if (!destination.exists) {
+    writePhotoBase64(fileName, await source.base64());
+  }
+  if (!destination.exists) {
+    throw new Error("The photo could not be saved to this device's storage.");
+  }
 
   // The manipulator writes into the cache directory; drop our copy's source.
   try {
-    new File(result.uri).delete();
+    source.delete();
   } catch {
     // Cache cleanup is best-effort — the OS will reclaim it anyway.
   }

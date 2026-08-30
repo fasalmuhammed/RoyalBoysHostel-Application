@@ -20,6 +20,7 @@ const format = h.load("utils/format");
 const validate = h.load("utils/validate");
 const csv = h.load("services/csv");
 const notices = h.load("services/notices");
+const photos = h.load("services/photos");
 const messaging = h.load("services/messaging");
 
 const mk = (name, roomId, extra) =>
@@ -366,6 +367,44 @@ async function run() {
     legacy.close();
   }
 
+  console.log("\n== v3 -> v4 numbers existing students in arrival order ==");
+  {
+    const { DatabaseSync } = require("node:sqlite");
+    const schema = h.load("db/schema");
+    const legacy = new DatabaseSync(":memory:");
+    legacy.exec(schema.MIGRATIONS[1]);
+    legacy.exec(schema.MIGRATIONS[2]);
+    legacy.exec(schema.MIGRATIONS[3]);
+    legacy.exec("PRAGMA user_version = 3;");
+
+    const add = (id, name, admissionNo, createdAt) =>
+      legacy
+        .prepare(
+          "INSERT INTO students (id, fullName, admissionNo, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?);"
+        )
+        .run(id, name, admissionNo, createdAt, createdAt);
+
+    add("s1", "First Joiner", "", 1000);
+    add("s2", "Second Joiner", "", 2000);
+    add("s3", "Already Numbered", "77", 3000);
+    add("s4", "Text Number", "ADM/2026/09", 4000);
+
+    legacy.exec(schema.MIGRATIONS[4]);
+
+    const rows = legacy
+      .prepare("SELECT id, admissionNo FROM students ORDER BY createdAt;")
+      .all();
+    const byId = Object.fromEntries(rows.map((r) => [r.id, r.admissionNo]));
+
+    check("first joiner becomes 1", byId.s1 === "1", JSON.stringify(byId));
+    check("second joiner becomes 2", byId.s2 === "2", JSON.stringify(byId));
+    check("an existing numeric id is preserved", byId.s3 === "77", JSON.stringify(byId));
+    check("a non-numeric id is replaced", byId.s4 !== "ADM/2026/09", JSON.stringify(byId));
+    check("every student ends up numbered", rows.every((r) => /^[0-9]+$/.test(r.admissionNo)), JSON.stringify(byId));
+
+    legacy.close();
+  }
+
   console.log("\n== notices ==");
   const n1 = await notices.createNotice({
     title: "Water supply interrupted",
@@ -445,6 +484,158 @@ async function run() {
   await notices.deleteNotice(n1);
   check("deleted", (await notices.getNotice(n1)) === null);
   check("others untouched", (await notices.listNotices("all")).length === 2);
+
+  console.log("\n== saving a captured photo ==");
+  {
+    const SRC = "file:///cache/camera-shot.jpg";
+    const bytes = Buffer.from("pretend-jpeg-bytes-éñ-12345");
+    h.files.set(SRC, bytes);
+
+    const stored = await photos.savePhoto(SRC);
+    check("returns a bare filename, not a uri", /^[0-9a-f-]+\.jpg$/i.test(stored), stored);
+    check("no path separators in the stored name", !stored.includes("/"), stored);
+
+    const uri = photos.photoUri(stored);
+    check("photoUri resolves to an existing file", typeof uri === "string" && uri.length > 0, String(uri));
+    check("file lives under the photos directory", uri.includes("/photos/"), String(uri));
+
+    const roundTrip = await photos.readPhotoBase64(stored);
+    check("stored bytes match what was captured", roundTrip === bytes.toString("base64"));
+
+    const leftovers = [...h.files.keys()].filter((k) => k.includes("manip-"));
+    check("manipulator temp file cleaned up", leftovers.length === 0, leftovers.join(","));
+
+    console.log("\n== a saved photo survives being referenced by a student ==");
+    const photoRoom = await rooms.createRoom({
+      block: "P", roomNumber: "1", floor: "", capacity: 2,
+      rent: 1000, deposit: 0, amenities: "", notes: "",
+    });
+    const withPhoto = await students.createStudent(
+      mk("Photographed", photoRoom, { admissionNo: "", photoFile: stored })
+    );
+    const saved = await students.getStudent(withPhoto);
+    check("student row keeps the filename", saved.photoFile === stored, String(saved.photoFile));
+    check("and the file is still on disk", photos.photoUri(saved.photoFile) !== null);
+
+    console.log("\n== replacing a photo removes only the old file ==");
+    h.files.set(SRC, Buffer.from("second-shot"));
+    const replacement = await photos.savePhoto(SRC);
+    check("replacement is a different file", replacement !== stored);
+    await students.updateStudent(
+      withPhoto,
+      mk("Photographed", photoRoom, { admissionNo: saved.admissionNo, photoFile: replacement })
+    );
+    check("old photo deleted", photos.photoUri(stored) === null);
+    check("new photo retained", photos.photoUri(replacement) !== null);
+
+    console.log("\n== deleting a student removes its photo ==");
+    await students.deleteStudent(withPhoto);
+    check("photo cleaned up with the student", photos.photoUri(replacement) === null);
+
+    console.log("\n== photoUri is safe on missing or absent files ==");
+    check("null filename", photos.photoUri(null) === null);
+    check("empty filename", photos.photoUri("") === null);
+    check("unknown filename", photos.photoUri("does-not-exist.jpg") === null);
+    check("deletePhoto tolerates a missing file", (photos.deletePhoto("nope.jpg"), true));
+
+    await rooms.deleteRoom(photoRoom);
+  }
+
+  console.log("\n== admission numbers are a sequence ==");
+  {
+    const seqRoom = await rooms.createRoom({
+      block: "S", roomNumber: "1", floor: "", capacity: 5,
+      rent: 5000, deposit: 0, amenities: "", notes: "",
+    });
+
+    const before = await students.peekNextAdmissionNo();
+    const a = await students.createStudent(mk("Seq One", seqRoom, { admissionNo: "" }));
+    const b = await students.createStudent(mk("Seq Two", seqRoom, { admissionNo: "" }));
+    const c = await students.createStudent(mk("Seq Three", null, { admissionNo: "" }));
+
+    const ga = await students.getStudent(a);
+    const gb = await students.getStudent(b);
+    const gc = await students.getStudent(c);
+
+    check("preview matched the number actually issued", ga.admissionNo === before, before + " vs " + ga.admissionNo);
+    check("numbers increment by one", Number(gb.admissionNo) === Number(ga.admissionNo) + 1, ga.admissionNo + "," + gb.admissionNo);
+    check("and again", Number(gc.admissionNo) === Number(gb.admissionNo) + 1, gc.admissionNo);
+    check("numbers are plain integers", /^[0-9]+$/.test(ga.admissionNo), ga.admissionNo);
+
+    console.log("\n== numbers are not reused after a deletion ==");
+    const highest = Number(gc.admissionNo);
+    await students.deleteStudent(c);
+    const d = await students.createStudent(mk("Seq Four", null, { admissionNo: "" }));
+    const gd = await students.getStudent(d);
+    check("deleted student's number is not reused", Number(gd.admissionNo) === highest + 1, "got " + gd.admissionNo);
+
+    console.log("\n== editing a student keeps its number ==");
+    await students.updateStudent(a, mk("Seq One Renamed", seqRoom, { admissionNo: ga.admissionNo }));
+    const reread = await students.getStudent(a);
+    check("number survives an edit", reread.admissionNo === ga.admissionNo, reread.admissionNo);
+    check("rename applied", reread.fullName === "Seq One Renamed");
+
+    console.log("\n== an explicit number is respected ==");
+    const e = await students.createStudent(mk("Explicit", null, { admissionNo: "900" }));
+    const ge = await students.getStudent(e);
+    check("explicit number kept", ge.admissionNo === "900", ge.admissionNo);
+    const f = await students.createStudent(mk("After Explicit", null, { admissionNo: "" }));
+    const gf = await students.getStudent(f);
+    check("sequence continues from the highest", gf.admissionNo === "901", gf.admissionNo);
+
+    // Tidy up so later assertions on counts stay predictable.
+    for (const id of [a, b, d, e, f]) await students.deleteStudent(id);
+    await rooms.deleteRoom(seqRoom);
+  }
+
+  console.log("\n== moving an existing student between rooms ==");
+  {
+    const roomX = await rooms.createRoom({
+      block: "X", roomNumber: "1", floor: "", capacity: 1,
+      rent: 5000, deposit: 0, amenities: "", notes: "",
+    });
+    const roomY = await rooms.createRoom({
+      block: "Y", roomNumber: "1", floor: "", capacity: 2,
+      rent: 8000, deposit: 0, amenities: "", notes: "",
+    });
+
+    const mover = await students.createStudent(
+      mk("Mover", roomX, { admissionNo: "", monthlyRent: 5000 })
+    );
+    check("starts in room X", (await students.getStudent(mover)).roomLabel === "X-1");
+
+    await students.assignRoom(mover, roomY);
+    const moved = await students.getStudent(mover);
+    check("moved to room Y", moved.roomLabel === "Y-1", moved.roomLabel);
+    check("rent is NOT changed by the move", moved.monthlyRent === 5000, "rent=" + moved.monthlyRent);
+
+    const xAfter = await rooms.getRoom(roomX);
+    const yAfter = await rooms.getRoom(roomY);
+    check("old room freed the bed", xAfter.occupied === 0 && xAfter.vacant === 1);
+    check("new room counts the occupant", yAfter.occupied === 1);
+
+    console.log("\n== rent can be updated explicitly after a move ==");
+    await students.setStudentRent(mover, 8000);
+    const repriced = await students.getStudent(mover);
+    check("rent updated on request", repriced.monthlyRent === 8000, "rent=" + repriced.monthlyRent);
+    check("room unchanged by repricing", repriced.roomLabel === "Y-1");
+
+    console.log("\n== moving into a full room is refused ==");
+    const blocker = await students.createStudent(mk("Blocker", roomX, { admissionNo: "" }));
+    const spare = await students.createStudent(mk("Spare", null, { admissionNo: "" }));
+    let moveErr = null;
+    try {
+      await students.assignRoom(spare, roomX);
+    } catch (e) {
+      moveErr = e;
+    }
+    check("full room rejects the move", moveErr instanceof students.RoomFullError, moveErr && moveErr.message);
+    check("student stays where they were", (await students.getStudent(spare)).roomId === null);
+
+    for (const id of [mover, blocker, spare]) await students.deleteStudent(id);
+    await rooms.deleteRoom(roomX);
+    await rooms.deleteRoom(roomY);
+  }
 
   console.log("\n== search and filters ==");
   const byName = await students.listStudents("bulk", "active");

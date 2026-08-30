@@ -5,7 +5,7 @@
  * stamped into every backup file. Restoring a backup created by a *newer* app
  * version is refused rather than half-applied — see services/backup.ts.
  */
-export const SCHEMA_VERSION = 3;
+export const SCHEMA_VERSION = 4;
 
 /** Ordered DDL for a fresh database. */
 const V1 = `
@@ -147,6 +147,25 @@ SET monthlyRent = COALESCE((SELECT rent FROM rooms WHERE rooms.id = students.roo
 `;
 
 /**
+ * Admission numbers become a system-assigned sequence (1, 2, 3, ...).
+ *
+ * Existing students are numbered in the order they were added, so the sequence
+ * reflects arrival order. Anyone who already had a purely numeric admission
+ * number keeps it; only blank or non-numeric entries are replaced, which stops
+ * the upgrade from renumbering a hostel that already had a scheme.
+ */
+const V4 = `
+UPDATE students
+SET admissionNo = (
+  SELECT COUNT(*) FROM students AS earlier
+  WHERE earlier.createdAt < students.createdAt
+     OR (earlier.createdAt = students.createdAt AND earlier.id <= students.id)
+)
+WHERE TRIM(COALESCE(admissionNo, '')) = ''
+   OR CAST(admissionNo AS INTEGER) = 0;
+`;
+
+/**
  * Migrations indexed by the version they upgrade *to*. To add a change, bump
  * SCHEMA_VERSION and add the matching entry — never edit an existing one in
  * place, or existing installs and old backups will diverge from new ones.
@@ -155,6 +174,7 @@ export const MIGRATIONS: Record<number, string> = {
   1: V1,
   2: V2,
   3: V3,
+  4: V4,
 };
 
 /** Tables included in a backup, in dependency order (parents first). */

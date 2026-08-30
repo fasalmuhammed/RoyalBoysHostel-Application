@@ -114,6 +114,49 @@ async function assertRoomHasSpace(
   }
 }
 
+/** Where the admission sequence is persisted. Rides along in backups. */
+const ADMISSION_COUNTER_KEY = "admissionCounter";
+
+/**
+ * Next admission number in the sequence: 1 for the first student, then 2, 3...
+ *
+ * Takes the greater of a stored counter and the highest number in use.
+ *
+ * The counter alone would be wrong after restoring a backup written by an
+ * older build; the maximum alone would reissue a departed student's number the
+ * moment the highest-numbered student is deleted, leaving two people sharing
+ * an id across old receipts and exports. Together they never go backwards.
+ *
+ * It lives as a raw row in `settings` rather than in `AppSettings`: it is
+ * bookkeeping, not a preference, and `loadSettings` ignores keys it does not
+ * know about.
+ */
+async function highestIssued(txn: Queryable): Promise<number> {
+  const row = await txn.getFirstAsync<{ highest: number | null }>(
+    `SELECT MAX(
+       COALESCE((SELECT CAST(value AS INTEGER) FROM settings WHERE key = ?), 0),
+       COALESCE((SELECT MAX(CAST(admissionNo AS INTEGER)) FROM students), 0)
+     ) AS highest;`,
+    ADMISSION_COUNTER_KEY
+  );
+  return row?.highest ?? 0;
+}
+
+interface Writable extends Queryable {
+  runAsync(sql: string, ...params: (string | number | null)[]): Promise<unknown>;
+}
+
+/** Claims the next number and advances the counter, inside the caller's transaction. */
+async function claimAdmissionNo(txn: Writable): Promise<string> {
+  const next = (await highestIssued(txn)) + 1;
+  await txn.runAsync(
+    "INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value;",
+    ADMISSION_COUNTER_KEY,
+    String(next)
+  );
+  return String(next);
+}
+
 export async function createStudent(input: StudentInput): Promise<string> {
   const db = await getDb();
   const id = newId();
@@ -123,12 +166,15 @@ export async function createStudent(input: StudentInput): Promise<string> {
     if (input.roomId && input.status === "active") {
       await assertRoomHasSpace(txn, input.roomId, null);
     }
+    // Allocated inside the transaction so two quick saves cannot claim the
+    // same number.
+    const admissionNo = input.admissionNo.trim() || (await claimAdmissionNo(txn));
     await txn.runAsync(
       `INSERT INTO students (id, admissionNo, fullName, phone, guardianName, guardianPhone,
          email, course, year, address, idProof, photoFile, roomId, status, monthlyRent,
          billingCycleDays, joinedOn, leftOn, notes, createdAt, updatedAt)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`,
-      id, input.admissionNo, input.fullName, input.phone, input.guardianName, input.guardianPhone,
+      id, admissionNo, input.fullName, input.phone, input.guardianName, input.guardianPhone,
       input.email, input.course, input.year, input.address, input.idProof, input.photoFile,
       input.roomId, input.status, input.monthlyRent, input.billingCycleDays,
       input.joinedOn, input.leftOn, input.notes, now, now
@@ -181,6 +227,23 @@ export async function assignRoom(studentId: string, roomId: string | null): Prom
 }
 
 /**
+ * Updates only the agreed rent.
+ *
+ * Moving a student between rooms deliberately does not change their rent, so
+ * this exists for the caller to apply the new room's rate when the admin
+ * explicitly asks for it.
+ */
+export async function setStudentRent(studentId: string, monthlyRent: number): Promise<void> {
+  const db = await getDb();
+  await db.runAsync(
+    "UPDATE students SET monthlyRent = ?, updatedAt = ? WHERE id = ?;",
+    monthlyRent,
+    Date.now(),
+    studentId
+  );
+}
+
+/**
  * Marks a student as having vacated. Their bed is freed but the record -- and
  * every fee row attached to it -- is kept, because past dues stay collectable.
  */
@@ -209,6 +272,15 @@ export async function deleteStudent(studentId: string): Promise<void> {
   const existing = await getStudent(studentId);
   await db.runAsync("DELETE FROM students WHERE id = ?;", studentId);
   deletePhoto(existing?.photoFile ?? null);
+}
+
+/**
+ * The number the next new student will be given, for display on the form.
+ * Read-only -- it does not advance the counter.
+ */
+export async function peekNextAdmissionNo(): Promise<string> {
+  const db = await getDb();
+  return String((await highestIssued(db)) + 1);
 }
 
 export interface StudentCounts {

@@ -131,18 +131,25 @@ export default function RoomDetailScreen({ navigation, route }: Props) {
           ) : null}
         </Card>
 
-        <SectionTitle
-          title={`Occupants (${occupants.length}/${room.capacity})`}
-          action={
-            room.vacant > 0 ? (
-              <Pressable
-                onPress={() => navigation.navigate("StudentForm", { presetRoomId: roomId })}
-              >
-                <Text style={styles.link}>Add student</Text>
-              </Pressable>
-            ) : undefined
-          }
-        />
+        <SectionTitle title={`Occupants (${occupants.length}/${room.capacity})`} />
+
+        {room.vacant > 0 ? (
+          <View style={styles.addRow}>
+            <Button
+              title="Add existing student"
+              variant="secondary"
+              icon="person-add-outline"
+              onPress={() => navigation.navigate("AssignStudents", { roomId })}
+              style={{ flex: 1 }}
+            />
+            <Button
+              title="New student"
+              icon="add"
+              onPress={() => navigation.navigate("StudentForm", { presetRoomId: roomId })}
+              style={{ flex: 1 }}
+            />
+          </View>
+        ) : null}
 
         {occupants.length === 0 ? (
           <Card>
@@ -211,7 +218,7 @@ const styles = StyleSheet.create({
   bed: { width: 38, height: 38, borderRadius: radius.sm, alignItems: "center", justifyContent: "center" },
   bedTaken: { backgroundColor: colors.primary },
   bedFree: { backgroundColor: colors.background, borderWidth: 1.5, borderColor: colors.border },
-  link: { color: colors.primary, fontWeight: "700", fontSize: fontSize.sm },
+  addRow: { flexDirection: "row", gap: spacing.sm, marginBottom: spacing.md },
   empty: { fontSize: fontSize.sm, color: colors.textMuted, textAlign: "center" },
   occupantRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
   occupantMain: { flex: 1, flexDirection: "row", alignItems: "center", gap: spacing.md },

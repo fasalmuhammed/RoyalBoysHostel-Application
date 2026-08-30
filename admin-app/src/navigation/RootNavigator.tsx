@@ -24,6 +24,7 @@ import StudentDetailScreen from "@/screens/students/StudentDetailScreen";
 import RoomsScreen from "@/screens/rooms/RoomsScreen";
 import RoomFormScreen from "@/screens/rooms/RoomFormScreen";
 import RoomDetailScreen from "@/screens/rooms/RoomDetailScreen";
+import AssignStudentsScreen from "@/screens/rooms/AssignStudentsScreen";
 
 import FeesScreen from "@/screens/fees/FeesScreen";
 import FeeDetailScreen from "@/screens/fees/FeeDetailScreen";
@@ -118,6 +119,12 @@ function MainStack() {
         name="RoomDetail"
         component={RoomDetailScreen}
         options={{ ...detailOptions, title: "Room" }}
+      />
+
+      <Stack.Screen
+        name="AssignStudents"
+        component={AssignStudentsScreen}
+        options={{ ...detailOptions, title: "Add existing student" }}
       />
 
       <Stack.Screen

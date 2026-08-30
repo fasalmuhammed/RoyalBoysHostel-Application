@@ -280,6 +280,27 @@ async function run() {
   }
   check("junk file rejected with a clear message", junkErr !== null && /not a hostel backup/i.test(junkErr.message), junkErr && junkErr.message);
 
+  console.log("\n== the admission sequence survives a restore ==");
+  {
+    const beforeNext = await students.peekNextAdmissionNo();
+    const issued = (await students.listStudents("", "all")).map((s) => Number(s.admissionNo));
+    const highest = Math.max(0, ...issued.filter((n) => Number.isFinite(n)));
+    check("next number is past every number in use", Number(beforeNext) > highest, beforeNext + " vs " + highest);
+
+    const fresh = await students.createStudent({
+      admissionNo: "", fullName: "Post Restore", phone: "9800000000", guardianName: "",
+      guardianPhone: "", email: "", course: "", year: "", address: "", idProof: "",
+      photoFile: null, roomId: null, status: "active", monthlyRent: 0, billingCycleDays: 30,
+      joinedOn: "2026-09-01", leftOn: null, notes: "",
+    });
+    const freshRow = await students.getStudent(fresh);
+    check("a student added after restore does not collide", freshRow.admissionNo === beforeNext, freshRow.admissionNo);
+    const all = await students.listStudents("", "all");
+    const numbers = all.map((s) => s.admissionNo);
+    check("all admission numbers remain unique", new Set(numbers).size === numbers.length, numbers.join(","));
+    await students.deleteStudent(fresh);
+  }
+
   console.log("\n== backup from a newer app version is refused ==");
   const futureUri = exported.uri + ".future";
   const futureLines = h.files.get(exported.uri).toString("utf8").split("\n");

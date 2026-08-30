@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -28,6 +28,7 @@ import {
   StudentInput,
   createStudent,
   getStudent,
+  peekNextAdmissionNo,
   updateStudent,
 } from "@/services/students";
 import { listRooms } from "@/services/rooms";
@@ -83,11 +84,24 @@ export default function StudentFormScreen({ navigation, route }: Props) {
   const [roomPickerOpen, setRoomPickerOpen] = useState(false);
   const [loaded, setLoaded] = useState(!isEditing);
 
-  /** Photo captured in this session but not yet committed to a saved student. */
-  const [pendingPhoto, setPendingPhoto] = useState<string | null>(null);
-  const [originalPhoto, setOriginalPhoto] = useState<string | null>(null);
+  /**
+   * Photo bookkeeping, held in refs rather than state.
+   *
+   * These must not be effect dependencies. An earlier version cleared the
+   * pending photo through `useState` on save, which re-ran the cleanup effect
+   * and deleted the very file the newly saved student pointed at -- the row
+   * kept its filename while the image vanished from disk.
+   */
+  const pendingPhotoRef = useRef<string | null>(null);
+  const originalPhotoRef = useRef<string | null>(null);
+  /** Set once the row owning the pending photo is written. */
+  const committedRef = useRef(false);
 
   const { data: rooms } = useAsyncData(() => listRooms(), []);
+  const { data: nextAdmissionNo } = useAsyncData(
+    () => (isEditing ? Promise.resolve(null) : peekNextAdmissionNo()),
+    [isEditing]
+  );
 
   useEffect(() => {
     if (!studentId) return;
@@ -118,7 +132,7 @@ export default function StudentFormScreen({ navigation, route }: Props) {
       setCycleText(String(student.billingCycleDays || DEFAULT_CYCLE_DAYS));
       // An existing student already has an agreed rent; never overwrite it.
       setRentTouched(true);
-      setOriginalPhoto(student.photoFile);
+      originalPhotoRef.current = student.photoFile;
       setLoaded(true);
     })();
   }, [studentId]);
@@ -183,8 +197,9 @@ export default function StudentFormScreen({ navigation, route }: Props) {
 
       const stored = await savePhoto(result.assets[0].uri);
       // Drop a photo taken earlier in this same session; it was never saved.
-      if (pendingPhoto) deletePhoto(pendingPhoto);
-      setPendingPhoto(stored);
+      const superseded = pendingPhotoRef.current;
+      if (superseded && superseded !== originalPhotoRef.current) deletePhoto(superseded);
+      pendingPhotoRef.current = stored;
       set("photoFile", stored);
     } catch {
       Alert.alert("Could not add photo", "Something went wrong while saving the image.");
@@ -203,8 +218,9 @@ export default function StudentFormScreen({ navigation, route }: Props) {
               text: "Remove photo",
               style: "destructive" as const,
               onPress: () => {
-                if (pendingPhoto) deletePhoto(pendingPhoto);
-                setPendingPhoto(null);
+                const dropped = pendingPhotoRef.current;
+                if (dropped && dropped !== originalPhotoRef.current) deletePhoto(dropped);
+                pendingPhotoRef.current = null;
                 set("photoFile", null);
               },
             },
@@ -251,7 +267,7 @@ export default function StudentFormScreen({ navigation, route }: Props) {
         await createStudent(payload);
       }
       // Committed: the photo now belongs to a row, so it must not be cleaned up.
-      setPendingPhoto(null);
+      committedRef.current = true;
       invalidate();
       navigation.goBack();
     } catch (e) {
@@ -265,12 +281,20 @@ export default function StudentFormScreen({ navigation, route }: Props) {
     }
   };
 
-  // Remove a photo captured but never saved, so it does not linger on disk.
+  /**
+   * Removes a photo captured but never saved, so it does not linger on disk.
+   *
+   * Empty deps on purpose: this must run only when the screen is torn down,
+   * never as a side effect of state changing while it is still open.
+   */
   useEffect(
     () => () => {
-      if (pendingPhoto && pendingPhoto !== originalPhoto) deletePhoto(pendingPhoto);
+      const pending = pendingPhotoRef.current;
+      if (!committedRef.current && pending && pending !== originalPhotoRef.current) {
+        deletePhoto(pending);
+      }
     },
-    [pendingPhoto, originalPhoto]
+    []
   );
 
   const previewUri = photoUri(form.photoFile);
@@ -330,14 +354,20 @@ export default function StudentFormScreen({ navigation, route }: Props) {
             icon="person-outline"
             autoCapitalize="words"
           />
-          <Input
-            label="Admission number"
-            value={form.admissionNo}
-            onChangeText={(t) => set("admissionNo", t)}
-            placeholder="e.g. ADM2026001"
-            icon="pricetag-outline"
-            autoCapitalize="characters"
-          />
+          <View style={styles.admissionRow}>
+            <Ionicons name="pricetag-outline" size={18} color={colors.primary} />
+            <View style={{ flex: 1 }}>
+              <Text style={styles.admissionLabel}>Student ID</Text>
+              <Text style={styles.admissionHint}>
+                {isEditing
+                  ? "Assigned when this student was added."
+                  : "Assigned automatically when you save."}
+              </Text>
+            </View>
+            <Text style={styles.admissionValue}>
+              {isEditing ? form.admissionNo || "—" : (nextAdmissionNo ?? "…")}
+            </Text>
+          </View>
           <Input
             label="Mobile number"
             value={form.phone}
@@ -549,4 +579,17 @@ const styles = StyleSheet.create({
   },
   photoHint: { fontSize: fontSize.sm, color: colors.textMuted, marginTop: spacing.sm },
   pairRow: { flexDirection: "row", gap: spacing.md },
+  admissionRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.md,
+    backgroundColor: colors.primaryLight,
+    borderRadius: radius.md,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.md - 2,
+    marginBottom: spacing.md,
+  },
+  admissionLabel: { fontSize: fontSize.sm, fontWeight: "700", color: colors.text },
+  admissionHint: { fontSize: fontSize.xs, color: colors.textMuted, marginTop: 2 },
+  admissionValue: { fontSize: fontSize.xl, fontWeight: "800", color: colors.primary },
 });

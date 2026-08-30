@@ -17,6 +17,7 @@ export type RootStackParamList = {
 
   RoomForm: { roomId?: string } | undefined;
   RoomDetail: { roomId: string };
+  AssignStudents: { roomId: string };
 
   FeeDetail: { feeId: string };
   FeeForm: { feeId?: string; studentId?: string } | undefined;
