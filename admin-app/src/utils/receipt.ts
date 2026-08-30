@@ -71,33 +71,33 @@ export function receiptHtml({ hostelName, currencySymbol, fee, payments }: Recei
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <style>
   * { box-sizing: border-box; }
-  body { font-family: -apple-system, "Helvetica Neue", Roboto, sans-serif; color: #10203A; padding: 28px; }
+  body { font-family: -apple-system, "Helvetica Neue", Roboto, sans-serif; color: #14142B; padding: 28px; }
   .head { display: flex; justify-content: space-between; align-items: flex-start;
-          border-bottom: 3px solid #062962; padding-bottom: 14px; }
+          border-bottom: 3px solid #6D4AFC; padding-bottom: 14px; }
   .hostel { font-size: 21px; font-weight: 800; margin: 0; }
-  .sub { color: #5D6B85; font-size: 12px; margin-top: 3px; }
-  .title { font-size: 12px; letter-spacing: 1.5px; color: #123F86; font-weight: 700; }
+  .sub { color: #6E6D8A; font-size: 12px; margin-top: 3px; }
+  .title { font-size: 12px; letter-spacing: 1.5px; color: #6D4AFC; font-weight: 700; }
   .status { display: inline-block; margin-top: 6px; padding: 4px 10px; border-radius: 999px;
             font-size: 11px; font-weight: 700;
             background: ${fee.status === "paid" ? "#E8F7EE" : fee.status === "partial" ? "#FBF2E0" : "#FDECEC"};
             color: ${fee.status === "paid" ? "#16A34A" : fee.status === "partial" ? "#B45309" : "#DC2626"}; }
   .grid { display: flex; gap: 32px; margin: 22px 0; }
-  .label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.8px; color: #93A0B5; }
+  .label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.8px; color: #9B9AB0; }
   .value { font-size: 14px; font-weight: 600; margin-top: 2px; }
   table { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: 13px; }
   th { text-align: left; font-size: 10px; text-transform: uppercase; letter-spacing: 0.8px;
-       color: #93A0B5; border-bottom: 1px solid #E4E8F0; padding: 7px 0; }
-  td { padding: 7px 0; border-bottom: 1px solid #EEF1F6; }
+       color: #9B9AB0; border-bottom: 1px solid #E9E8F0; padding: 7px 0; }
+  td { padding: 7px 0; border-bottom: 1px solid #F2F1F7; }
   .right { text-align: right; }
   .total td { font-weight: 800; font-size: 15px; border-bottom: none; padding-top: 12px; }
-  .balance { margin-top: 18px; background: #F5F6F9; border-radius: 10px; padding: 14px 16px;
+  .balance { margin-top: 18px; background: #F6F6F9; border-radius: 10px; padding: 14px 16px;
              display: flex; justify-content: space-between; align-items: center; }
   .balance .amt { font-size: 20px; font-weight: 800;
                   color: ${fee.balance > 0 ? "#DC2626" : "#16A34A"}; }
-  h3 { font-size: 12px; text-transform: uppercase; letter-spacing: 1px; color: #5D6B85;
+  h3 { font-size: 12px; text-transform: uppercase; letter-spacing: 1px; color: #6E6D8A;
        margin: 26px 0 0; }
-  .foot { margin-top: 32px; font-size: 10px; color: #93A0B5; text-align: center;
-          border-top: 1px solid #E4E8F0; padding-top: 12px; }
+  .foot { margin-top: 32px; font-size: 10px; color: #9B9AB0; text-align: center;
+          border-top: 1px solid #E9E8F0; padding-top: 12px; }
 </style>
 </head>
 <body>

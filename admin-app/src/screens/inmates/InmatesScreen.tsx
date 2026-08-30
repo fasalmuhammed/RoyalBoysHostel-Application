@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { FlatList, StyleSheet, Text, View } from "react-native";
+import { FlatList, Pressable, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import type { CompositeScreenProps } from "@react-navigation/native";
@@ -35,10 +35,19 @@ export default function InmatesScreen({ navigation, route }: Props) {
   return (
     <SafeAreaView style={styles.screen} edges={["top", "left", "right"]}>
       <View style={styles.header}>
-        <Text style={styles.title}>Inmates</Text>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.title}>Inmates</Text>
         <Text style={styles.subtitle}>
           {counts ? `${counts.active} active · ${counts.total} total` : " "}
-        </Text>
+          </Text>
+        </View>
+        <Pressable
+          onPress={() => navigation.navigate("Search")}
+          style={styles.headerIcon}
+          accessibilityLabel="Search everything"
+        >
+          <Ionicons name="search" size={19} color={colors.text} />
+        </Pressable>
       </View>
 
       <View style={styles.controls}>
@@ -126,7 +135,21 @@ export default function InmatesScreen({ navigation, route }: Props) {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.background },
-  header: { paddingHorizontal: spacing.lg, paddingTop: spacing.sm },
+  header: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.sm,
+  },
+  headerIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: colors.surface,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   title: { fontSize: fontSize.xxl, fontWeight: "800", color: colors.text },
   subtitle: { fontSize: fontSize.sm, color: colors.textMuted, marginTop: 2 },
   controls: { paddingHorizontal: spacing.lg, paddingTop: spacing.md, gap: spacing.sm },

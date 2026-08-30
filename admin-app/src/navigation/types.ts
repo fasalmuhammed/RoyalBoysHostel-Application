@@ -42,6 +42,9 @@ export type RootStackParamList = {
   Notices: undefined;
   NoticeForm: { noticeId?: string } | undefined;
 
+  Notifications: undefined;
+  Search: undefined;
+
   Backup: undefined;
   Reports: undefined;
   Settings: undefined;

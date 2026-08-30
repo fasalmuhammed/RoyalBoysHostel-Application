@@ -46,6 +46,18 @@ export default function MoreScreen({ navigation }: Props) {
 
         <View style={styles.group}>
           <Row
+            icon="search-outline"
+            label="Search everything"
+            sublabel="Inmates, rooms, bills and notices"
+            onPress={() => navigation.navigate("Search")}
+          />
+          <Row
+            icon="notifications-outline"
+            label="Notifications"
+            sublabel="What needs your attention"
+            onPress={() => navigation.navigate("Notifications")}
+          />
+          <Row
             icon="megaphone-outline"
             label="Notice board"
             sublabel="Post notices and send them to inmates"

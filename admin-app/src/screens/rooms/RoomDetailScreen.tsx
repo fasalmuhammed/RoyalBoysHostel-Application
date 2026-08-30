@@ -1,5 +1,5 @@
 import React from "react";
-import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Alert, Linking, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
@@ -38,6 +38,22 @@ export default function RoomDetailScreen({ navigation, route }: Props) {
   }
 
   const occupants = data?.occupants ?? [];
+  const amenities = room.amenities.split(",").map((item) => item.trim()).filter(Boolean);
+
+  /** Sharing description, the way the mockup labels a room. */
+  const sharing =
+    room.capacity === 1
+      ? "Single"
+      : room.capacity === 2
+        ? "Double Sharing"
+        : `${room.capacity} Sharing`;
+
+  const call = (number: string) => {
+    if (!number.trim()) return;
+    Linking.openURL(`tel:${number.replace(/\s/g, "")}`).catch(() => {
+      Alert.alert("Could not place the call");
+    });
+  };
   const label = `${room.block ? `${room.block}-` : ""}${room.roomNumber}`;
 
   const onVacate = (studentId: string, name: string) => {
@@ -84,8 +100,7 @@ export default function RoomDetailScreen({ navigation, route }: Props) {
             <View>
               <Text style={styles.roomTitle}>Room {label}</Text>
               <Text style={styles.roomSubtitle}>
-                {room.floor || "Floor not set"} · {room.capacity} bed
-                {room.capacity === 1 ? "" : "s"}
+                {sharing} · {room.floor || "Floor not set"}
               </Text>
             </View>
             <Badge
@@ -122,7 +137,20 @@ export default function RoomDetailScreen({ navigation, route }: Props) {
             value={room.deposit ? formatMoney(room.deposit, settings.currencySymbol) : "—"}
           />
           <Divider />
-          <DetailRow label="Amenities" value={room.amenities} />
+          {amenities.length > 0 ? (
+            <View style={styles.amenityBlock}>
+              <Text style={styles.amenityLabel}>Amenities</Text>
+              <View style={styles.amenityRow}>
+                {amenities.map((item) => (
+                  <View key={item} style={styles.amenityChip}>
+                    <Text style={styles.amenityText}>{item}</Text>
+                  </View>
+                ))}
+              </View>
+            </View>
+          ) : (
+            <DetailRow label="Amenities" value={null} />
+          )}
           {room.notes ? (
             <>
               <Divider />
@@ -172,6 +200,11 @@ export default function RoomDetailScreen({ navigation, route }: Props) {
                   </Text>
                 </View>
               </Pressable>
+              {inmate.phone ? (
+                <Pressable onPress={() => call(inmate.phone)} hitSlop={10} style={styles.callButton}>
+                  <Ionicons name="call" size={17} color={colors.success} />
+                </Pressable>
+              ) : null}
               <Pressable
                 onPress={() => onVacate(inmate.id, inmate.fullName)}
                 hitSlop={10}
@@ -224,6 +257,24 @@ const styles = StyleSheet.create({
   occupantMain: { flex: 1, flexDirection: "row", alignItems: "center", gap: spacing.md },
   occupantName: { fontSize: fontSize.md, fontWeight: "700", color: colors.text },
   occupantMeta: { fontSize: fontSize.xs, color: colors.textMuted, marginTop: 2 },
+  amenityBlock: { paddingVertical: spacing.sm },
+  amenityLabel: { fontSize: fontSize.sm, color: colors.textMuted, marginBottom: spacing.sm },
+  amenityRow: { flexDirection: "row", flexWrap: "wrap", gap: spacing.xs },
+  amenityChip: {
+    backgroundColor: colors.primaryLight,
+    borderRadius: radius.sm,
+    paddingHorizontal: spacing.sm + 2,
+    paddingVertical: 5,
+  },
+  amenityText: { fontSize: fontSize.xs, fontWeight: "700", color: colors.primary },
+  callButton: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: colors.successBg,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   vacateButton: {
     width: 38,
     height: 38,

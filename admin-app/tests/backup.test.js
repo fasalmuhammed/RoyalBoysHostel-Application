@@ -12,7 +12,7 @@ const check = (name, cond, extra) => {
   }
 };
 
-const students = h.load("services/inmates");
+const inmates = h.load("services/inmates");
 const rooms = h.load("services/rooms");
 const fees = h.load("services/fees");
 const settings = h.load("services/settings");
@@ -50,9 +50,9 @@ async function seed() {
     joinedOn: "2026-01-15", leftOn: null, notes: "",
   });
 
-  const s1 = await students.createInmate(mk("Rahul Sharma", roomA, "9876543210"));
-  const s2 = await students.createInmate(mk(TRICKY_NAME, roomA, "9876543211"));
-  const s3 = await students.createInmate(mk("Vikram Singh", roomB, "9876543212"));
+  const s1 = await inmates.createInmate(mk("Rahul Sharma", roomA, "9876543210"));
+  const s2 = await inmates.createInmate(mk(TRICKY_NAME, roomA, "9876543211"));
+  const s3 = await inmates.createInmate(mk("Vikram Singh", roomB, "9876543212"));
 
   // Two students carry photos.
   photos.writePhotoBase64("p1.jpg", Buffer.from("fake-jpeg-bytes-one").toString("base64"));
@@ -95,7 +95,9 @@ async function snapshot() {
   const d = await db.getDb();
   const out = {};
   for (const t of ["branches", "rooms", "students", "fee_records", "payments", "notices", "settings"]) {
-    out[t] = await d.getAllAsync("SELECT * FROM " + t + " ORDER BY " + (t === "settings" ? "key" : "id") + ";");
+    // The SQL table is still `students`; expose it under the name the app uses.
+    const key = t === "students" ? "inmates" : t;
+    out[key] = await d.getAllAsync("SELECT * FROM " + t + " ORDER BY " + (t === "settings" ? "key" : "id") + ";");
   }
   return out;
 }
@@ -110,21 +112,21 @@ async function run() {
       branchId: "", block: "K", roomNumber: "7", floor: "", capacity: 2,
       rent: 7000, deposit: 0, amenities: "", notes: "",
     });
-    await students.createInmate({
+    await inmates.createInmate({
       admissionNo: "", fullName: "Kakkanad Person", phone: "9871234567",
       guardianName: "", guardianPhone: "", email: "", course: "", year: "",
       address: "", idProof: "", photoFile: null, roomId: kRoom, branchId: "",
       status: "active", monthlyRent: 7000, billingCycleDays: 30,
       joinedOn: "2026-03-01", leftOn: null, notes: "",
     });
-    const kOnly = await students.listInmates("", "all");
+    const kOnly = await inmates.listInmates("", "all");
     check("Kakkanad sees only its own inmate", kOnly.length === 1, "n=" + kOnly.length);
     // Export runs with a branch active; it must still capture everything.
     branches.setActiveBranchId("branch-thammanam");
   }
 
   const before = await snapshot();
-  check("seeded 4 inmates across both branches", before.students.length === 4, "n=" + before.students.length);
+  check("seeded 4 inmates across both branches", before.inmates.length === 4, "n=" + before.inmates.length);
   check("seeded 3 rooms across both branches", before.rooms.length === 3, "n=" + before.rooms.length);
   check("seeded 2 invoices", before.fee_records.length === 2);
   check("seeded 1 payment", before.payments.length === 1);
@@ -163,7 +165,7 @@ async function run() {
   check("restore rejected", threw !== null, threw && threw.message);
   check("error names passphrase or damage", threw && /passphrase|damaged/i.test(threw.message));
   const afterFailed = await snapshot();
-  check("data untouched after failed restore", afterFailed.students.length === 4, "n=" + afterFailed.students.length);
+  check("data untouched after failed restore", afterFailed.inmates.length === 4, "n=" + afterFailed.inmates.length);
 
   console.log("\n== tampered file is rejected ==");
   const tamperUri = exported.uri + ".tampered";
@@ -194,7 +196,7 @@ async function run() {
   await db.wipeAllData();
   photos.deleteAllPhotos();
   const empty = await snapshot();
-  check("database emptied", empty.students.length === 0 && empty.rooms.length === 0);
+  check("database emptied", empty.inmates.length === 0 && empty.rooms.length === 0);
 
   const result = await backup.restoreBackup(exported.uri, PASS);
   check("restore reported rows", result.rowsRestored > 0, "rows " + result.rowsRestored);
@@ -202,14 +204,14 @@ async function run() {
 
   const after = await snapshot();
   console.log("\n== fidelity ==");
-  check("inmates restored", after.students.length === 4, "got " + after.students.length);
+  check("inmates restored", after.inmates.length === 4, "got " + after.inmates.length);
   check("rooms restored", after.rooms.length === 3, "n=" + after.rooms.length);
   check("invoices restored", after.fee_records.length === 2);
   check("payments restored", after.payments.length === 1);
 
   const norm = (arr) => JSON.stringify(arr);
   check("rooms identical", norm(after.rooms) === norm(before.rooms));
-  check("students identical", norm(after.students) === norm(before.students));
+  check("students identical", norm(after.inmates) === norm(before.inmates));
   check("fee_records identical", norm(after.fee_records) === norm(before.fee_records));
   check("payments identical", norm(after.payments) === norm(before.payments));
   check("settings identical", norm(after.settings) === norm(before.settings));
@@ -220,13 +222,13 @@ async function run() {
   console.log("\n== the backup covered every branch, not just the active one ==");
   {
     branches.setActiveBranchId("branch-thammanam");
-    const t = await students.listInmates("", "all");
+    const t = await inmates.listInmates("", "all");
     check("Thammanam inmates came back", t.length === 3, "n=" + t.length);
     check("and none of them belong to Kakkanad",
       t.every((s) => s.fullName !== "Kakkanad Person"), t.map((s) => s.fullName).join(","));
 
     branches.setActiveBranchId("branch-kakkanad");
-    const k = await students.listInmates("", "all");
+    const k = await inmates.listInmates("", "all");
     check("Kakkanad inmate came back too", k.length === 1 && k[0].fullName === "Kakkanad Person",
       k.map((s) => s.fullName).join(","));
     check("its room came back as well", (await rooms.listRooms()).length === 1);
@@ -240,9 +242,9 @@ async function run() {
   const hydrated = await notices.listNotices("all");
   check("pinned notice sorts first after restore", hydrated[0].title === "Holiday Notice", hydrated[0].title);
 
-  const restoredTricky = after.students.find((s) => s.fullName === TRICKY_NAME);
-  check("unicode + quotes name survived", !!restoredTricky, "names: " + after.students.map((s) => s.fullName).join(" | "));
-  const multiline = after.students.find((s) => s.address.includes("\n"));
+  const restoredTricky = after.inmates.find((s) => s.fullName === TRICKY_NAME);
+  check("unicode + quotes name survived", !!restoredTricky, "names: " + after.inmates.map((s) => s.fullName).join(" | "));
+  const multiline = after.inmates.find((s) => s.address.includes("\n"));
   check("multi-line address survived", !!multiline);
 
   console.log("\n== photo fidelity ==");
@@ -252,7 +254,7 @@ async function run() {
   check("photo 2 bytes identical", p2 === Buffer.from("fake-jpeg-bytes-two éñ").toString("base64"));
 
   console.log("\n== relationships still work after restore ==");
-  const list = await students.listInmates("", "active");
+  const list = await inmates.listInmates("", "active");
   check("student list rebuilt for the active branch", list.length === 3, "n=" + list.length);
   const withRoom = list.filter((s) => s.roomLabel);
   check("room labels resolve", withRoom.length === 3, JSON.stringify(list.map((s) => s.roomLabel)));
@@ -275,9 +277,9 @@ async function run() {
   photos.deleteAllPhotos();
   const autoResult = await backup.restoreBackup(auto.uri, null);
   const afterAuto = await snapshot();
-  check("auto backup restores inmates", afterAuto.students.length === 4, "got " + afterAuto.students.length);
+  check("auto backup restores inmates", afterAuto.inmates.length === 4, "got " + afterAuto.inmates.length);
   check("auto backup restores photos", autoResult.photosRestored === 2);
-  check("auto backup fidelity", norm(afterAuto.students) === norm(before.students));
+  check("auto backup fidelity", norm(afterAuto.inmates) === norm(before.inmates));
 
   console.log("\n== chunking: large dataset spans many chunks ==");
   for (let i = 0; i < 60; i += 1) {
@@ -286,7 +288,7 @@ async function run() {
   const d = await db.getDb();
   const bulkIds = [];
   for (let i = 0; i < 60; i += 1) {
-    const id = await students.createInmate({
+    const id = await inmates.createInmate({
       admissionNo: "B" + i, fullName: "Bulk Inmate " + i, phone: "90000000" + String(i).padStart(2, "0"),
       guardianName: "G", guardianPhone: "9", email: "", course: "ME", year: "1",
       address: "addr", idProof: "", photoFile: null, roomId: null, branchId: "", status: "active",
@@ -307,9 +309,9 @@ async function run() {
   photos.deleteAllPhotos();
   const bigResult = await backup.restoreBackup(bigExport.uri, PASS);
   const bigAfter = await snapshot();
-  check("all 64 inmates restored", bigAfter.students.length === 64, "got " + bigAfter.students.length);
+  check("all 64 inmates restored", bigAfter.inmates.length === 64, "got " + bigAfter.inmates.length);
   check("all 62 photos restored", bigResult.photosRestored === 62, "got " + bigResult.photosRestored);
-  check("large dataset identical", norm(bigAfter.students) === norm(bigBefore.students));
+  check("large dataset identical", norm(bigAfter.inmates) === norm(bigBefore.inmates));
   const bulkPhoto = await photos.readPhotoBase64("bulk7.jpg");
   check("bulk photo bytes identical", bulkPhoto === Buffer.alloc(20000, 7).toString("base64"));
 
@@ -326,23 +328,23 @@ async function run() {
 
   console.log("\n== the admission sequence survives a restore ==");
   {
-    const beforeNext = await students.peekNextAdmissionNo();
-    const issued = (await students.listInmates("", "all")).map((s) => Number(s.admissionNo));
+    const beforeNext = await inmates.peekNextAdmissionNo();
+    const issued = (await inmates.listInmates("", "all")).map((s) => Number(s.admissionNo));
     const highest = Math.max(0, ...issued.filter((n) => Number.isFinite(n)));
     check("next number is past every number in use", Number(beforeNext) > highest, beforeNext + " vs " + highest);
 
-    const fresh = await students.createInmate({
+    const fresh = await inmates.createInmate({
       admissionNo: "", fullName: "Post Restore", phone: "9800000000", guardianName: "",
       guardianPhone: "", email: "", course: "", year: "", address: "", idProof: "",
       photoFile: null, roomId: null, branchId: "", status: "active", monthlyRent: 0, billingCycleDays: 30,
       joinedOn: "2026-09-01", leftOn: null, notes: "",
     });
-    const freshRow = await students.getInmate(fresh);
+    const freshRow = await inmates.getInmate(fresh);
     check("a student added after restore does not collide", freshRow.admissionNo === beforeNext, freshRow.admissionNo);
-    const all = await students.listInmates("", "all");
+    const all = await inmates.listInmates("", "all");
     const numbers = all.map((s) => s.admissionNo);
     check("all admission numbers remain unique", new Set(numbers).size === numbers.length, numbers.join(","));
-    await students.deleteInmate(fresh);
+    await inmates.deleteInmate(fresh);
   }
 
   console.log("\n== backup from a newer app version is refused ==");

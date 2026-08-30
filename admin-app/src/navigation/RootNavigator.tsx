@@ -16,6 +16,8 @@ import MoreScreen from "@/screens/MoreScreen";
 import SettingsScreen from "@/screens/SettingsScreen";
 import ReportsScreen from "@/screens/ReportsScreen";
 import BackupScreen from "@/screens/BackupScreen";
+import NotificationsScreen from "@/screens/NotificationsScreen";
+import SearchScreen from "@/screens/SearchScreen";
 import ChangePinScreen from "@/screens/ChangePinScreen";
 
 import InmatesScreen from "@/screens/inmates/InmatesScreen";
@@ -168,6 +170,17 @@ function MainStack() {
         options={{ ...detailOptions, title: "Notice board" }}
       />
       <Stack.Screen name="NoticeForm" component={NoticeFormScreen} options={detailOptions} />
+
+      <Stack.Screen
+        name="Notifications"
+        component={NotificationsScreen}
+        options={{ ...detailOptions, title: "Notifications" }}
+      />
+      <Stack.Screen
+        name="Search"
+        component={SearchScreen}
+        options={{ ...detailOptions, title: "Search" }}
+      />
 
       <Stack.Screen
         name="Backup"

@@ -61,12 +61,14 @@ export default function DashboardScreen({ navigation }: Props) {
         refreshControl={<RefreshControl refreshing={loading} onRefresh={reload} />}
       >
         <View style={styles.header}>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.greeting}>{greeting()}</Text>
-            <Text style={styles.hostel} numberOfLines={1}>
-              {activeBranch?.shortName ?? settings.hostelName}
-            </Text>
-          </View>
+          <Text style={styles.headerTitle}>Dashboard</Text>
+          <Pressable
+            onPress={() => navigation.navigate("Notifications")}
+            style={styles.iconButton}
+            accessibilityLabel="Notifications"
+          >
+            <Ionicons name="notifications-outline" size={20} color={colors.text} />
+          </Pressable>
           <Pressable
             onPress={() => navigation.navigate("Settings")}
             style={styles.iconButton}
@@ -75,6 +77,25 @@ export default function DashboardScreen({ navigation }: Props) {
             <Ionicons name="settings-outline" size={20} color={colors.text} />
           </Pressable>
         </View>
+
+        <View style={styles.banner}>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.bannerGreeting}>{greeting()} 👋</Text>
+            <Text style={styles.bannerHostel} numberOfLines={1}>
+              {activeBranch?.shortName ?? settings.hostelName}
+            </Text>
+            <Text style={styles.bannerNote} numberOfLines={1}>
+              {data && data.due.length > 0
+                ? `${data.due.length} fee${data.due.length === 1 ? "" : "s"} overdue today`
+                : "Everything is up to date."}
+            </Text>
+          </View>
+          <View style={styles.bannerBadge}>
+            <Text style={styles.bannerBadgeText}>{activeBranch?.code ?? "?"}</Text>
+          </View>
+        </View>
+
+        <SectionTitle title="Overview" />
 
         {backupOverdue ? (
           <Pressable onPress={() => navigation.navigate("Backup")}>
@@ -265,9 +286,35 @@ function greeting(): string {
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.background },
   content: { padding: spacing.lg, paddingBottom: spacing.xl * 2 },
-  header: { flexDirection: "row", alignItems: "center", marginBottom: spacing.lg },
-  greeting: { fontSize: fontSize.sm, color: colors.textMuted },
-  hostel: { fontSize: fontSize.xl, fontWeight: "800", color: colors.text, marginTop: 2 },
+  header: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    marginBottom: spacing.md,
+  },
+  headerTitle: { flex: 1, fontSize: fontSize.xl, fontWeight: "800", color: colors.text },
+  banner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.md,
+    backgroundColor: colors.primary,
+    borderRadius: radius.lg,
+    padding: spacing.md,
+    marginBottom: spacing.lg,
+    ...shadow.card,
+  },
+  bannerGreeting: { color: colors.primaryOn, fontSize: fontSize.lg, fontWeight: "800" },
+  bannerHostel: { color: "rgba(255,255,255,0.92)", fontSize: fontSize.sm, marginTop: 2 },
+  bannerNote: { color: "rgba(255,255,255,0.78)", fontSize: fontSize.xs, marginTop: spacing.xs },
+  bannerBadge: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: "rgba(255,255,255,0.18)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  bannerBadgeText: { color: colors.primaryOn, fontSize: fontSize.lg, fontWeight: "800" },
   iconButton: {
     width: 42,
     height: 42,

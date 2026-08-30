@@ -4,42 +4,40 @@
  * colour always means the same thing across Students / Rooms / Fees.
  */
 export const colors = {
-  /** Interactive navy: buttons, links, active tabs. */
-  primary: "#123F86",
-  /** The brand navy sampled from the app icon: headers, splash, hero panels. */
-  primaryDark: "#062962",
+  /** Violet from the approved mockup: buttons, links, active tabs. */
+  primary: "#6D4AFC",
+  /** Deeper violet for hero panels, the greeting banner and the splash. */
+  primaryDark: "#5433E0",
   /** Tint behind icons and chips. */
-  primaryLight: "#E9EEF8",
+  primaryLight: "#EEE9FF",
   primaryOn: "#FFFFFF",
 
-  /** Brand gold. The raw icon gold is too light for text on white, so the
-   *  darker `gold` is used for type and the lighter one only on navy. */
+  /** Gold from the app icon, kept for branch badges and other brand accents. */
   gold: "#B98A32",
   goldLight: "#E7BF75",
   goldBg: "#FBF2E0",
 
-  background: "#F5F6F9",
+  background: "#F6F6F9",
   surface: "#FFFFFF",
-  surfaceAlt: "#FAFBFD",
+  surfaceAlt: "#FAFAFD",
 
-  text: "#10203A",
-  textMuted: "#5D6B85",
-  textFaint: "#93A0B5",
-  border: "#E4E8F0",
-  borderStrong: "#CBD3E1",
+  text: "#14142B",
+  textMuted: "#6E6D8A",
+  textFaint: "#9B9AB0",
+  border: "#E9E8F0",
+  borderStrong: "#D8D6E4",
 
   success: "#16A34A",
   successBg: "#E8F7EE",
-  warning: "#B45309",
-  warningBg: "#FBF2E0",
+  warning: "#D97706",
+  warningBg: "#FDF3E3",
   danger: "#DC2626",
   dangerBg: "#FDECEC",
-  /** Teal rather than blue: a blue "info" would be indistinguishable from the
-   *  navy primary on a badge. */
-  info: "#0F766E",
-  infoBg: "#E4F2F0",
+  /** Blue reads clearly again now the primary is violet rather than navy. */
+  info: "#2563EB",
+  infoBg: "#E8F0FE",
 
-  overlay: "rgba(6, 41, 98, 0.45)",
+  overlay: "rgba(20, 20, 43, 0.45)",
 } as const;
 
 export const spacing = {
@@ -69,14 +67,14 @@ export const fontSize = {
 
 export const shadow = {
   card: {
-    shadowColor: "#0B1F3F",
+    shadowColor: "#14142B",
     shadowOpacity: 0.06,
     shadowRadius: 12,
     shadowOffset: { width: 0, height: 4 },
     elevation: 2,
   },
   raised: {
-    shadowColor: "#0B1F3F",
+    shadowColor: "#14142B",
     shadowOpacity: 0.12,
     shadowRadius: 18,
     shadowOffset: { width: 0, height: 8 },

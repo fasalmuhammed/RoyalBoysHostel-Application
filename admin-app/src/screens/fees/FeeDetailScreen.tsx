@@ -209,7 +209,7 @@ export default function FeeDetailScreen({ navigation, route }: Props) {
 
         <SectionTitle title="Actions" />
         <Button
-          title="Share receipt (PDF)"
+          title="Download Receipt"
           variant="secondary"
           icon="share-outline"
           onPress={shareReceipt}
