@@ -2,6 +2,7 @@ import React from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
+import Constants from "expo-constants";
 import type { CompositeScreenProps } from "@react-navigation/native";
 import type { BottomTabScreenProps } from "@react-navigation/bottom-tabs";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
@@ -106,7 +107,7 @@ export default function MoreScreen({ navigation }: Props) {
         </View>
 
         <Text style={styles.footer}>
-          Hostel Manager · v1.0.0{"\n"}
+          Royal Boys Hostel · v{Constants.expoConfig?.version ?? "—"}{"\n"}
           All data stays on this phone. Nothing is uploaded.
         </Text>
       </ScrollView>
