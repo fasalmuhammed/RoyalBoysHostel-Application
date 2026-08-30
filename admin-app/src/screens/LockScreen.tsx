@@ -192,7 +192,7 @@ const styles = StyleSheet.create({
     width: 60,
     height: 60,
     borderRadius: radius.xl,
-    backgroundColor: colors.primary,
+    backgroundColor: colors.primaryDark,
     alignItems: "center",
     justifyContent: "center",
     ...shadow.raised,

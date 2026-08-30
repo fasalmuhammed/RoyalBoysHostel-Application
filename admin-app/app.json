@@ -8,9 +8,9 @@
     "userInterfaceStyle": "light",
     "scheme": "hostelmanager",
     "splash": {
-      "image": "./assets/icon.png",
+      "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
-      "backgroundColor": "#6D4AFC"
+      "backgroundColor": "#062962"
     },
     "assetBundlePatterns": [
       "**/*"
@@ -27,8 +27,8 @@
     "android": {
       "package": "com.hostelmanager.local",
       "adaptiveIcon": {
-        "foregroundImage": "./assets/icon.png",
-        "backgroundColor": "#6D4AFC"
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#062962"
       },
       "permissions": [
         "android.permission.CAMERA",
@@ -66,8 +66,8 @@
       [
         "expo-notifications",
         {
-          "icon": "./assets/icon.png",
-          "color": "#6D4AFC"
+          "icon": "./assets/notification-icon.png",
+          "color": "#E7BF75"
         }
       ],
       "expo-sqlite",
