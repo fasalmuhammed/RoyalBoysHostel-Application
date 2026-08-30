@@ -12,30 +12,30 @@ import Button from "@/components/Button";
 import Avatar from "@/components/Avatar";
 import { colors, fontSize, spacing } from "@/constants/theme";
 import { useAsyncData, useDebounced } from "@/utils/hooks";
-import { listStudents, StudentFilter, studentCounts } from "@/services/students";
+import { listInmates, InmateFilter, inmateCounts } from "@/services/inmates";
 import { formatInmateId } from "@/services/branches";
 import type { MainTabParamList, RootStackParamList } from "@/navigation/types";
 
 type Props = CompositeScreenProps<
-  BottomTabScreenProps<MainTabParamList, "Students">,
+  BottomTabScreenProps<MainTabParamList, "Inmates">,
   NativeStackScreenProps<RootStackParamList>
 >;
 
-export default function StudentsScreen({ navigation, route }: Props) {
+export default function InmatesScreen({ navigation, route }: Props) {
   const [search, setSearch] = useState("");
-  const [filter, setFilter] = useState<StudentFilter>(route.params?.filter ?? "active");
+  const [filter, setFilter] = useState<InmateFilter>(route.params?.filter ?? "active");
   const debouncedSearch = useDebounced(search);
 
-  const { data: counts } = useAsyncData(() => studentCounts(), []);
-  const { data: students, loading } = useAsyncData(
-    () => listStudents(debouncedSearch, filter),
+  const { data: counts } = useAsyncData(() => inmateCounts(), []);
+  const { data: inmates, loading } = useAsyncData(
+    () => listInmates(debouncedSearch, filter),
     [debouncedSearch, filter]
   );
 
   return (
     <SafeAreaView style={styles.screen} edges={["top", "left", "right"]}>
       <View style={styles.header}>
-        <Text style={styles.title}>Students</Text>
+        <Text style={styles.title}>Inmates</Text>
         <Text style={styles.subtitle}>
           {counts ? `${counts.active} active · ${counts.total} total` : " "}
         </Text>
@@ -47,7 +47,7 @@ export default function StudentsScreen({ navigation, route }: Props) {
           onChangeText={setSearch}
           placeholder="Search by name, admission no or phone"
         />
-        <SegmentedTabs<StudentFilter>
+        <SegmentedTabs<InmateFilter>
           value={filter}
           onChange={setFilter}
           options={[
@@ -59,29 +59,29 @@ export default function StudentsScreen({ navigation, route }: Props) {
         />
       </View>
 
-      {loading && !students ? (
+      {loading && !inmates ? (
         <Loading />
       ) : (
         <FlatList
-          data={students ?? []}
+          data={inmates ?? []}
           keyExtractor={(item) => item.id}
           contentContainerStyle={styles.list}
           keyboardShouldPersistTaps="handled"
           ListEmptyComponent={
             <EmptyState
               icon="people-outline"
-              title={search ? "No matches" : "No students yet"}
+              title={search ? "No matches" : "No inmates yet"}
               message={
                 search
                   ? `Nothing matches "${search}".`
-                  : "Add your first student and take their photo right from the form."
+                  : "Add your first inmate and take their photo right from the form."
               }
               action={
                 search ? undefined : (
                   <Button
-                    title="Add student"
+                    title="Add inmate"
                     icon="person-add-outline"
-                    onPress={() => navigation.navigate("StudentForm")}
+                    onPress={() => navigation.navigate("InmateForm")}
                   />
                 )
               }
@@ -90,7 +90,7 @@ export default function StudentsScreen({ navigation, route }: Props) {
           renderItem={({ item }) => (
             <Card
               style={styles.row}
-              onPress={() => navigation.navigate("StudentDetail", { studentId: item.id })}
+              onPress={() => navigation.navigate("InmateDetail", { studentId: item.id })}
             >
               <Avatar name={item.fullName} photoFile={item.photoFile} size={48} />
 
@@ -119,7 +119,7 @@ export default function StudentsScreen({ navigation, route }: Props) {
         />
       )}
 
-      <Fab label="Add" onPress={() => navigation.navigate("StudentForm")} />
+      <Fab label="Add" onPress={() => navigation.navigate("InmateForm")} />
     </SafeAreaView>
   );
 }

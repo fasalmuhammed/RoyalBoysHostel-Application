@@ -19,7 +19,7 @@ import {
   getFee,
   updateFee,
 } from "@/services/fees";
-import { getStudent, listStudents } from "@/services/students";
+import { getInmate, listInmates } from "@/services/inmates";
 import { formatMoney, formatPeriod, shiftPeriod } from "@/utils/format";
 import { parseAmount } from "@/utils/validate";
 import type { RootStackParamList } from "@/navigation/types";
@@ -32,7 +32,7 @@ export default function FeeFormScreen({ navigation, route }: Props) {
   const { settings, invalidate } = useApp();
 
   const [studentId, setStudentId] = useState<string | null>(route.params?.studentId ?? null);
-  const [studentName, setStudentName] = useState<string | null>(null);
+  const [inmateName, setInmateName] = useState<string | null>(null);
   const [period, setPeriod] = useState(currentPeriod());
   const [rent, setRent] = useState("");
   const [electricity, setElectricity] = useState("");
@@ -43,12 +43,12 @@ export default function FeeFormScreen({ navigation, route }: Props) {
   const [dueDate, setDueDate] = useState(dueDateFor(currentPeriod()));
   const [note, setNote] = useState("");
 
-  const [studentPickerOpen, setStudentPickerOpen] = useState(false);
+  const [inmatePickerOpen, setInmatePickerOpen] = useState(false);
   const [periodPickerOpen, setPeriodPickerOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
-  const { data: students } = useAsyncData(() => listStudents("", "active"), []);
+  const { data: inmates } = useAsyncData(() => listInmates("", "active"), []);
 
   useEffect(() => {
     navigation.setOptions({ title: isEditing ? "Edit bill" : "New bill" });
@@ -60,7 +60,7 @@ export default function FeeFormScreen({ navigation, route }: Props) {
       const fee = await getFee(feeId);
       if (!fee) return;
       setStudentId(fee.studentId);
-      setStudentName(fee.studentName);
+      setInmateName(fee.studentName);
       setPeriod(fee.period);
       setRent(String(fee.rent));
       setElectricity(String(fee.electricity));
@@ -72,16 +72,16 @@ export default function FeeFormScreen({ navigation, route }: Props) {
     })();
   }, [feeId]);
 
-  // Pre-fill from the student's own agreed terms, falling back to their room's
-  // rent for records created before rent moved onto the student.
+  // Pre-fill from the inmate's own agreed terms, falling back to their room's
+  // rent for records created before rent moved onto the inmate.
   useEffect(() => {
     if (isEditing || !studentId) return;
     (async () => {
-      const student = await getStudent(studentId);
-      if (!student) return;
-      setStudentName(student.fullName);
-      setRent(String(student.monthlyRent > 0 ? student.monthlyRent : (student.roomRent ?? 0)));
-      const cycle = student.billingCycleDays || DEFAULT_CYCLE_DAYS;
+      const inmate = await getInmate(studentId);
+      if (!inmate) return;
+      setInmateName(inmate.fullName);
+      setRent(String(inmate.monthlyRent > 0 ? inmate.monthlyRent : (inmate.roomRent ?? 0)));
+      const cycle = inmate.billingCycleDays || DEFAULT_CYCLE_DAYS;
       setCycleDays(cycle);
       setDueDate(dueDateFor(period, cycle));
     })();
@@ -95,7 +95,7 @@ export default function FeeFormScreen({ navigation, route }: Props) {
 
   const onSave = async () => {
     if (!studentId) {
-      setError("Choose a student.");
+      setError("Choose a inmate.");
       return;
     }
     setError(null);
@@ -138,12 +138,12 @@ export default function FeeFormScreen({ navigation, route }: Props) {
       >
         <SectionTitle title="Who and when" />
         <PickerField
-          label="Student"
+          label="Inmate"
           required
           icon="person-outline"
-          value={studentName}
-          placeholder="Choose a student"
-          onPress={() => setStudentPickerOpen(true)}
+          value={inmateName}
+          placeholder="Choose a inmate"
+          onPress={() => setInmatePickerOpen(true)}
           error={error ?? undefined}
         />
         <PickerField
@@ -227,19 +227,19 @@ export default function FeeFormScreen({ navigation, route }: Props) {
       </ScrollView>
 
       <OptionPicker
-        visible={studentPickerOpen}
-        title="Choose a student"
+        visible={inmatePickerOpen}
+        title="Choose a inmate"
         selectedKey={studentId}
-        onClose={() => setStudentPickerOpen(false)}
+        onClose={() => setInmatePickerOpen(false)}
         onSelect={(key) => {
           setStudentId(key);
           setError(null);
         }}
-        emptyMessage="No active students yet."
-        options={(students ?? []).map((student) => ({
-          key: student.id,
-          label: student.fullName,
-          sublabel: student.roomLabel ? `Room ${student.roomLabel}` : "No room assigned",
+        emptyMessage="No active inmates yet."
+        options={(inmates ?? []).map((inmate) => ({
+          key: inmate.id,
+          label: inmate.fullName,
+          sublabel: inmate.roomLabel ? `Room ${inmate.roomLabel}` : "No room assigned",
         }))}
       />
 

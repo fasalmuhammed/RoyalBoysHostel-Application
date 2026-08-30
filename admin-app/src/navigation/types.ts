@@ -3,7 +3,7 @@ import type { MessageKind } from "@/types";
 
 export type MainTabParamList = {
   Dashboard: undefined;
-  Students: { filter?: "all" | "active" | "left" | "unassigned" } | undefined;
+  Inmates: { filter?: "all" | "active" | "left" | "unassigned" } | undefined;
   Rooms: undefined;
   Fees: { filter?: "all" | "paid" | "unpaid" | "partial" } | undefined;
   More: undefined;
@@ -12,12 +12,12 @@ export type MainTabParamList = {
 export type RootStackParamList = {
   Tabs: NavigatorScreenParams<MainTabParamList>;
 
-  StudentForm: { studentId?: string; presetRoomId?: string } | undefined;
-  StudentDetail: { studentId: string };
+  InmateForm: { studentId?: string; presetRoomId?: string } | undefined;
+  InmateDetail: { studentId: string };
 
   RoomForm: { roomId?: string } | undefined;
   RoomDetail: { roomId: string };
-  AssignStudents: { roomId: string };
+  AssignInmates: { roomId: string };
 
   FeeDetail: { feeId: string };
   FeeForm: { feeId?: string; studentId?: string } | undefined;

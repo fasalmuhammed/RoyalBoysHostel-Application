@@ -18,14 +18,14 @@ import ReportsScreen from "@/screens/ReportsScreen";
 import BackupScreen from "@/screens/BackupScreen";
 import ChangePinScreen from "@/screens/ChangePinScreen";
 
-import StudentsScreen from "@/screens/students/StudentsScreen";
-import StudentFormScreen from "@/screens/students/StudentFormScreen";
-import StudentDetailScreen from "@/screens/students/StudentDetailScreen";
+import InmatesScreen from "@/screens/inmates/InmatesScreen";
+import InmateFormScreen from "@/screens/inmates/InmateFormScreen";
+import InmateDetailScreen from "@/screens/inmates/InmateDetailScreen";
 
 import RoomsScreen from "@/screens/rooms/RoomsScreen";
 import RoomFormScreen from "@/screens/rooms/RoomFormScreen";
 import RoomDetailScreen from "@/screens/rooms/RoomDetailScreen";
-import AssignStudentsScreen from "@/screens/rooms/AssignStudentsScreen";
+import AssignInmatesScreen from "@/screens/rooms/AssignInmatesScreen";
 
 import FeesScreen from "@/screens/fees/FeesScreen";
 import FeeDetailScreen from "@/screens/fees/FeeDetailScreen";
@@ -66,7 +66,7 @@ const navTheme = {
 
 const TAB_ICONS: Record<keyof MainTabParamList, keyof typeof Ionicons.glyphMap> = {
   Dashboard: "grid-outline",
-  Students: "people-outline",
+  Inmates: "people-outline",
   Rooms: "bed-outline",
   Fees: "wallet-outline",
   More: "ellipsis-horizontal",
@@ -93,7 +93,7 @@ function MainTabs() {
       })}
     >
       <Tab.Screen name="Dashboard" component={DashboardScreen} />
-      <Tab.Screen name="Students" component={StudentsScreen} />
+      <Tab.Screen name="Inmates" component={InmatesScreen} />
       <Tab.Screen name="Rooms" component={RoomsScreen} />
       <Tab.Screen name="Fees" component={FeesScreen} />
       <Tab.Screen name="More" component={MoreScreen} />
@@ -108,11 +108,11 @@ function MainStack() {
     <Stack.Navigator screenOptions={{ headerShown: false }}>
       <Stack.Screen name="Tabs" component={MainTabs} />
 
-      <Stack.Screen name="StudentForm" component={StudentFormScreen} options={detailOptions} />
+      <Stack.Screen name="InmateForm" component={InmateFormScreen} options={detailOptions} />
       <Stack.Screen
-        name="StudentDetail"
-        component={StudentDetailScreen}
-        options={{ ...detailOptions, title: "Student" }}
+        name="InmateDetail"
+        component={InmateDetailScreen}
+        options={{ ...detailOptions, title: "Inmate" }}
       />
 
       <Stack.Screen name="RoomForm" component={RoomFormScreen} options={detailOptions} />
@@ -123,8 +123,8 @@ function MainStack() {
       />
 
       <Stack.Screen
-        name="AssignStudents"
-        component={AssignStudentsScreen}
+        name="AssignInmates"
+        component={AssignInmatesScreen}
         options={{ ...detailOptions, title: "Add existing student" }}
       />
 

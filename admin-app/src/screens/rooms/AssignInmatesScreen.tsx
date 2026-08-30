@@ -11,21 +11,21 @@ import { colors, fontSize, radius, spacing } from "@/constants/theme";
 import { useApp } from "@/context/AppContext";
 import { useAsyncData, useDebounced } from "@/utils/hooks";
 import { getRoom } from "@/services/rooms";
-import { assignRoom, listStudents, RoomFullError, setStudentRent } from "@/services/students";
+import { assignRoom, listInmates, RoomFullError, setInmateRent } from "@/services/inmates";
 import { formatMoney } from "@/utils/format";
 import type { RootStackParamList } from "@/navigation/types";
 
-type Props = NativeStackScreenProps<RootStackParamList, "AssignStudents">;
+type Props = NativeStackScreenProps<RootStackParamList, "AssignInmates">;
 
 /**
- * Moves students who are already on the register into a room.
+ * Moves inmates who are already on the register into a room.
  *
- * Distinct from "Add student", which creates a new record. Anyone already in
+ * Distinct from "Add inmate", which creates a new record. Anyone already in
  * another room can be moved here directly -- that is the common case when beds
  * are shuffled mid-term, and making the admin vacate them first would be busy
  * work.
  */
-export default function AssignStudentsScreen({ navigation, route }: Props) {
+export default function AssignInmatesScreen({ navigation, route }: Props) {
   const { roomId } = route.params;
   const { settings, invalidate } = useApp();
 
@@ -34,15 +34,15 @@ export default function AssignStudentsScreen({ navigation, route }: Props) {
   const debounced = useDebounced(search);
 
   const { data: room, reload: reloadRoom } = useAsyncData(() => getRoom(roomId), [roomId]);
-  const { data: students, loading, reload } = useAsyncData(
-    () => listStudents(debounced, "active"),
+  const { data: inmates, loading, reload } = useAsyncData(
+    () => listInmates(debounced, "active"),
     [debounced]
   );
 
   const label = room ? `${room.block ? `${room.block}-` : ""}${room.roomNumber}` : "";
 
   /**
-   * Rent follows the student, not the bed, so a move never rewrites it
+   * Rent follows the inmate, not the bed, so a move never rewrites it
    * silently. When the new room is priced differently the admin is asked --
    * they are the only one who knows whether the rate was renegotiated.
    */
@@ -58,7 +58,7 @@ export default function AssignStudentsScreen({ navigation, route }: Props) {
         {
           text: "Update rent",
           onPress: async () => {
-            await setStudentRent(studentId, room.rent);
+            await setInmateRent(studentId, room.rent);
             invalidate();
             reload();
           },
@@ -76,7 +76,7 @@ export default function AssignStudentsScreen({ navigation, route }: Props) {
       offerRentUpdate(studentId, name, currentRent);
     } catch (e) {
       Alert.alert(
-        "Could not move that student",
+        "Could not move that inmate",
         e instanceof RoomFullError ? e.message : "Please try again."
       );
     } finally {
@@ -108,28 +108,28 @@ export default function AssignStudentsScreen({ navigation, route }: Props) {
           <Callout tone="warning" icon="alert-circle-outline">
             <CalloutText>
               This room is full. Move someone out from the room screen before adding another
-              student.
+              inmate.
             </CalloutText>
           </Callout>
         </View>
       ) : null}
 
-      {loading && !students ? (
+      {loading && !inmates ? (
         <Loading />
       ) : (
         <FlatList
-          data={students ?? []}
+          data={inmates ?? []}
           keyExtractor={(item) => item.id}
           contentContainerStyle={styles.list}
           keyboardShouldPersistTaps="handled"
           ListEmptyComponent={
             <EmptyState
               icon="people-outline"
-              title={search ? "No matching students" : "No students yet"}
+              title={search ? "No matching inmates" : "No inmates yet"}
               message={
                 search
                   ? `Nothing matches "${search}".`
-                  : "Add a student first, then you can move them into a room."
+                  : "Add a inmate first, then you can move them into a room."
               }
             />
           }

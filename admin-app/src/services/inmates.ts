@@ -1,13 +1,13 @@
 import { getDb } from "@/db";
-import { Student, StudentStatus } from "@/types";
+import { Inmate, InmateStatus } from "@/types";
 import { newId } from "@/utils/id";
 import { toIsoDate } from "@/utils/format";
 import { deletePhoto } from "./photos";
 import { branchClause, getActiveBranchId, requireActiveBranchId } from "./branches";
 
-export type StudentInput = Omit<Student, "id" | "createdAt" | "updatedAt">;
+export type InmateInput = Omit<Inmate, "id" | "createdAt" | "updatedAt">;
 
-export interface StudentWithRoom extends Student {
+export interface InmateWithRoom extends Inmate {
   roomLabel: string | null;
   /** Rent of the assigned room, used to pre-fill new invoices. */
   roomRent: number | null;
@@ -16,7 +16,7 @@ export interface StudentWithRoom extends Student {
   branchName: string | null;
 }
 
-export type StudentFilter = "all" | "active" | "left" | "unassigned";
+export type InmateFilter = "all" | "active" | "left" | "unassigned";
 
 const SELECT_WITH_ROOM = `
   SELECT s.*,
@@ -31,10 +31,10 @@ const SELECT_WITH_ROOM = `
   LEFT JOIN branches b ON b.id = s.branchId
 `;
 
-export async function listStudents(
+export async function listInmates(
   search = "",
-  filter: StudentFilter = "active"
-): Promise<StudentWithRoom[]> {
+  filter: InmateFilter = "active"
+): Promise<InmateWithRoom[]> {
   const db = await getDb();
 
   const clauses: string[] = [];
@@ -60,21 +60,21 @@ export async function listStudents(
   }
 
   const where = clauses.length ? `WHERE ${clauses.join(" AND ")}` : "";
-  return db.getAllAsync<StudentWithRoom>(
+  return db.getAllAsync<InmateWithRoom>(
     `${SELECT_WITH_ROOM} ${where} ORDER BY s.fullName COLLATE NOCASE;`,
     params
   );
 }
 
-export async function getStudent(id: string): Promise<StudentWithRoom | null> {
+export async function getInmate(id: string): Promise<InmateWithRoom | null> {
   const db = await getDb();
-  return db.getFirstAsync<StudentWithRoom>(`${SELECT_WITH_ROOM} WHERE s.id = ?;`, id);
+  return db.getFirstAsync<InmateWithRoom>(`${SELECT_WITH_ROOM} WHERE s.id = ?;`, id);
 }
 
 /** Occupants are already implicitly scoped: a room belongs to one branch. */
-export async function listStudentsInRoom(roomId: string): Promise<StudentWithRoom[]> {
+export async function listInmatesInRoom(roomId: string): Promise<InmateWithRoom[]> {
   const db = await getDb();
-  return db.getAllAsync<StudentWithRoom>(
+  return db.getAllAsync<InmateWithRoom>(
     `${SELECT_WITH_ROOM} WHERE s.roomId = ? AND s.status = 'active' ORDER BY s.fullName COLLATE NOCASE;`,
     roomId
   );
@@ -100,7 +100,7 @@ interface Queryable {
 async function assertRoomHasSpace(
   txn: Queryable,
   roomId: string,
-  excludeStudentId: string | null
+  excludeInmateId: string | null
 ): Promise<void> {
   const room = await txn.getFirstAsync<{ capacity: number; block: string; roomNumber: string }>(
     "SELECT capacity, block, roomNumber FROM rooms WHERE id = ?;",
@@ -108,11 +108,11 @@ async function assertRoomHasSpace(
   );
   if (!room) throw new RoomFullError("That room no longer exists.");
 
-  const occupied = excludeStudentId
+  const occupied = excludeInmateId
     ? await txn.getFirstAsync<{ n: number }>(
         "SELECT COUNT(*) AS n FROM students WHERE roomId = ? AND status = 'active' AND id <> ?;",
         roomId,
-        excludeStudentId
+        excludeInmateId
       )
     : await txn.getFirstAsync<{ n: number }>(
         "SELECT COUNT(*) AS n FROM students WHERE roomId = ? AND status = 'active';",
@@ -172,7 +172,7 @@ async function claimAdmissionNo(txn: Writable, branchId: string): Promise<string
   return String(next);
 }
 
-export async function createStudent(input: StudentInput): Promise<string> {
+export async function createInmate(input: InmateInput): Promise<string> {
   const db = await getDb();
   const id = newId();
   const now = Date.now();
@@ -201,9 +201,9 @@ export async function createStudent(input: StudentInput): Promise<string> {
   return id;
 }
 
-export async function updateStudent(id: string, input: StudentInput): Promise<void> {
+export async function updateInmate(id: string, input: InmateInput): Promise<void> {
   const db = await getDb();
-  const existing = await getStudent(id);
+  const existing = await getInmate(id);
 
   await db.withExclusiveTransactionAsync(async (txn) => {
     const movingIn = input.roomId && input.status === "active" && input.roomId !== existing?.roomId;
@@ -250,7 +250,7 @@ export async function assignRoom(studentId: string, roomId: string | null): Prom
  * this exists for the caller to apply the new room's rate when the admin
  * explicitly asks for it.
  */
-export async function setStudentRent(studentId: string, monthlyRent: number): Promise<void> {
+export async function setInmateRent(studentId: string, monthlyRent: number): Promise<void> {
   const db = await getDb();
   await db.runAsync(
     "UPDATE students SET monthlyRent = ?, updatedAt = ? WHERE id = ?;",
@@ -301,9 +301,9 @@ export async function moveToBranch(studentId: string, branchId: string): Promise
 }
 
 /** Permanently removes a student, their photo, and their fee history. */
-export async function deleteStudent(studentId: string): Promise<void> {
+export async function deleteInmate(studentId: string): Promise<void> {
   const db = await getDb();
-  const existing = await getStudent(studentId);
+  const existing = await getInmate(studentId);
   await db.runAsync("DELETE FROM students WHERE id = ?;", studentId);
   deletePhoto(existing?.photoFile ?? null);
 }
@@ -319,18 +319,18 @@ export async function peekNextAdmissionNo(branchId?: string): Promise<string> {
   return String((await highestIssued(db, target)) + 1);
 }
 
-export interface StudentCounts {
+export interface InmateCounts {
   total: number;
   active: number;
   left: number;
   unassigned: number;
 }
 
-export async function studentCounts(): Promise<StudentCounts> {
+export async function inmateCounts(): Promise<InmateCounts> {
   const db = await getDb();
   const branch = branchClause("branchId");
   const where = branch.sql ? `WHERE ${branch.sql}` : "";
-  const row = await db.getFirstAsync<StudentCounts>(
+  const row = await db.getFirstAsync<InmateCounts>(
     `SELECT COUNT(*) AS total,
             COALESCE(SUM(status = 'active'), 0) AS active,
             COALESCE(SUM(status = 'left'), 0) AS "left",
@@ -341,6 +341,6 @@ export async function studentCounts(): Promise<StudentCounts> {
   return row ?? { total: 0, active: 0, left: 0, unassigned: 0 };
 }
 
-export function statusOf(student: Pick<Student, "status">): StudentStatus {
+export function statusOf(student: Pick<Inmate, "status">): InmateStatus {
   return student.status;
 }

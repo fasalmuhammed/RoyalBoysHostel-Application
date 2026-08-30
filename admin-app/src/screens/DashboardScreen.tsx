@@ -12,7 +12,7 @@ import Avatar from "@/components/Avatar";
 import { colors, fontSize, radius, shadow, spacing } from "@/constants/theme";
 import { useApp } from "@/context/AppContext";
 import { useAsyncData } from "@/utils/hooks";
-import { studentCounts } from "@/services/students";
+import { inmateCounts } from "@/services/inmates";
 import { occupancyTotals } from "@/services/rooms";
 import { currentPeriod, feeTotals, listDueForReminder } from "@/services/fees";
 import { formatMoney, formatPeriod, relativeDays, toIsoDate } from "@/utils/format";
@@ -28,13 +28,13 @@ export default function DashboardScreen({ navigation }: Props) {
   const period = currentPeriod();
 
   const { data, loading, reload } = useAsyncData(async () => {
-    const [students, occupancy, fees, due] = await Promise.all([
-      studentCounts(),
+    const [inmates, occupancy, fees, due] = await Promise.all([
+      inmateCounts(),
       occupancyTotals(),
       feeTotals(period),
       listDueForReminder(toIsoDate()),
     ]);
-    return { students, occupancy, fees, due };
+    return { inmates, occupancy, fees, due };
   }, [period]);
 
   const backupAgeDays = settings.lastBackupAt
@@ -93,11 +93,11 @@ export default function DashboardScreen({ navigation }: Props) {
 
         <View style={styles.statRow}>
           <StatCard
-            label="Students"
-            value={data?.students.active ?? 0}
+            label="Inmates"
+            value={data?.inmates.active ?? 0}
             icon="people-outline"
             tone="info"
-            onPress={() => navigation.navigate("Tabs", { screen: "Students" })}
+            onPress={() => navigation.navigate("Tabs", { screen: "Inmates" })}
           />
           <StatCard
             label="Beds occupied"
@@ -118,12 +118,12 @@ export default function DashboardScreen({ navigation }: Props) {
           />
           <StatCard
             label="Unassigned"
-            value={data?.students.unassigned ?? 0}
+            value={data?.inmates.unassigned ?? 0}
             icon="alert-circle-outline"
-            tone={data?.students.unassigned ? "warning" : "neutral"}
+            tone={data?.inmates.unassigned ? "warning" : "neutral"}
             onPress={() =>
               navigation.navigate("Tabs", {
-                screen: "Students",
+                screen: "Inmates",
                 params: { filter: "unassigned" },
               })
             }
@@ -175,9 +175,9 @@ export default function DashboardScreen({ navigation }: Props) {
           contentContainerStyle={styles.quickRow}
         >
           <QuickAction
-            label="Add student"
+            label="Add inmate"
             icon="person-add-outline"
-            onPress={() => navigation.navigate("StudentForm")}
+            onPress={() => navigation.navigate("InmateForm")}
           />
           <QuickAction
             label="Add room"

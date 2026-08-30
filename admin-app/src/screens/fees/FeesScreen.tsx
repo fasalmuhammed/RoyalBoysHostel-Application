@@ -77,7 +77,7 @@ export default function FeesScreen({ navigation, route }: Props) {
       </View>
 
       <View style={styles.controls}>
-        <SearchBar value={search} onChangeText={setSearch} placeholder="Search student" />
+        <SearchBar value={search} onChangeText={setSearch} placeholder="Search inmate" />
         <SegmentedTabs<FeeFilter>
           value={filter}
           onChange={setFilter}

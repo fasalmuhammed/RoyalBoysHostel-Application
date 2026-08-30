@@ -25,12 +25,12 @@ import { useApp } from "@/context/AppContext";
 import { useAsyncData } from "@/utils/hooks";
 import {
   RoomFullError,
-  StudentInput,
-  createStudent,
-  getStudent,
+  InmateInput,
+  createInmate,
+  getInmate,
   peekNextAdmissionNo,
-  updateStudent,
-} from "@/services/students";
+  updateInmate,
+} from "@/services/inmates";
 import { listRooms } from "@/services/rooms";
 import { deletePhoto, photoUri, savePhoto } from "@/services/photos";
 import { formatMoney, initials, toIsoDate } from "@/utils/format";
@@ -39,9 +39,9 @@ import { DEFAULT_CYCLE_DAYS } from "@/services/fees";
 import { formatInmateId } from "@/services/branches";
 import type { RootStackParamList } from "@/navigation/types";
 
-type Props = NativeStackScreenProps<RootStackParamList, "StudentForm">;
+type Props = NativeStackScreenProps<RootStackParamList, "InmateForm">;
 
-const EMPTY: StudentInput = {
+const EMPTY: InmateInput = {
   admissionNo: "",
   fullName: "",
   phone: "",
@@ -54,7 +54,7 @@ const EMPTY: StudentInput = {
   idProof: "",
   photoFile: null,
   roomId: null,
-  // Left blank on purpose: createStudent stamps the active branch.
+  // Left blank on purpose: createInmate stamps the active branch.
   branchId: "",
   status: "active",
   monthlyRent: 0,
@@ -68,12 +68,12 @@ function roomLabelOf(room: { block: string; roomNumber: string }): string {
   return room.block ? `${room.block}-${room.roomNumber}` : room.roomNumber;
 }
 
-export default function StudentFormScreen({ navigation, route }: Props) {
+export default function InmateFormScreen({ navigation, route }: Props) {
   const studentId = route.params?.studentId;
   const isEditing = Boolean(studentId);
   const { invalidate, activeBranch } = useApp();
 
-  const [form, setForm] = useState<StudentInput>({
+  const [form, setForm] = useState<InmateInput>({
     ...EMPTY,
     roomId: route.params?.presetRoomId ?? null,
   });
@@ -81,7 +81,7 @@ export default function StudentFormScreen({ navigation, route }: Props) {
   const [rentText, setRentText] = useState("");
   const [cycleText, setCycleText] = useState(String(DEFAULT_CYCLE_DAYS));
   const [rentTouched, setRentTouched] = useState(false);
-  const [errors, setErrors] = useState<Partial<Record<keyof StudentInput, string>>>({});
+  const [errors, setErrors] = useState<Partial<Record<keyof InmateInput, string>>>({});
   const [saving, setSaving] = useState(false);
   const [capturing, setCapturing] = useState(false);
   const [roomPickerOpen, setRoomPickerOpen] = useState(false);
@@ -92,7 +92,7 @@ export default function StudentFormScreen({ navigation, route }: Props) {
    *
    * These must not be effect dependencies. An earlier version cleared the
    * pending photo through `useState` on save, which re-ran the cleanup effect
-   * and deleted the very file the newly saved student pointed at -- the row
+   * and deleted the very file the newly saved inmate pointed at -- the row
    * kept its filename while the image vanished from disk.
    */
   const pendingPhotoRef = useRef<string | null>(null);
@@ -109,40 +109,40 @@ export default function StudentFormScreen({ navigation, route }: Props) {
   useEffect(() => {
     if (!studentId) return;
     (async () => {
-      const student = await getStudent(studentId);
-      if (!student) return;
+      const inmate = await getInmate(studentId);
+      if (!inmate) return;
       setForm({
-        admissionNo: student.admissionNo,
-        fullName: student.fullName,
-        phone: student.phone,
-        guardianName: student.guardianName,
-        guardianPhone: student.guardianPhone,
-        email: student.email,
-        course: student.course,
-        year: student.year,
-        address: student.address,
-        idProof: student.idProof,
-        photoFile: student.photoFile,
-        roomId: student.roomId,
-        branchId: student.branchId,
-        status: student.status,
-        monthlyRent: student.monthlyRent,
-        billingCycleDays: student.billingCycleDays,
-        joinedOn: student.joinedOn,
-        leftOn: student.leftOn,
-        notes: student.notes,
+        admissionNo: inmate.admissionNo,
+        fullName: inmate.fullName,
+        phone: inmate.phone,
+        guardianName: inmate.guardianName,
+        guardianPhone: inmate.guardianPhone,
+        email: inmate.email,
+        course: inmate.course,
+        year: inmate.year,
+        address: inmate.address,
+        idProof: inmate.idProof,
+        photoFile: inmate.photoFile,
+        roomId: inmate.roomId,
+        branchId: inmate.branchId,
+        status: inmate.status,
+        monthlyRent: inmate.monthlyRent,
+        billingCycleDays: inmate.billingCycleDays,
+        joinedOn: inmate.joinedOn,
+        leftOn: inmate.leftOn,
+        notes: inmate.notes,
       });
-      setRentText(student.monthlyRent > 0 ? String(student.monthlyRent) : "");
-      setCycleText(String(student.billingCycleDays || DEFAULT_CYCLE_DAYS));
-      // An existing student already has an agreed rent; never overwrite it.
+      setRentText(inmate.monthlyRent > 0 ? String(inmate.monthlyRent) : "");
+      setCycleText(String(inmate.billingCycleDays || DEFAULT_CYCLE_DAYS));
+      // An existing inmate already has an agreed rent; never overwrite it.
       setRentTouched(true);
-      originalPhotoRef.current = student.photoFile;
+      originalPhotoRef.current = inmate.photoFile;
       setLoaded(true);
     })();
   }, [studentId]);
 
   useEffect(() => {
-    navigation.setOptions({ title: isEditing ? "Edit student" : "Add student" });
+    navigation.setOptions({ title: isEditing ? "Edit inmate" : "Add inmate" });
   }, [navigation, isEditing]);
 
   /**
@@ -157,7 +157,7 @@ export default function StudentFormScreen({ navigation, route }: Props) {
     if (room && room.rent > 0) setRentText(String(room.rent));
   }, [form.roomId, rooms, rentTouched]);
 
-  const set = <K extends keyof StudentInput>(key: K, value: StudentInput[K]) => {
+  const set = <K extends keyof InmateInput>(key: K, value: InmateInput[K]) => {
     setForm((current) => ({ ...current, [key]: value }));
     setErrors((current) => ({ ...current, [key]: undefined }));
   };
@@ -165,7 +165,7 @@ export default function StudentFormScreen({ navigation, route }: Props) {
   /**
    * Captures or picks a photo, compresses it, and stores it immediately.
    *
-   * The file is written before the student row is saved, so `pendingPhoto`
+   * The file is written before the inmate row is saved, so `pendingPhoto`
    * tracks it -- if the admin backs out without saving, cleanup removes the
    * orphan rather than leaving it on disk forever.
    */
@@ -180,7 +180,7 @@ export default function StudentFormScreen({ navigation, route }: Props) {
       if (!permission.granted) {
         Alert.alert(
           source === "camera" ? "Camera access needed" : "Photo access needed",
-          "Allow access in your phone's settings to add a student photo."
+          "Allow access in your phone's settings to add a inmate photo."
         );
         return;
       }
@@ -213,7 +213,7 @@ export default function StudentFormScreen({ navigation, route }: Props) {
   };
 
   const promptPhoto = () => {
-    Alert.alert("Student photo", "Where should the photo come from?", [
+    Alert.alert("Inmate photo", "Where should the photo come from?", [
       { text: "Take photo", onPress: () => choosePhoto("camera") },
       { text: "Choose from gallery", onPress: () => choosePhoto("library") },
       ...(form.photoFile
@@ -235,7 +235,7 @@ export default function StudentFormScreen({ navigation, route }: Props) {
   };
 
   const validate = (): boolean => {
-    const next: Partial<Record<keyof StudentInput, string>> = {};
+    const next: Partial<Record<keyof InmateInput, string>> = {};
     if (!form.fullName.trim()) next.fullName = "A name is required.";
     if (form.phone.trim() && !isValidPhone(form.phone)) next.phone = "That phone number looks wrong.";
     if (form.guardianPhone.trim() && !isValidPhone(form.guardianPhone)) {
@@ -259,16 +259,16 @@ export default function StudentFormScreen({ navigation, route }: Props) {
 
     setSaving(true);
     try {
-      const payload: StudentInput = {
+      const payload: InmateInput = {
         ...form,
         fullName: form.fullName.trim(),
         monthlyRent: parseAmount(rentText),
         billingCycleDays: Number.parseInt(cycleText, 10) || DEFAULT_CYCLE_DAYS,
       };
       if (studentId) {
-        await updateStudent(studentId, payload);
+        await updateInmate(studentId, payload);
       } else {
-        await createStudent(payload);
+        await createInmate(payload);
       }
       // Committed: the photo now belongs to a row, so it must not be cleaned up.
       committedRef.current = true;
@@ -347,7 +347,7 @@ export default function StudentFormScreen({ navigation, route }: Props) {
             </Text>
           </View>
 
-          <SectionTitle title="Student" />
+          <SectionTitle title="Inmate" />
           <Input
             label="Full name"
             required
@@ -361,7 +361,7 @@ export default function StudentFormScreen({ navigation, route }: Props) {
           <View style={styles.admissionRow}>
             <Ionicons name="pricetag-outline" size={18} color={colors.primary} />
             <View style={{ flex: 1 }}>
-              <Text style={styles.admissionLabel}>Student ID</Text>
+              <Text style={styles.admissionLabel}>Inmate ID</Text>
               <Text style={styles.admissionHint}>
                 {isEditing
                   ? "Assigned when this inmate was added."
@@ -448,8 +448,8 @@ export default function StudentFormScreen({ navigation, route }: Props) {
             error={errors.monthlyRent}
             hint={
               selectedRoom && !rentTouched
-                ? `Filled in from room ${roomLabelOf(selectedRoom)}. Change it if this student pays something different.`
-                : "What this student pays per billing cycle."
+                ? `Filled in from room ${roomLabelOf(selectedRoom)}. Change it if this inmate pays something different.`
+                : "What this inmate pays per billing cycle."
             }
           />
           <Input
@@ -518,13 +518,13 @@ export default function StudentFormScreen({ navigation, route }: Props) {
 
           <Callout tone="info" icon="phone-portrait-outline">
             <CalloutText>
-              This student is saved only on this phone. Export a backup from Settings so a lost
+              This inmate is saved only on this phone. Export a backup from Settings so a lost
               phone does not mean lost records.
             </CalloutText>
           </Callout>
 
           <Button
-            title={isEditing ? "Save changes" : "Save student"}
+            title={isEditing ? "Save changes" : "Save inmate"}
             onPress={onSave}
             loading={saving}
           />
@@ -548,7 +548,7 @@ export default function StudentFormScreen({ navigation, route }: Props) {
                 ? `${room.vacant} of ${room.capacity} beds free`
                 : `Full (${room.capacity} beds)`,
             // The already-assigned room stays selectable so editing other
-            // fields does not force the admin to move the student out.
+            // fields does not force the admin to move the inmate out.
             disabled: room.vacant <= 0 && room.id !== form.roomId,
           })),
         ]}

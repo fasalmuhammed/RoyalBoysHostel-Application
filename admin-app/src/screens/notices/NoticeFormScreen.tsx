@@ -101,7 +101,7 @@ export default function NoticeFormScreen({ navigation, route }: Props) {
    * Saves first, then hands off to the composer.
    *
    * Sending an unsaved notice would leave the board without the very notice
-   * that just went out to every student, so the record is always written first.
+   * that just went out to every inmate, so the record is always written first.
    */
   const onSaveAndSend = async () => {
     if (!validate()) return;
@@ -214,7 +214,7 @@ export default function NoticeFormScreen({ navigation, route }: Props) {
         </View>
         <Text style={styles.previewHint}>
           <Ionicons name="information-circle-outline" size={12} color={colors.textFaint} />{" "}
-          {"{{name}}"} and {"{{hostel}}"} are replaced per student when you send.
+          {"{{name}}"} and {"{{hostel}}"} are replaced per inmate when you send.
         </Text>
 
         <Callout tone="info" icon="phone-portrait-outline">

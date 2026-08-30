@@ -14,8 +14,8 @@ type Props = NativeStackScreenProps<SetupStackParamList, "HostelDetails">;
 /**
  * Setup asks only for what is genuinely hostel-wide.
  *
- * Rent and payment deadlines deliberately live on the student, not here: the
- * amount follows the room a student is given and can be negotiated per person,
+ * Rent and payment deadlines deliberately live on the inmate, not here: the
+ * amount follows the room a inmate is given and can be negotiated per person,
  * and the period they pay for varies. Asking once at setup would have implied
  * a single hostel price that then had to be corrected everywhere.
  */
@@ -73,7 +73,7 @@ export default function HostelDetailsScreen({ navigation }: Props) {
         placeholder="91"
         keyboardType="number-pad"
         icon="call-outline"
-        hint="Added to student numbers when opening WhatsApp. India is 91."
+        hint="Added to inmate numbers when opening WhatsApp. India is 91."
       />
 
       <Input
@@ -86,9 +86,9 @@ export default function HostelDetailsScreen({ navigation }: Props) {
 
       <Callout tone="info" icon="information-circle-outline">
         <CalloutText>
-          Rent is not set here. You enter it for each student when you add them — it fills in
-          automatically from the room you allocate, and you can change it per student. Bills fall
-          due 30 days into the period unless you set a different cycle for that student.
+          Rent is not set here. You enter it for each inmate when you add them — it fills in
+          automatically from the room you allocate, and you can change it per inmate. Bills fall
+          due 30 days into the period unless you set a different cycle for that inmate.
         </CalloutText>
       </Callout>
 

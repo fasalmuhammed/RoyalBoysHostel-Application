@@ -61,9 +61,9 @@ export default function RoomFormScreen({ navigation, route }: Props) {
     if (!Number.isFinite(capacityValue) || capacityValue < 1) {
       next.capacity = "Capacity must be at least 1.";
     } else if (isEditing && capacityValue < occupied) {
-      // Shrinking below the current headcount would leave students in a room
+      // Shrinking below the current headcount would leave inmates in a room
       // that reports negative vacancy, so it is blocked outright.
-      next.capacity = `${occupied} students already live here. Move some out first.`;
+      next.capacity = `${occupied} inmates already live here. Move some out first.`;
     }
 
     setErrors(next);
@@ -149,7 +149,7 @@ export default function RoomFormScreen({ navigation, route }: Props) {
           placeholder="6000"
           keyboardType="numeric"
           icon="cash-outline"
-          hint="Fills in a student's rent when you allocate them here. They can still be set individually."
+          hint="Fills in a inmate's rent when you allocate them here. They can still be set individually."
         />
         <Input
           label={`Security deposit (${settings.currencySymbol})`}

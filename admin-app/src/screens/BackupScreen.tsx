@@ -24,7 +24,7 @@ import {
   writeAutoBackup,
 } from "@/services/backup";
 import { photosDiskUsage } from "@/services/photos";
-import { studentCounts } from "@/services/students";
+import { inmateCounts } from "@/services/inmates";
 import { formatDateTime } from "@/utils/format";
 import type { RootStackParamList } from "@/navigation/types";
 
@@ -53,7 +53,7 @@ export default function BackupScreen({}: Props) {
   const [restoreError, setRestoreError] = useState<string | null>(null);
 
   const { data, reload } = useAsyncData(async () => {
-    const [counts, locals] = await Promise.all([studentCounts(), Promise.resolve(listLocalBackups())]);
+    const [counts, locals] = await Promise.all([inmateCounts(), Promise.resolve(listLocalBackups())]);
     return { counts, locals, photoBytes: photosDiskUsage() };
   }, []);
 
@@ -157,7 +157,7 @@ export default function BackupScreen({}: Props) {
 
     Alert.alert(
       "Replace everything?",
-      `All ${data?.counts.total ?? 0} student records on this phone will be replaced by the ` +
+      `All ${data?.counts.total ?? 0} inmate records on this phone will be replaced by the ` +
         `${restoreHeader.counts.students} in this backup. A safety copy of your current data is ` +
         "saved first.",
       [
@@ -187,7 +187,7 @@ export default function BackupScreen({}: Props) {
 
       Alert.alert(
         "Restore complete",
-        `${result.counts.students} students, ${result.counts.rooms} rooms and ` +
+        `${result.counts.students} inmates, ${result.counts.rooms} rooms and ` +
           `${result.photosRestored} photos are now on this phone.`
       );
     } catch (e) {
@@ -216,7 +216,7 @@ export default function BackupScreen({}: Props) {
 
         <SectionTitle title="What is on this phone" />
         <Card>
-          <DetailRow label="Students" value={data?.counts.total ?? 0} />
+          <DetailRow label="Inmates" value={data?.counts.total ?? 0} />
           <Divider />
           <DetailRow label="Photos on disk" value={formatBytes(data?.photoBytes ?? 0)} />
           <Divider />
@@ -227,7 +227,7 @@ export default function BackupScreen({}: Props) {
         <Card>
           <Text style={styles.paragraph}>
             Creates one encrypted <Text style={styles.bold}>.hostelbak</Text> file containing every
-            student, room, bill, payment and photo. Send it to yourself on WhatsApp, email it, or
+            inmate, room, bill, payment and photo. Send it to yourself on WhatsApp, email it, or
             copy it to a laptop or pen drive.
           </Text>
           <Button
@@ -267,7 +267,7 @@ export default function BackupScreen({}: Props) {
                 {restoreFile.name}
               </Text>
               <Text style={styles.restoreMeta}>
-                {restoreHeader.hostelName} · {restoreHeader.counts.students} students ·{" "}
+                {restoreHeader.hostelName} · {restoreHeader.counts.students} inmates ·{" "}
                 {formatDateTime(restoreHeader.createdAt)}
               </Text>
               <Text style={styles.restoreMeta}>
@@ -335,7 +335,7 @@ export default function BackupScreen({}: Props) {
           <View style={styles.handle} />
           <Text style={styles.sheetTitle}>Protect this backup</Text>
           <Text style={styles.sheetText}>
-            The file will contain student photos, phone numbers and fee records. Choose a
+            The file will contain inmate photos, phone numbers and fee records. Choose a
             passphrase — you will need exactly this passphrase to restore it.
           </Text>
 

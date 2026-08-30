@@ -6,7 +6,7 @@ import { Platform } from "react-native";
  *
  * These are on-device notifications only -- there is no push server and no
  * account. They nudge the person holding the phone ("fees are due", "you have
- * not backed up in a week"); they never reach students. Student contact goes
+ * not backed up in a week"); they never reach students. Inmate contact goes
  * out through WhatsApp, which the admin sends by hand.
  */
 

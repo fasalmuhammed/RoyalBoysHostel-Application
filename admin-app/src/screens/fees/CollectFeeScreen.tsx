@@ -82,7 +82,7 @@ export default function CollectFeeScreen({ navigation, route }: Props) {
         showsVerticalScrollIndicator={false}
       >
         <Card style={styles.summary}>
-          <Text style={styles.student}>{fee.studentName}</Text>
+          <Text style={styles.inmate}>{fee.studentName}</Text>
           <Text style={styles.period}>
             {formatPeriod(fee.period)}
             {fee.roomLabel ? ` · Room ${fee.roomLabel}` : ""}
@@ -194,7 +194,7 @@ const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.background },
   content: { padding: spacing.lg, paddingBottom: spacing.xl * 2 },
   summary: { marginBottom: spacing.lg },
-  student: { fontSize: fontSize.lg, fontWeight: "800", color: colors.text },
+  inmate: { fontSize: fontSize.lg, fontWeight: "800", color: colors.text },
   period: { fontSize: fontSize.sm, color: colors.textMuted, marginTop: 2 },
   summaryRow: { flexDirection: "row", marginTop: spacing.md, gap: spacing.sm },
   cellLabel: { fontSize: fontSize.xs, color: colors.textMuted },

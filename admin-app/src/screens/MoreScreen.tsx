@@ -48,7 +48,7 @@ export default function MoreScreen({ navigation }: Props) {
           <Row
             icon="megaphone-outline"
             label="Notice board"
-            sublabel="Post notices and send them to students"
+            sublabel="Post notices and send them to inmates"
             onPress={() => navigation.navigate("Notices")}
           />
           <Row

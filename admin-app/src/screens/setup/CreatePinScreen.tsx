@@ -67,7 +67,7 @@ export default function CreatePinScreen({}: Props) {
     <Screen scroll>
       <Text style={styles.title}>Lock the app</Text>
       <Text style={styles.subtitle}>
-        Student records, phone numbers and fee history sit on this phone. A PIN keeps them out of
+        Inmate records, phone numbers and fee history sit on this phone. A PIN keeps them out of
         reach if someone else picks it up.
       </Text>
 

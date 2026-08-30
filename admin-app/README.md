@@ -1,9 +1,12 @@
-# Hostel Manager — offline admin app
+# Royal Boys Hostel — offline admin app
 
 A single-admin hostel register that runs entirely on one phone. No accounts, no
-server, no cloud, no internet. The hostel manager adds students (with a photo
-taken on the spot), allocates rooms, raises and collects fees, and sends
-WhatsApp reminders — and moves the whole dataset to a new phone with one file.
+server, no cloud, no internet. The manager adds inmates (with a photo taken on
+the spot), allocates rooms, raises and collects fees, and sends WhatsApp
+reminders — and moves the whole dataset to a new phone with one file.
+
+It covers two branches, **Thammanam** and **Kannanad**, which share one
+database and one backup file.
 
 Built with Expo (React Native) + TypeScript + SQLite.
 
@@ -22,6 +25,8 @@ Built with Expo (React Native) + TypeScript + SQLite.
 | **Rent lives on the student** | Rent follows the bed a student is given and is often negotiated per person, so a single hostel-wide default was the wrong home for it. It is captured when adding a student, pre-filled from their room. |
 | **Per-student billing cycle** | A bill falls due a set number of days into its period — 30 by default — rather than on one hostel-wide day of the month, so a student on different terms is not forced onto everyone else's deadline. |
 | **Admission numbers are issued, not typed** | The number is the student's id, so it is generated as a sequence (1, 2, 3...) from a stored counter combined with the highest number in use. A departed student's number is never reissued — two people sharing an id would make old receipts and exports ambiguous. |
+| **Branches are a filter, not separate stores** | Both hostels share one database and one backup file, so a single export covers the organisation and moving an inmate between branches is an edit rather than a migration. |
+| **"Inmate" in the UI, `students` in SQL** | The vocabulary changed; the table name did not. Existing `.hostelbak` files carry `students` rows, and renaming the table would break restoring a backup taken before the change. The seam is confined to the service layer. |
 | **Derived room occupancy** | Counted from `students.roomId` rather than stored on the room, so it cannot go stale when a student is deleted or a backup is restored. |
 
 ---
@@ -122,9 +127,10 @@ board without going to every student's phone.
 ## Screens
 
 **Setup (first run)** — Start fresh · Restore from a backup · Hostel details · Create PIN
-**Main** — Dashboard · Students · Rooms · Fees · More
-**Students** — list & search · add/edit with camera capture, rent and billing cycle · detail with fee history
-**Rooms** — list with occupancy · add/edit · detail with bed map, move-in/move-out, and moving an existing student in from another room
+**Branch picker** — choose Thammanam or Kannanad, asked on every launch
+**Main** — Dashboard · Inmates · Rooms · Fees · More
+**Inmates** — list & search · add/edit with camera capture, rent and billing cycle · detail with fee history
+**Rooms** — list with occupancy · add/edit · detail with bed map, move-in/move-out, and moving an existing inmate in from another room
 **Fees** — list by month & status · bill detail · collect payment · bulk-raise monthly bills · PDF receipt
 **Notices** — notice board by category, pinning, and one-tap send to students
 **WhatsApp** — announcements · fee reminders · templates · send queue
@@ -140,7 +146,7 @@ npm install
 
 npm start          # Expo dev server
 npm run android    # build & run on a connected device
-npm test           # 226 tests, no device needed
+npm test           # 267 tests, no device needed
 npm run typecheck  # tsc --noEmit
 ```
 
@@ -160,11 +166,11 @@ sandboxes storage and its database can be cleared when the Expo Go app updates.
 
 ## Tests
 
-`npm test` runs 226 assertions against the real service code, using an
+`npm test` runs 267 assertions against the real service code, using an
 in-memory filesystem and a real SQLite engine (`node:sqlite`). No device or
 emulator needed.
 
-**`tests/backup.test.js` (68)** — the parts where a bug means data loss:
+**`tests/backup.test.js` (75)** — the parts where a bug means data loss:
 encrypted round trip, ciphertext contains no plaintext names or phone numbers,
 wrong passphrase rejected, tampered chunk caught by the MAC, truncated file
 rejected, data left untouched after every failed restore, exact row-for-row
@@ -172,7 +178,7 @@ fidelity, Unicode and multi-line fields preserved, photo bytes identical,
 relationships still resolve afterwards, and a 63-student dataset spanning many
 chunks, and a backup claiming a newer schema refused outright.
 
-**`tests/logic.test.js` (158)** — every migration applied to an existing install
+**`tests/logic.test.js` (192)** — every migration applied to an existing install
 (including the v3 rent backfill from the occupied room), room capacity enforced on create/edit/assign,
 beds freed on move-out, deleting a room detaches students instead of deleting
 them, payment arithmetic, overpayment rejected rather than clamped, reversal
@@ -180,8 +186,9 @@ restores the exact balance, duplicate invoices blocked, bulk invoice generation
 safe to re-run, Indian-format money, phone normalisation for `wa.me`, and CSV
 escaping including formula-injection guards, notice filtering, pinning and
 placeholder rendering, per-student rent and billing-cycle handling, the
-admission-number sequence, and the photo lifecycle from capture through
-replacement to deletion.
+admission-number sequence, the photo lifecycle from capture through replacement
+to deletion, and branch isolation — neither branch can see the other's inmates,
+rooms, bills or notices, while an export taken inside one still restores both.
 
 ---
 
@@ -201,6 +208,23 @@ admin-app/
     navigation/    RootNavigator + route types
   tests/           harness + two suites
 ```
+
+### Branches
+
+Inmates, rooms and notices carry a `branchId`; bills and payments inherit the
+branch of the inmate they belong to rather than storing their own, so the two
+can never disagree. Every list, total and report follows the active branch —
+backup and restore deliberately do not, so one file still carries both hostels.
+
+Numbering restarts per branch, so both have an inmate 1. Ids are shown and
+exported as `T-1` / `K-1`, since the number alone is ambiguous once two hostels
+share a spreadsheet. Notices default to the branch they were posted in, with an
+"applies to both branches" switch that stores a null branch and shows on both
+boards.
+
+The branch is asked on every launch rather than remembered silently: both
+hostels look identical from inside, and admitting an inmate against the wrong
+one is expensive to unpick.
 
 ### Fees
 

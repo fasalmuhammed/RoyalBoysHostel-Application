@@ -12,7 +12,7 @@ const check = (name, cond, extra) => {
   }
 };
 
-const students = h.load("services/students");
+const students = h.load("services/inmates");
 const rooms = h.load("services/rooms");
 const fees = h.load("services/fees");
 const settings = h.load("services/settings");
@@ -44,12 +44,12 @@ async function run() {
     rent: 5000, deposit: 0, amenities: "", notes: "",
   });
 
-  const s1 = await students.createStudent(mk("First Student", single));
+  const s1 = await students.createInmate(mk("First Inmate", single));
   check("first student fits", typeof s1 === "string");
 
   let overfill = null;
   try {
-    await students.createStudent(mk("Second Student", single));
+    await students.createInmate(mk("Second Inmate", single));
   } catch (e) {
     overfill = e;
   }
@@ -58,23 +58,23 @@ async function run() {
 
   const occAfter = await rooms.getRoom(single);
   check("occupancy stayed at 1", occAfter.occupied === 1, "occupied=" + occAfter.occupied);
-  const allStudents = await students.listStudents("", "all");
+  const allStudents = await students.listInmates("", "all");
   check("rejected student was not created", allStudents.length === 1, "count=" + allStudents.length);
 
   console.log("\n== moving out frees the bed ==");
   await students.markLeft(s1);
   const freed = await rooms.getRoom(single);
   check("bed freed after marking left", freed.occupied === 0 && freed.vacant === 1);
-  const s2 = await students.createStudent(mk("Replacement", single));
+  const s2 = await students.createInmate(mk("Replacement", single));
   check("replacement now fits", typeof s2 === "string");
 
   console.log("\n== editing a student in place does not self-block ==");
-  await students.updateStudent(s2, mk("Replacement Renamed", single));
-  const renamed = await students.getStudent(s2);
+  await students.updateInmate(s2, mk("Replacement Renamed", single));
+  const renamed = await students.getInmate(s2);
   check("student renamed while keeping room", renamed.fullName === "Replacement Renamed" && renamed.roomId === single);
 
   console.log("\n== assignRoom respects capacity ==");
-  const s3 = await students.createStudent(mk("Roomless", null));
+  const s3 = await students.createInmate(mk("Roomless", null));
   let assignErr = null;
   try {
     await students.assignRoom(s3, single);
@@ -82,7 +82,7 @@ async function run() {
     assignErr = e;
   }
   check("assign into full room rejected", assignErr instanceof students.RoomFullError);
-  const stillNull = await students.getStudent(s3);
+  const stillNull = await students.getInmate(s3);
   check("student left unassigned", stillNull.roomId === null);
 
   console.log("\n== deleting a room detaches, never deletes students ==");
@@ -92,7 +92,7 @@ async function run() {
   });
   await students.assignRoom(s3, doubleRoom);
   await rooms.deleteRoom(doubleRoom);
-  const survivor = await students.getStudent(s3);
+  const survivor = await students.getInmate(s3);
   check("student survived room deletion", survivor !== null);
   check("student detached from deleted room", survivor.roomId === null);
 
@@ -101,7 +101,7 @@ async function run() {
     branchId: "", block: "C", roomNumber: "3", floor: "", capacity: 3,
     rent: 6000, deposit: 0, amenities: "", notes: "",
   });
-  const payer = await students.createStudent(mk("Paying Student", billRoom));
+  const payer = await students.createInmate(mk("Paying Inmate", billRoom));
   const bill = await fees.createFee({
     studentId: payer, period: "2026-08", rent: 6000, electricity: 500, water: 200,
     other: 100, discount: 800, dueDate: "2026-08-10", note: "",
@@ -166,10 +166,10 @@ async function run() {
   check("duplicate rejected", dup instanceof fees.DuplicateInvoiceError, dup && dup.message);
 
   console.log("\n== generateInvoices is safe to re-run ==");
-  await students.createStudent(mk("Bulk A", billRoom));
-  await students.createStudent(mk("Bulk B", billRoom));
+  await students.createInmate(mk("Bulk A", billRoom));
+  await students.createInmate(mk("Bulk B", billRoom));
   const first = await fees.generateInvoices("2026-09");
-  const activeNow = (await students.studentCounts()).active;
+  const activeNow = (await students.inmateCounts()).active;
   check("created one bill per active student", first.created === activeNow, "created=" + first.created + " active=" + activeNow);
 
   const second = await fees.generateInvoices("2026-09");
@@ -187,7 +187,7 @@ async function run() {
     branchId: "", block: "D", roomNumber: "9", floor: "", capacity: 2,
     rent: 6000, deposit: 0, amenities: "", notes: "",
   });
-  const bespoke = await students.createStudent(
+  const bespoke = await students.createInmate(
     mk("Bespoke Terms", bespokeRoom, { monthlyRent: 4500, billingCycleDays: 15 })
   );
   const bespokeRun = await fees.generateInvoices("2026-10");
@@ -211,7 +211,7 @@ async function run() {
   const due = await fees.listDueForReminder("2026-09-30");
   check("overdue list is non-empty", due.length > 0, "n=" + due.length);
   check("every entry has a balance", due.every((f) => f.balance > 0));
-  check("excludes students who left", due.every((f) => f.studentName !== "First Student"));
+  check("excludes students who left", due.every((f) => f.studentName !== "First Inmate"));
 
   console.log("\n== money formatting (Indian grouping) ==");
   check("1234 -> 1,234", format.formatMoney(1234, "₹") === "₹1,234", format.formatMoney(1234, "₹"));
@@ -291,7 +291,7 @@ async function run() {
     legacy.exec("PRAGMA user_version = 1;");
     legacy.prepare(
       "INSERT INTO students (id, fullName, createdAt, updatedAt) VALUES (?, ?, ?, ?);"
-    ).run("legacy-1", "Existing Student", 1, 1);
+    ).run("legacy-1", "Existing Inmate", 1, 1);
 
     const hasNoticesBefore = legacy
       .prepare("SELECT COUNT(*) AS n FROM sqlite_master WHERE type='table' AND name='notices';")
@@ -315,7 +315,7 @@ async function run() {
     check("notices table created by the migration", hasNoticesAfter === 1);
 
     const survivor = legacy.prepare("SELECT fullName FROM students WHERE id = ?;").all("legacy-1");
-    check("existing student data survived the upgrade", survivor.length === 1 && survivor[0].fullName === "Existing Student");
+    check("existing student data survived the upgrade", survivor.length === 1 && survivor[0].fullName === "Existing Inmate");
 
     // The new table must be usable straight away, defaults included.
     legacy.prepare(
@@ -354,10 +354,10 @@ async function run() {
     ).run("r-1", "A", "101", 2, 7250, 1, 1);
     legacy.prepare(
       "INSERT INTO students (id, fullName, roomId, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?);"
-    ).run("s-roomed", "Roomed Student", "r-1", 1, 1);
+    ).run("s-roomed", "Roomed Inmate", "r-1", 1, 1);
     legacy.prepare(
       "INSERT INTO students (id, fullName, createdAt, updatedAt) VALUES (?, ?, ?, ?);"
-    ).run("s-roomless", "Roomless Student", 1, 1);
+    ).run("s-roomless", "Roomless Inmate", 1, 1);
 
     legacy.exec(schema.MIGRATIONS[3]);
 
@@ -517,10 +517,10 @@ async function run() {
       branchId: "", block: "P", roomNumber: "1", floor: "", capacity: 2,
       rent: 1000, deposit: 0, amenities: "", notes: "",
     });
-    const withPhoto = await students.createStudent(
+    const withPhoto = await students.createInmate(
       mk("Photographed", photoRoom, { admissionNo: "", photoFile: stored })
     );
-    const saved = await students.getStudent(withPhoto);
+    const saved = await students.getInmate(withPhoto);
     check("student row keeps the filename", saved.photoFile === stored, String(saved.photoFile));
     check("and the file is still on disk", photos.photoUri(saved.photoFile) !== null);
 
@@ -528,7 +528,7 @@ async function run() {
     h.files.set(SRC, Buffer.from("second-shot"));
     const replacement = await photos.savePhoto(SRC);
     check("replacement is a different file", replacement !== stored);
-    await students.updateStudent(
+    await students.updateInmate(
       withPhoto,
       mk("Photographed", photoRoom, { admissionNo: saved.admissionNo, photoFile: replacement })
     );
@@ -536,7 +536,7 @@ async function run() {
     check("new photo retained", photos.photoUri(replacement) !== null);
 
     console.log("\n== deleting a student removes its photo ==");
-    await students.deleteStudent(withPhoto);
+    await students.deleteInmate(withPhoto);
     check("photo cleaned up with the student", photos.photoUri(replacement) === null);
 
     console.log("\n== photoUri is safe on missing or absent files ==");
@@ -556,13 +556,13 @@ async function run() {
     });
 
     const before = await students.peekNextAdmissionNo();
-    const a = await students.createStudent(mk("Seq One", seqRoom, { admissionNo: "" }));
-    const b = await students.createStudent(mk("Seq Two", seqRoom, { admissionNo: "" }));
-    const c = await students.createStudent(mk("Seq Three", null, { admissionNo: "" }));
+    const a = await students.createInmate(mk("Seq One", seqRoom, { admissionNo: "" }));
+    const b = await students.createInmate(mk("Seq Two", seqRoom, { admissionNo: "" }));
+    const c = await students.createInmate(mk("Seq Three", null, { admissionNo: "" }));
 
-    const ga = await students.getStudent(a);
-    const gb = await students.getStudent(b);
-    const gc = await students.getStudent(c);
+    const ga = await students.getInmate(a);
+    const gb = await students.getInmate(b);
+    const gc = await students.getInmate(c);
 
     check("preview matched the number actually issued", ga.admissionNo === before, before + " vs " + ga.admissionNo);
     check("numbers increment by one", Number(gb.admissionNo) === Number(ga.admissionNo) + 1, ga.admissionNo + "," + gb.admissionNo);
@@ -571,27 +571,27 @@ async function run() {
 
     console.log("\n== numbers are not reused after a deletion ==");
     const highest = Number(gc.admissionNo);
-    await students.deleteStudent(c);
-    const d = await students.createStudent(mk("Seq Four", null, { admissionNo: "" }));
-    const gd = await students.getStudent(d);
+    await students.deleteInmate(c);
+    const d = await students.createInmate(mk("Seq Four", null, { admissionNo: "" }));
+    const gd = await students.getInmate(d);
     check("deleted student's number is not reused", Number(gd.admissionNo) === highest + 1, "got " + gd.admissionNo);
 
     console.log("\n== editing a student keeps its number ==");
-    await students.updateStudent(a, mk("Seq One Renamed", seqRoom, { admissionNo: ga.admissionNo }));
-    const reread = await students.getStudent(a);
+    await students.updateInmate(a, mk("Seq One Renamed", seqRoom, { admissionNo: ga.admissionNo }));
+    const reread = await students.getInmate(a);
     check("number survives an edit", reread.admissionNo === ga.admissionNo, reread.admissionNo);
     check("rename applied", reread.fullName === "Seq One Renamed");
 
     console.log("\n== an explicit number is respected ==");
-    const e = await students.createStudent(mk("Explicit", null, { admissionNo: "900" }));
-    const ge = await students.getStudent(e);
+    const e = await students.createInmate(mk("Explicit", null, { admissionNo: "900" }));
+    const ge = await students.getInmate(e);
     check("explicit number kept", ge.admissionNo === "900", ge.admissionNo);
-    const f = await students.createStudent(mk("After Explicit", null, { admissionNo: "" }));
-    const gf = await students.getStudent(f);
+    const f = await students.createInmate(mk("After Explicit", null, { admissionNo: "" }));
+    const gf = await students.getInmate(f);
     check("sequence continues from the highest", gf.admissionNo === "901", gf.admissionNo);
 
     // Tidy up so later assertions on counts stay predictable.
-    for (const id of [a, b, d, e, f]) await students.deleteStudent(id);
+    for (const id of [a, b, d, e, f]) await students.deleteInmate(id);
     await rooms.deleteRoom(seqRoom);
   }
 
@@ -606,13 +606,13 @@ async function run() {
       rent: 8000, deposit: 0, amenities: "", notes: "",
     });
 
-    const mover = await students.createStudent(
+    const mover = await students.createInmate(
       mk("Mover", roomX, { admissionNo: "", monthlyRent: 5000 })
     );
-    check("starts in room X", (await students.getStudent(mover)).roomLabel === "X-1");
+    check("starts in room X", (await students.getInmate(mover)).roomLabel === "X-1");
 
     await students.assignRoom(mover, roomY);
-    const moved = await students.getStudent(mover);
+    const moved = await students.getInmate(mover);
     check("moved to room Y", moved.roomLabel === "Y-1", moved.roomLabel);
     check("rent is NOT changed by the move", moved.monthlyRent === 5000, "rent=" + moved.monthlyRent);
 
@@ -622,14 +622,14 @@ async function run() {
     check("new room counts the occupant", yAfter.occupied === 1);
 
     console.log("\n== rent can be updated explicitly after a move ==");
-    await students.setStudentRent(mover, 8000);
-    const repriced = await students.getStudent(mover);
+    await students.setInmateRent(mover, 8000);
+    const repriced = await students.getInmate(mover);
     check("rent updated on request", repriced.monthlyRent === 8000, "rent=" + repriced.monthlyRent);
     check("room unchanged by repricing", repriced.roomLabel === "Y-1");
 
     console.log("\n== moving into a full room is refused ==");
-    const blocker = await students.createStudent(mk("Blocker", roomX, { admissionNo: "" }));
-    const spare = await students.createStudent(mk("Spare", null, { admissionNo: "" }));
+    const blocker = await students.createInmate(mk("Blocker", roomX, { admissionNo: "" }));
+    const spare = await students.createInmate(mk("Spare", null, { admissionNo: "" }));
     let moveErr = null;
     try {
       await students.assignRoom(spare, roomX);
@@ -637,9 +637,9 @@ async function run() {
       moveErr = e;
     }
     check("full room rejects the move", moveErr instanceof students.RoomFullError, moveErr && moveErr.message);
-    check("student stays where they were", (await students.getStudent(spare)).roomId === null);
+    check("student stays where they were", (await students.getInmate(spare)).roomId === null);
 
-    for (const id of [mover, blocker, spare]) await students.deleteStudent(id);
+    for (const id of [mover, blocker, spare]) await students.deleteInmate(id);
     await rooms.deleteRoom(roomX);
     await rooms.deleteRoom(roomY);
   }
@@ -668,16 +668,16 @@ async function run() {
       branchId: "", block: "T", roomNumber: "1", floor: "", capacity: 4,
       rent: 5000, deposit: 0, amenities: "", notes: "",
     });
-    const tOne = await students.createStudent(mk("Thammanam Resident", tRoom, { admissionNo: "" }));
+    const tOne = await students.createInmate(mk("Thammanam Resident", tRoom, { admissionNo: "" }));
 
     branches.setActiveBranchId("branch-kannanad");
     const kRoom = await rooms.createRoom({
       branchId: "", block: "K", roomNumber: "1", floor: "", capacity: 4,
       rent: 6000, deposit: 0, amenities: "", notes: "",
     });
-    const kOne = await students.createStudent(mk("Kannanad Resident", kRoom, { admissionNo: "" }));
+    const kOne = await students.createInmate(mk("Kannanad Resident", kRoom, { admissionNo: "" }));
 
-    const kList = await students.listStudents("", "all");
+    const kList = await students.listInmates("", "all");
     check("Kannanad list excludes Thammanam inmates",
       kList.every((s) => s.fullName !== "Thammanam Resident"),
       kList.map((s) => s.fullName).join(","));
@@ -688,14 +688,14 @@ async function run() {
       kRooms.every((r) => r.block !== "T"), kRooms.map((r) => r.block + r.roomNumber).join(","));
 
     branches.setActiveBranchId("branch-thammanam");
-    const tList = await students.listStudents("", "all");
+    const tList = await students.listInmates("", "all");
     check("Thammanam list excludes Kannanad inmates",
       tList.every((s) => s.fullName !== "Kannanad Resident"),
       tList.map((s) => s.fullName).join(","));
 
     console.log("\n== numbering restarts in each branch ==");
-    const t = await students.getStudent(tOne);
-    const k = await students.getStudent(kOne);
+    const t = await students.getInmate(tOne);
+    const k = await students.getInmate(kOne);
     check("Thammanam inmate carries the T code", t.branchCode === "T", String(t.branchCode));
     check("Kannanad inmate carries the K code", k.branchCode === "K", String(k.branchCode));
     check("both branches issued number 1", k.admissionNo === "1", "K number was " + k.admissionNo);
@@ -704,15 +704,15 @@ async function run() {
       branches.formatInmateId(t.branchCode, t.admissionNo) + " vs " + branches.formatInmateId(k.branchCode, k.admissionNo));
 
     branches.setActiveBranchId("branch-kannanad");
-    const kSecond = await students.createStudent(mk("Kannanad Second", null, { admissionNo: "" }));
+    const kSecond = await students.createInmate(mk("Kannanad Second", null, { admissionNo: "" }));
     check("Kannanad continues its own sequence",
-      (await students.getStudent(kSecond)).admissionNo === "2",
-      (await students.getStudent(kSecond)).admissionNo);
+      (await students.getInmate(kSecond)).admissionNo === "2",
+      (await students.getInmate(kSecond)).admissionNo);
 
     console.log("\n== occupancy and counts are per branch ==");
     const kOcc = await rooms.occupancyTotals();
     check("Kannanad counts only its beds", kOcc.beds === 4, "beds=" + kOcc.beds);
-    const kCounts = await students.studentCounts();
+    const kCounts = await students.inmateCounts();
     check("Kannanad counts only its inmates", kCounts.total === 2, "total=" + kCounts.total);
 
     console.log("\n== fees are scoped through the inmate ==");
@@ -742,12 +742,12 @@ async function run() {
 
     console.log("\n== moving an inmate between branches ==");
     branches.setActiveBranchId("branch-thammanam");
-    const movedId = (await students.getStudent(tOne)).admissionNo;
+    const movedId = (await students.getInmate(tOne)).admissionNo;
     await students.moveToBranch(tOne, "branch-kannanad");
-    const afterT = await students.listStudents("", "all");
+    const afterT = await students.listInmates("", "all");
     check("gone from the old branch", afterT.every((s) => s.id !== tOne));
     branches.setActiveBranchId("branch-kannanad");
-    const afterK = await students.getStudent(tOne);
+    const afterK = await students.getInmate(tOne);
     check("now in the new branch", afterK !== null && afterK.branchCode === "K", String(afterK && afterK.branchCode));
     check("keeps the id it was issued", afterK.admissionNo === movedId, afterK.admissionNo);
     check("bed released on the move", afterK.roomId === null);
@@ -786,12 +786,12 @@ async function run() {
   }
 
   console.log("\n== search and filters ==");
-  const byName = await students.listStudents("bulk", "active");
+  const byName = await students.listInmates("bulk", "active");
   check("search matches name fragment", byName.length === 2, "n=" + byName.length);
-  const unassigned = await students.listStudents("", "unassigned");
+  const unassigned = await students.listInmates("", "unassigned");
   check("unassigned filter", unassigned.every((s) => s.roomId === null && s.status === "active"));
-  const left = await students.listStudents("", "left");
-  check("left filter", left.length === 1 && left[0].fullName === "First Student", JSON.stringify(left.map((s) => s.fullName)));
+  const left = await students.listInmates("", "left");
+  check("left filter", left.length === 1 && left[0].fullName === "First Inmate", JSON.stringify(left.map((s) => s.fullName)));
 
   console.log("\n" + pass + " passed, " + fail + " failed");
   process.exit(fail ? 1 : 0);

@@ -10,35 +10,35 @@ import Avatar from "@/components/Avatar";
 import { colors, fontSize, radius, spacing } from "@/constants/theme";
 import { useApp } from "@/context/AppContext";
 import { useAsyncData } from "@/utils/hooks";
-import { deleteStudent, getStudent, markLeft, reinstate } from "@/services/students";
+import { deleteInmate, getInmate, markLeft, reinstate } from "@/services/inmates";
 import { listFeesForStudent } from "@/services/fees";
 import { formatInmateId } from "@/services/branches";
 import { formatDate, formatMoney, formatPeriod } from "@/utils/format";
 import type { RootStackParamList } from "@/navigation/types";
 
-type Props = NativeStackScreenProps<RootStackParamList, "StudentDetail">;
+type Props = NativeStackScreenProps<RootStackParamList, "InmateDetail">;
 
-export default function StudentDetailScreen({ navigation, route }: Props) {
+export default function InmateDetailScreen({ navigation, route }: Props) {
   const { studentId } = route.params;
   const { settings, invalidate } = useApp();
 
   const { data, loading } = useAsyncData(async () => {
-    const [student, fees] = await Promise.all([
-      getStudent(studentId),
+    const [inmate, fees] = await Promise.all([
+      getInmate(studentId),
       listFeesForStudent(studentId),
     ]);
-    return { student, fees };
+    return { inmate, fees };
   }, [studentId]);
 
   if (loading && !data) return <Loading />;
 
-  const student = data?.student;
-  if (!student) {
+  const inmate = data?.inmate;
+  if (!inmate) {
     return (
       <SafeAreaView style={styles.screen}>
         <EmptyState
           icon="person-outline"
-          title="Student not found"
+          title="Inmate not found"
           message="This record may have been deleted."
         />
       </SafeAreaView>
@@ -59,8 +59,8 @@ export default function StudentDetailScreen({ navigation, route }: Props) {
   const onMarkLeft = () => {
     Alert.alert(
       "Mark as left",
-      `${student.fullName} will be moved out of ${
-        student.roomLabel ? `room ${student.roomLabel}` : "the hostel"
+      `${inmate.fullName} will be moved out of ${
+        inmate.roomLabel ? `room ${inmate.roomLabel}` : "the hostel"
       }. Their fee history is kept.`,
       [
         { text: "Cancel", style: "cancel" },
@@ -80,7 +80,7 @@ export default function StudentDetailScreen({ navigation, route }: Props) {
   const onDelete = () => {
     Alert.alert(
       "Delete permanently?",
-      `This removes ${student.fullName}, their photo and all ${fees.length} fee records. ` +
+      `This removes ${inmate.fullName}, their photo and all ${fees.length} fee records. ` +
         "It cannot be undone. Consider 'Mark as left' instead.",
       [
         { text: "Cancel", style: "cancel" },
@@ -88,7 +88,7 @@ export default function StudentDetailScreen({ navigation, route }: Props) {
           text: "Delete",
           style: "destructive",
           onPress: async () => {
-            await deleteStudent(studentId);
+            await deleteInmate(studentId);
             invalidate();
             navigation.goBack();
           },
@@ -101,20 +101,20 @@ export default function StudentDetailScreen({ navigation, route }: Props) {
     <SafeAreaView style={styles.screen} edges={["left", "right", "bottom"]}>
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <View style={styles.hero}>
-          <Avatar name={student.fullName} photoFile={student.photoFile} size={92} />
-          <Text style={styles.name}>{student.fullName}</Text>
+          <Avatar name={inmate.fullName} photoFile={inmate.photoFile} size={92} />
+          <Text style={styles.name}>{inmate.fullName}</Text>
           <Text style={styles.meta}>
-            {[student.course, student.year ? `Year ${student.year}` : null,
-              formatInmateId(student.branchCode, student.admissionNo)]
+            {[inmate.course, inmate.year ? `Year ${inmate.year}` : null,
+              formatInmateId(inmate.branchCode, inmate.admissionNo)]
               .filter(Boolean)
               .join("  ·  ") || "No course recorded"}
           </Text>
           <View style={styles.heroBadges}>
             <Badge
-              label={student.status === "active" ? "ACTIVE" : "LEFT"}
-              tone={student.status === "active" ? "success" : "neutral"}
+              label={inmate.status === "active" ? "ACTIVE" : "LEFT"}
+              tone={inmate.status === "active" ? "success" : "neutral"}
             />
-            {student.roomLabel ? <Badge label={`ROOM ${student.roomLabel}`} tone="info" /> : null}
+            {inmate.roomLabel ? <Badge label={`ROOM ${inmate.roomLabel}`} tone="info" /> : null}
             {outstanding > 0 ? (
               <Badge label={`DUE ${formatMoney(outstanding, symbol)}`} tone="danger" />
             ) : null}
@@ -125,13 +125,13 @@ export default function StudentDetailScreen({ navigation, route }: Props) {
           <ActionButton
             icon="call-outline"
             label="Call"
-            disabled={!student.phone}
-            onPress={() => call(student.phone)}
+            disabled={!inmate.phone}
+            onPress={() => call(inmate.phone)}
           />
           <ActionButton
             icon="logo-whatsapp"
             label="Message"
-            disabled={!student.phone}
+            disabled={!inmate.phone}
             onPress={() =>
               navigation.navigate("Compose", { kind: "custom", studentIds: [studentId] })
             }
@@ -139,7 +139,7 @@ export default function StudentDetailScreen({ navigation, route }: Props) {
           <ActionButton
             icon="create-outline"
             label="Edit"
-            onPress={() => navigation.navigate("StudentForm", { studentId })}
+            onPress={() => navigation.navigate("InmateForm", { studentId })}
           />
           <ActionButton
             icon="receipt-outline"
@@ -150,46 +150,46 @@ export default function StudentDetailScreen({ navigation, route }: Props) {
 
         <SectionTitle title="Contact" />
         <Card>
-          <DetailRow label="Mobile" value={student.phone} />
+          <DetailRow label="Mobile" value={inmate.phone} />
           <Divider />
-          <DetailRow label="Email" value={student.email} />
+          <DetailRow label="Email" value={inmate.email} />
           <Divider />
-          <DetailRow label="Guardian" value={student.guardianName} />
+          <DetailRow label="Guardian" value={inmate.guardianName} />
           <Divider />
-          <DetailRow label="Guardian mobile" value={student.guardianPhone} />
+          <DetailRow label="Guardian mobile" value={inmate.guardianPhone} />
           <Divider />
-          <DetailRow label="Address" value={student.address} />
+          <DetailRow label="Address" value={inmate.address} />
         </Card>
 
         <SectionTitle title="Hostel" />
         <Card>
-          <DetailRow label="Branch" value={student.branchName ?? "—"} />
+          <DetailRow label="Branch" value={inmate.branchName ?? "—"} />
           <Divider />
-          <DetailRow label="Room" value={student.roomLabel ?? "Not assigned"} />
+          <DetailRow label="Room" value={inmate.roomLabel ?? "Not assigned"} />
           <Divider />
           <DetailRow
             label="Monthly rent"
-            value={student.monthlyRent > 0 ? formatMoney(student.monthlyRent, symbol) : "Not set"}
+            value={inmate.monthlyRent > 0 ? formatMoney(inmate.monthlyRent, symbol) : "Not set"}
           />
           <Divider />
           <DetailRow
             label="Billing cycle"
-            value={`${student.billingCycleDays || 30} days`}
+            value={`${inmate.billingCycleDays || 30} days`}
           />
           <Divider />
-          <DetailRow label="Joined on" value={formatDate(student.joinedOn)} />
-          {student.leftOn ? (
+          <DetailRow label="Joined on" value={formatDate(inmate.joinedOn)} />
+          {inmate.leftOn ? (
             <>
               <Divider />
-              <DetailRow label="Left on" value={formatDate(student.leftOn)} />
+              <DetailRow label="Left on" value={formatDate(inmate.leftOn)} />
             </>
           ) : null}
           <Divider />
-          <DetailRow label="ID proof" value={student.idProof} />
-          {student.notes ? (
+          <DetailRow label="ID proof" value={inmate.idProof} />
+          {inmate.notes ? (
             <>
               <Divider />
-              <DetailRow label="Notes" value={student.notes} />
+              <DetailRow label="Notes" value={inmate.notes} />
             </>
           ) : null}
         </Card>
@@ -204,7 +204,7 @@ export default function StudentDetailScreen({ navigation, route }: Props) {
         />
         {fees.length === 0 ? (
           <Card>
-            <Text style={styles.emptyFees}>No bills raised for this student yet.</Text>
+            <Text style={styles.emptyFees}>No bills raised for this inmate yet.</Text>
           </Card>
         ) : (
           fees.map((fee) => (
@@ -230,11 +230,11 @@ export default function StudentDetailScreen({ navigation, route }: Props) {
         )}
 
         <SectionTitle title="Manage" />
-        {student.status === "active" ? (
+        {inmate.status === "active" ? (
           <Button title="Mark as left" variant="secondary" icon="exit-outline" onPress={onMarkLeft} />
         ) : (
           <Button
-            title="Reinstate student"
+            title="Reinstate inmate"
             variant="secondary"
             icon="refresh-outline"
             onPress={async () => {

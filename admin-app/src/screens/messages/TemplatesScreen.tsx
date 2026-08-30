@@ -76,7 +76,7 @@ export default function TemplatesScreen({}: Props) {
     <SafeAreaView style={styles.screen} edges={["left", "right", "bottom"]}>
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <Text style={styles.hint}>
-          Templates save you retyping. Placeholders like {"{{name}}"} are filled in per student when
+          Templates save you retyping. Placeholders like {"{{name}}"} are filled in per inmate when
           you send.
         </Text>
 

@@ -20,7 +20,7 @@ import {
   TEMPLATE_PLACEHOLDERS,
 } from "@/services/messaging";
 import { markNoticeSent } from "@/services/notices";
-import { listStudents } from "@/services/students";
+import { listInmates } from "@/services/inmates";
 import { listFees } from "@/services/fees";
 import { toWhatsAppNumber } from "@/utils/validate";
 import type { RootStackParamList } from "@/navigation/types";
@@ -78,16 +78,16 @@ export default function ComposeScreen({ navigation, route }: Props) {
         }));
     }
 
-    const students = await listStudents("", "active");
+    const inmates = await listInmates("", "active");
     const wanted = presetStudentIds ? new Set(presetStudentIds) : null;
-    return students
-      .filter((student) => (wanted ? wanted.has(student.id) : true))
-      .map((student) => ({
-        studentId: student.id,
-        name: student.fullName,
-        phone: student.phone,
-        photoFile: student.photoFile,
-        roomLabel: student.roomLabel,
+    return inmates
+      .filter((inmate) => (wanted ? wanted.has(inmate.id) : true))
+      .map((inmate) => ({
+        studentId: inmate.id,
+        name: inmate.fullName,
+        phone: inmate.phone,
+        photoFile: inmate.photoFile,
+        roomLabel: inmate.roomLabel,
       }));
   }, [kind]);
 
@@ -159,7 +159,7 @@ export default function ComposeScreen({ navigation, route }: Props) {
   const onQueue = async () => {
     const chosen = reachable.filter((c) => selected.has(c.studentId));
     if (chosen.length === 0) {
-      Alert.alert("Nobody selected", "Pick at least one student with a valid phone number.");
+      Alert.alert("Nobody selected", "Pick at least one inmate with a valid phone number.");
       return;
     }
     if (!body.trim()) {
@@ -236,7 +236,7 @@ export default function ComposeScreen({ navigation, route }: Props) {
           ))}
         </View>
         <Text style={styles.chipHint}>
-          Tap to insert. Each is replaced with that student's own details when sending.
+          Tap to insert. Each is replaced with that inmate's own details when sending.
         </Text>
 
         <SectionTitle title="Preview" />
@@ -266,7 +266,7 @@ export default function ComposeScreen({ navigation, route }: Props) {
         {unreachable > 0 ? (
           <Callout tone="warning" icon="alert-circle-outline">
             <CalloutText>
-              {unreachable} student(s) have no usable phone number and are not listed. Add their
+              {unreachable} inmate(s) have no usable phone number and are not listed. Add their
               mobile number to include them.
             </CalloutText>
           </Callout>

@@ -23,9 +23,9 @@ const REPORTS: {
   needsPeriod?: boolean;
 }[] = [
   {
-    kind: "students",
-    title: "Student register",
-    description: "Every student with room, contact and guardian details.",
+    kind: "inmates",
+    title: "Inmate register",
+    description: "Every inmate with room, contact and guardian details.",
     icon: "people-outline",
   },
   {

@@ -23,9 +23,9 @@ export interface Branch {
   updatedAt: number;
 }
 
-export type StudentStatus = "active" | "left";
+export type InmateStatus = "active" | "left";
 
-export interface Student {
+export interface Inmate {
   id: string;
   admissionNo: string;
   fullName: string;
@@ -42,7 +42,7 @@ export interface Student {
   roomId: string | null;
   /** Which branch this inmate belongs to. */
   branchId: string;
-  status: StudentStatus;
+  status: InmateStatus;
   /**
    * Agreed monthly rent for this student, in rupees. Pre-filled from their
    * room when one is assigned, but editable -- two students in the same room
@@ -105,7 +105,7 @@ export interface FeeRecord {
   updatedAt: number;
 }
 
-export interface FeeRecordWithStudent extends FeeRecord {
+export interface FeeRecordWithInmate extends FeeRecord {
   studentName: string;
   admissionNo: string;
   studentPhone: string;

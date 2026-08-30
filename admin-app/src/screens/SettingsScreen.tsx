@@ -101,8 +101,8 @@ export default function SettingsScreen({ navigation }: Props) {
         <SectionTitle title="Fees" />
         <Callout tone="info" icon="cash-outline">
           <CalloutText>
-            Rent and payment deadlines are set per student, not here — the amount follows the room
-            they are given and can differ per person. Open a student to change their rent or
+            Rent and payment deadlines are set per inmate, not here — the amount follows the room
+            they are given and can differ per person. Open a inmate to change their rent or
             billing cycle.
           </CalloutText>
         </Callout>

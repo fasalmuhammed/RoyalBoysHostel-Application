@@ -4,7 +4,7 @@ import { ImageManipulator, SaveFormat } from "expo-image-manipulator";
 import { newId } from "@/utils/id";
 
 /**
- * Student photos live as ordinary JPEG files under `documents/photos/`, and the
+ * Inmate photos live as ordinary JPEG files under `documents/photos/`, and the
  * database stores only the bare filename.
  *
  * Storing filenames (not absolute URIs) is deliberate: an app's sandbox path

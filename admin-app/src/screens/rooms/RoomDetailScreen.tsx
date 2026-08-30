@@ -11,7 +11,7 @@ import { colors, fontSize, radius, spacing } from "@/constants/theme";
 import { useApp } from "@/context/AppContext";
 import { useAsyncData } from "@/utils/hooks";
 import { deleteRoom, getRoom } from "@/services/rooms";
-import { assignRoom, listStudentsInRoom } from "@/services/students";
+import { assignRoom, listInmatesInRoom } from "@/services/inmates";
 import { formatMoney } from "@/utils/format";
 import type { RootStackParamList } from "@/navigation/types";
 
@@ -22,7 +22,7 @@ export default function RoomDetailScreen({ navigation, route }: Props) {
   const { settings, invalidate } = useApp();
 
   const { data, loading, reload } = useAsyncData(async () => {
-    const [room, occupants] = await Promise.all([getRoom(roomId), listStudentsInRoom(roomId)]);
+    const [room, occupants] = await Promise.all([getRoom(roomId), listInmatesInRoom(roomId)]);
     return { room, occupants };
   }, [roomId]);
 
@@ -59,7 +59,7 @@ export default function RoomDetailScreen({ navigation, route }: Props) {
     Alert.alert(
       "Delete this room?",
       occupants.length > 0
-        ? `${occupants.length} student(s) live here. They will not be deleted — they will simply have no room assigned.`
+        ? `${occupants.length} inmate(s) live here. They will not be deleted — they will simply have no room assigned.`
         : "This room will be removed.",
       [
         { text: "Cancel", style: "cancel" },
@@ -136,16 +136,16 @@ export default function RoomDetailScreen({ navigation, route }: Props) {
         {room.vacant > 0 ? (
           <View style={styles.addRow}>
             <Button
-              title="Add existing student"
+              title="Add existing inmate"
               variant="secondary"
               icon="person-add-outline"
-              onPress={() => navigation.navigate("AssignStudents", { roomId })}
+              onPress={() => navigation.navigate("AssignInmates", { roomId })}
               style={{ flex: 1 }}
             />
             <Button
-              title="New student"
+              title="New inmate"
               icon="add"
-              onPress={() => navigation.navigate("StudentForm", { presetRoomId: roomId })}
+              onPress={() => navigation.navigate("InmateForm", { presetRoomId: roomId })}
               style={{ flex: 1 }}
             />
           </View>
@@ -156,24 +156,24 @@ export default function RoomDetailScreen({ navigation, route }: Props) {
             <Text style={styles.empty}>Nobody is staying in this room yet.</Text>
           </Card>
         ) : (
-          occupants.map((student) => (
-            <Card key={student.id} style={styles.occupantRow}>
+          occupants.map((inmate) => (
+            <Card key={inmate.id} style={styles.occupantRow}>
               <Pressable
                 style={styles.occupantMain}
-                onPress={() => navigation.navigate("StudentDetail", { studentId: student.id })}
+                onPress={() => navigation.navigate("InmateDetail", { studentId: inmate.id })}
               >
-                <Avatar name={student.fullName} photoFile={student.photoFile} size={42} />
+                <Avatar name={inmate.fullName} photoFile={inmate.photoFile} size={42} />
                 <View style={{ flex: 1 }}>
                   <Text style={styles.occupantName} numberOfLines={1}>
-                    {student.fullName}
+                    {inmate.fullName}
                   </Text>
                   <Text style={styles.occupantMeta} numberOfLines={1}>
-                    {[student.course, student.phone].filter(Boolean).join(" · ") || "No details"}
+                    {[inmate.course, inmate.phone].filter(Boolean).join(" · ") || "No details"}
                   </Text>
                 </View>
               </Pressable>
               <Pressable
-                onPress={() => onVacate(student.id, student.fullName)}
+                onPress={() => onVacate(inmate.id, inmate.fullName)}
                 hitSlop={10}
                 style={styles.vacateButton}
               >

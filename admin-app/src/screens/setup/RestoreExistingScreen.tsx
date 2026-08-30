@@ -82,7 +82,7 @@ export default function RestoreExistingScreen({ navigation }: Props) {
 
       Alert.alert(
         "Restore complete",
-        `${result.counts.students} students, ${result.counts.rooms} rooms and ` +
+        `${result.counts.students} inmates, ${result.counts.rooms} rooms and ` +
           `${result.photosRestored} photos were restored to this phone.`,
         [{ text: "Continue", onPress: () => navigation.navigate("CreatePin") }]
       );
@@ -122,7 +122,7 @@ export default function RestoreExistingScreen({ navigation }: Props) {
           <View style={styles.summary}>
             <Summary label="Hostel" value={header.hostelName} />
             <Summary label="Created" value={formatDateTime(header.createdAt)} />
-            <Summary label="Students" value={String(header.counts.students)} />
+            <Summary label="Inmates" value={String(header.counts.students)} />
             <Summary label="Rooms" value={String(header.counts.rooms)} />
             <Summary label="Invoices" value={String(header.counts.feeRecords)} />
             <Summary label="Photos" value={String(header.counts.photos)} />

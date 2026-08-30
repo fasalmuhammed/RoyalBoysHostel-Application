@@ -23,7 +23,7 @@ type Props = NativeStackScreenProps<RootStackParamList, "SendQueue">;
 /**
  * Walks the admin through a prepared batch one recipient at a time.
  *
- * Each tap opens WhatsApp with that student's message filled in. Because the
+ * Each tap opens WhatsApp with that inmate's message filled in. Because the
  * app cannot observe whether the message was actually sent, the row is marked
  * optimistically and can be corrected — an honest "we think this went out"
  * beats a status that silently lies.

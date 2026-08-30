@@ -98,7 +98,7 @@ export default function NoticesScreen({ navigation }: Props) {
               message={
                 search
                   ? `Nothing matches "${search}".`
-                  : "Post a notice here, then send it to every student on WhatsApp in one go."
+                  : "Post a notice here, then send it to every inmate on WhatsApp in one go."
               }
               action={
                 search ? undefined : (

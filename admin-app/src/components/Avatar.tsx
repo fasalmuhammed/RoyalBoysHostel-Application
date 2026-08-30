@@ -12,7 +12,7 @@ interface Props {
 }
 
 /**
- * Student photo, falling back to initials.
+ * Inmate photo, falling back to initials.
  *
  * `photoUri` returns null when the file is missing, so a backup restored
  * without its images degrades to initials rather than a broken-image box.

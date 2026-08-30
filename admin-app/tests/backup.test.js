@@ -12,7 +12,7 @@ const check = (name, cond, extra) => {
   }
 };
 
-const students = h.load("services/students");
+const students = h.load("services/inmates");
 const rooms = h.load("services/rooms");
 const fees = h.load("services/fees");
 const settings = h.load("services/settings");
@@ -50,9 +50,9 @@ async function seed() {
     joinedOn: "2026-01-15", leftOn: null, notes: "",
   });
 
-  const s1 = await students.createStudent(mk("Rahul Sharma", roomA, "9876543210"));
-  const s2 = await students.createStudent(mk(TRICKY_NAME, roomA, "9876543211"));
-  const s3 = await students.createStudent(mk("Vikram Singh", roomB, "9876543212"));
+  const s1 = await students.createInmate(mk("Rahul Sharma", roomA, "9876543210"));
+  const s2 = await students.createInmate(mk(TRICKY_NAME, roomA, "9876543211"));
+  const s3 = await students.createInmate(mk("Vikram Singh", roomB, "9876543212"));
 
   // Two students carry photos.
   photos.writePhotoBase64("p1.jpg", Buffer.from("fake-jpeg-bytes-one").toString("base64"));
@@ -110,14 +110,14 @@ async function run() {
       branchId: "", block: "K", roomNumber: "7", floor: "", capacity: 2,
       rent: 7000, deposit: 0, amenities: "", notes: "",
     });
-    await students.createStudent({
+    await students.createInmate({
       admissionNo: "", fullName: "Kannanad Person", phone: "9871234567",
       guardianName: "", guardianPhone: "", email: "", course: "", year: "",
       address: "", idProof: "", photoFile: null, roomId: kRoom, branchId: "",
       status: "active", monthlyRent: 7000, billingCycleDays: 30,
       joinedOn: "2026-03-01", leftOn: null, notes: "",
     });
-    const kOnly = await students.listStudents("", "all");
+    const kOnly = await students.listInmates("", "all");
     check("Kannanad sees only its own inmate", kOnly.length === 1, "n=" + kOnly.length);
     // Export runs with a branch active; it must still capture everything.
     branches.setActiveBranchId("branch-thammanam");
@@ -220,13 +220,13 @@ async function run() {
   console.log("\n== the backup covered every branch, not just the active one ==");
   {
     branches.setActiveBranchId("branch-thammanam");
-    const t = await students.listStudents("", "all");
+    const t = await students.listInmates("", "all");
     check("Thammanam inmates came back", t.length === 3, "n=" + t.length);
     check("and none of them belong to Kannanad",
       t.every((s) => s.fullName !== "Kannanad Person"), t.map((s) => s.fullName).join(","));
 
     branches.setActiveBranchId("branch-kannanad");
-    const k = await students.listStudents("", "all");
+    const k = await students.listInmates("", "all");
     check("Kannanad inmate came back too", k.length === 1 && k[0].fullName === "Kannanad Person",
       k.map((s) => s.fullName).join(","));
     check("its room came back as well", (await rooms.listRooms()).length === 1);
@@ -252,7 +252,7 @@ async function run() {
   check("photo 2 bytes identical", p2 === Buffer.from("fake-jpeg-bytes-two éñ").toString("base64"));
 
   console.log("\n== relationships still work after restore ==");
-  const list = await students.listStudents("", "active");
+  const list = await students.listInmates("", "active");
   check("student list rebuilt for the active branch", list.length === 3, "n=" + list.length);
   const withRoom = list.filter((s) => s.roomLabel);
   check("room labels resolve", withRoom.length === 3, JSON.stringify(list.map((s) => s.roomLabel)));
@@ -286,8 +286,8 @@ async function run() {
   const d = await db.getDb();
   const bulkIds = [];
   for (let i = 0; i < 60; i += 1) {
-    const id = await students.createStudent({
-      admissionNo: "B" + i, fullName: "Bulk Student " + i, phone: "90000000" + String(i).padStart(2, "0"),
+    const id = await students.createInmate({
+      admissionNo: "B" + i, fullName: "Bulk Inmate " + i, phone: "90000000" + String(i).padStart(2, "0"),
       guardianName: "G", guardianPhone: "9", email: "", course: "ME", year: "1",
       address: "addr", idProof: "", photoFile: null, roomId: null, branchId: "", status: "active",
       monthlyRent: 5000, billingCycleDays: 30,
@@ -327,22 +327,22 @@ async function run() {
   console.log("\n== the admission sequence survives a restore ==");
   {
     const beforeNext = await students.peekNextAdmissionNo();
-    const issued = (await students.listStudents("", "all")).map((s) => Number(s.admissionNo));
+    const issued = (await students.listInmates("", "all")).map((s) => Number(s.admissionNo));
     const highest = Math.max(0, ...issued.filter((n) => Number.isFinite(n)));
     check("next number is past every number in use", Number(beforeNext) > highest, beforeNext + " vs " + highest);
 
-    const fresh = await students.createStudent({
+    const fresh = await students.createInmate({
       admissionNo: "", fullName: "Post Restore", phone: "9800000000", guardianName: "",
       guardianPhone: "", email: "", course: "", year: "", address: "", idProof: "",
       photoFile: null, roomId: null, branchId: "", status: "active", monthlyRent: 0, billingCycleDays: 30,
       joinedOn: "2026-09-01", leftOn: null, notes: "",
     });
-    const freshRow = await students.getStudent(fresh);
+    const freshRow = await students.getInmate(fresh);
     check("a student added after restore does not collide", freshRow.admissionNo === beforeNext, freshRow.admissionNo);
-    const all = await students.listStudents("", "all");
+    const all = await students.listInmates("", "all");
     const numbers = all.map((s) => s.admissionNo);
     check("all admission numbers remain unique", new Set(numbers).size === numbers.length, numbers.join(","));
-    await students.deleteStudent(fresh);
+    await students.deleteInmate(fresh);
   }
 
   console.log("\n== backup from a newer app version is refused ==");

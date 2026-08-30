@@ -64,7 +64,7 @@ function stamp(): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 }
 
-export type ReportKind = "students" | "rooms" | "fees" | "payments";
+export type ReportKind = "inmates" | "rooms" | "fees" | "payments";
 
 export interface ReportResult {
   uri: string;
@@ -79,7 +79,7 @@ export async function exportReport(kind: ReportKind, period: string | null = nul
   const studentBranch = branchClause("s.branchId");
   const studentWhere = studentBranch.sql ? `WHERE ${studentBranch.sql}` : "";
 
-  if (kind === "students") {
+  if (kind === "inmates") {
     const rows = await db.getAllAsync<Record<string, string | number | null>>(
       `SELECT s.admissionNo, s.fullName, s.phone, s.guardianName, s.guardianPhone, s.email,
               s.course, s.year, s.status, s.joinedOn, s.leftOn, s.address, s.idProof,
@@ -112,7 +112,7 @@ export async function exportReport(kind: ReportKind, period: string | null = nul
       { header: "Address", value: (r) => r.address },
       { header: "ID Proof", value: (r) => r.idProof },
     ]);
-    const fileName = `Students_${stamp()}.csv`;
+    const fileName = `Inmates_${stamp()}.csv`;
     return { uri: writeCsv(fileName, csv), fileName, rowCount: rows.length };
   }
 

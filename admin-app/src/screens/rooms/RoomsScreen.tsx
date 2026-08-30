@@ -65,7 +65,7 @@ export default function RoomsScreen({ navigation }: Props) {
               message={
                 search
                   ? `Nothing matches "${search}".`
-                  : "Add your rooms first, then assign students to them."
+                  : "Add your rooms first, then assign inmates to them."
               }
               action={
                 search ? undefined : (

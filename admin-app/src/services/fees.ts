@@ -1,5 +1,5 @@
 import { getDb } from "@/db";
-import { FeeRecord, FeeRecordWithStudent, FeeStatus, Payment, PaymentMethod } from "@/types";
+import { FeeRecord, FeeRecordWithInmate, FeeStatus, Payment, PaymentMethod } from "@/types";
 import { newId } from "@/utils/id";
 import { toIsoDate, toPeriod } from "@/utils/format";
 import { branchClause } from "./branches";
@@ -43,7 +43,7 @@ export async function listFees(
   filter: FeeFilter = "all",
   period: string | null = null,
   search = ""
-): Promise<FeeRecordWithStudent[]> {
+): Promise<FeeRecordWithInmate[]> {
   const db = await getDb();
 
   const clauses: string[] = [];
@@ -72,20 +72,20 @@ export async function listFees(
   }
 
   const where = clauses.length ? `WHERE ${clauses.join(" AND ")}` : "";
-  return db.getAllAsync<FeeRecordWithStudent>(
+  return db.getAllAsync<FeeRecordWithInmate>(
     `${SELECT_WITH_STUDENT} ${where} ORDER BY f.period DESC, s.fullName COLLATE NOCASE;`,
     params
   );
 }
 
-export async function getFee(id: string): Promise<FeeRecordWithStudent | null> {
+export async function getFee(id: string): Promise<FeeRecordWithInmate | null> {
   const db = await getDb();
-  return db.getFirstAsync<FeeRecordWithStudent>(`${SELECT_WITH_STUDENT} WHERE f.id = ?;`, id);
+  return db.getFirstAsync<FeeRecordWithInmate>(`${SELECT_WITH_STUDENT} WHERE f.id = ?;`, id);
 }
 
-export async function listFeesForStudent(studentId: string): Promise<FeeRecordWithStudent[]> {
+export async function listFeesForStudent(studentId: string): Promise<FeeRecordWithInmate[]> {
   const db = await getDb();
-  return db.getAllAsync<FeeRecordWithStudent>(
+  return db.getAllAsync<FeeRecordWithInmate>(
     `${SELECT_WITH_STUDENT} WHERE f.studentId = ? ORDER BY f.period DESC;`,
     studentId
   );
@@ -327,10 +327,10 @@ export async function feeTotals(period: string | null = null): Promise<FeeTotals
  * Unsettled invoices whose due date falls on or before `throughDate`, newest
  * dues first. This is the source list for the fee-reminder message queue.
  */
-export async function listDueForReminder(throughDate: string): Promise<FeeRecordWithStudent[]> {
+export async function listDueForReminder(throughDate: string): Promise<FeeRecordWithInmate[]> {
   const db = await getDb();
   const reminderBranch = branchClause("s.branchId");
-  return db.getAllAsync<FeeRecordWithStudent>(
+  return db.getAllAsync<FeeRecordWithInmate>(
     `${SELECT_WITH_STUDENT}
      WHERE f.amountPaid < f.total - 0.01
        AND f.dueDate <> ''

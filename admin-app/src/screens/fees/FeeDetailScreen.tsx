@@ -111,7 +111,7 @@ export default function FeeDetailScreen({ navigation, route }: Props) {
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <Card
           style={styles.studentCard}
-          onPress={() => navigation.navigate("StudentDetail", { studentId: fee.studentId })}
+          onPress={() => navigation.navigate("InmateDetail", { studentId: fee.studentId })}
         >
           <Avatar name={fee.studentName} photoFile={fee.photoFile} size={48} />
           <View style={{ flex: 1 }}>

@@ -30,14 +30,14 @@ export default function StartChoiceScreen({ navigation }: Props) {
       <ChoiceCard
         icon="sparkles-outline"
         title="Start fresh"
-        description="Begin with an empty register and add rooms and students yourself."
+        description="Begin with an empty register and add rooms and inmates yourself."
         onPress={() => navigation.navigate("HostelDetails")}
       />
 
       <ChoiceCard
         icon="cloud-download-outline"
         title="Restore from a backup file"
-        description="Moving to a new phone, or reinstalling? Load a .hostelbak file and every student, room, fee and photo comes back exactly as it was."
+        description="Moving to a new phone, or reinstalling? Load a .hostelbak file and every inmate, room, fee and photo comes back exactly as it was."
         onPress={() => navigation.navigate("RestoreExisting")}
       />
 

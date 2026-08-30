@@ -20,7 +20,7 @@ const SELECT_WITH_OCCUPANCY = `
 
 /**
  * Occupancy is always derived from `students.roomId` rather than stored on the
- * room. A denormalised counter would drift the moment a student is deleted or
+ * room. A denormalised counter would drift the moment a inmate is deleted or
  * a backup is restored mid-edit.
  */
 export async function listRooms(search = ""): Promise<RoomWithOccupancy[]> {

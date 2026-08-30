@@ -43,7 +43,7 @@ export default function MessagesScreen({ navigation }: Props) {
           icon="megaphone-outline"
           tone={colors.primary}
           title="Announcement"
-          description="Send a notice to every student, or pick who receives it."
+          description="Send a notice to every inmate, or pick who receives it."
           onPress={() => navigation.navigate("Compose", { kind: "announcement" })}
         />
 
@@ -53,7 +53,7 @@ export default function MessagesScreen({ navigation }: Props) {
           title="Fee reminders"
           description={
             due.length > 0
-              ? `${due.length} student(s) have fees past their due date.`
+              ? `${due.length} inmate(s) have fees past their due date.`
               : "Nobody is overdue right now."
           }
           badge={due.length > 0 ? String(due.length) : undefined}
@@ -69,7 +69,7 @@ export default function MessagesScreen({ navigation }: Props) {
           icon="megaphone-outline"
           tone={colors.warning}
           title="Notice board"
-          description="Post a notice once, then send it out to students."
+          description="Post a notice once, then send it out to inmates."
           onPress={() => navigation.navigate("Notices")}
         />
 

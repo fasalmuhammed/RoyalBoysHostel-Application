@@ -11,17 +11,17 @@ import { colors, fontSize, spacing } from "@/constants/theme";
 import { useApp } from "@/context/AppContext";
 import { useAsyncData } from "@/utils/hooks";
 import { currentPeriod, generateInvoices, listFees } from "@/services/fees";
-import { studentCounts } from "@/services/students";
+import { inmateCounts } from "@/services/inmates";
 import { formatPeriod, shiftPeriod } from "@/utils/format";
 import type { RootStackParamList } from "@/navigation/types";
 
 type Props = NativeStackScreenProps<RootStackParamList, "GenerateInvoices">;
 
 /**
- * Bulk-raises one invoice per active student for a chosen month.
+ * Bulk-raises one invoice per active inmate for a chosen month.
  *
  * Existing invoices for that month are left untouched, so running this twice
- * is safe — the second run simply picks up students admitted since the first.
+ * is safe — the second run simply picks up inmates admitted since the first.
  */
 export default function GenerateInvoicesScreen({ navigation }: Props) {
   const { invalidate } = useApp();
@@ -30,7 +30,7 @@ export default function GenerateInvoicesScreen({ navigation }: Props) {
   const [periodPickerOpen, setPeriodPickerOpen] = useState(false);
   const [running, setRunning] = useState(false);
 
-  const { data: counts } = useAsyncData(() => studentCounts(), []);
+  const { data: counts } = useAsyncData(() => inmateCounts(), []);
   const { data: existing } = useAsyncData(() => listFees("all", period, ""), [period]);
 
   const alreadyBilled = existing?.length ?? 0;
@@ -43,8 +43,8 @@ export default function GenerateInvoicesScreen({ navigation }: Props) {
       Alert.alert(
         "Nothing to raise",
         alreadyBilled > 0
-          ? `Every active student already has a bill for ${formatPeriod(period)}.`
-          : "There are no active students to bill yet."
+          ? `Every active inmate already has a bill for ${formatPeriod(period)}.`
+          : "There are no active inmates to bill yet."
       );
       return;
     }
@@ -52,7 +52,7 @@ export default function GenerateInvoicesScreen({ navigation }: Props) {
     Alert.alert(
       "Raise bills",
       `${toRaise} bill(s) will be created for ${formatPeriod(period)}, each priced at that ` +
-        "student's own rent and due after their own billing cycle. Students who already have a " +
+        "inmate's own rent and due after their own billing cycle. Inmates who already have a " +
         "bill for this month are skipped.",
       [
         { text: "Cancel", style: "cancel" },
@@ -91,7 +91,7 @@ export default function GenerateInvoicesScreen({ navigation }: Props) {
       >
         <Text style={styles.title}>Raise monthly bills</Text>
         <Text style={styles.subtitle}>
-          Creates one bill per active student, using the rent recorded on each of them.
+          Creates one bill per active inmate, using the rent recorded on each of them.
         </Text>
 
         <SectionTitle title="Month" />
@@ -105,15 +105,15 @@ export default function GenerateInvoicesScreen({ navigation }: Props) {
 
         <SectionTitle title="What will happen" />
         <Card>
-          <Row label="Active students" value={String(counts?.active ?? 0)} />
+          <Row label="Active inmates" value={String(counts?.active ?? 0)} />
           <Row label={`Already billed for ${formatPeriod(period)}`} value={String(alreadyBilled)} />
           <Row label="Bills to be created" value={String(toRaise)} highlight />
         </Card>
 
         <Callout tone="info" icon="information-circle-outline">
           <CalloutText>
-            Each bill uses the rent recorded on that student, and falls due after their own
-            billing cycle (30 days unless you changed it). Edit a student to adjust their terms.
+            Each bill uses the rent recorded on that inmate, and falls due after their own
+            billing cycle (30 days unless you changed it). Edit a inmate to adjust their terms.
           </CalloutText>
         </Callout>
 
