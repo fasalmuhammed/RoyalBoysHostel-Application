@@ -21,6 +21,7 @@ const backup = h.load("services/backup");
 const photos = h.load("services/photos");
 const notices = h.load("services/notices");
 const schema = h.load("db/schema");
+const complaints = h.load("services/complaints");
 const db = h.load("db");
 const { File } = require("expo-file-system");
 
@@ -71,6 +72,12 @@ async function seed() {
   });
   await fees.recordPayment(f1, 3000, "upi", "2026-08-05", "TXN123", "part payment");
 
+  await complaints.createComplaint({
+    branchId: "", roomId: roomA, studentId: s1,
+    title: "Light flickering", description: 'Tube light in the "corner" flickers.',
+    category: "electrical", status: "in_progress", photoFile: null, raisedOn: "2026-08-03",
+  });
+
   await notices.createNotice({
     branchId: null,
     title: "Holiday Notice",
@@ -94,7 +101,7 @@ async function seed() {
 async function snapshot() {
   const d = await db.getDb();
   const out = {};
-  for (const t of ["branches", "rooms", "students", "fee_records", "payments", "notices", "settings"]) {
+  for (const t of ["branches", "rooms", "students", "fee_records", "payments", "notices", "complaints", "settings"]) {
     // The SQL table is still `students`; expose it under the name the app uses.
     const key = t === "students" ? "inmates" : t;
     out[key] = await d.getAllAsync("SELECT * FROM " + t + " ORDER BY " + (t === "settings" ? "key" : "id") + ";");
@@ -131,6 +138,7 @@ async function run() {
   check("seeded 2 invoices", before.fee_records.length === 2);
   check("seeded 1 payment", before.payments.length === 1);
   check("seeded 2 notices", before.notices.length === 2, "n=" + before.notices.length);
+  check("seeded 1 complaint", before.complaints.length === 1, "n=" + before.complaints.length);
 
   const paid = before.fee_records.find((f) => f.id === ids.f1);
   check("payment advanced amountPaid", paid.amountPaid === 3000, "got " + paid.amountPaid);
@@ -216,6 +224,11 @@ async function run() {
   check("payments identical", norm(after.payments) === norm(before.payments));
   check("settings identical", norm(after.settings) === norm(before.settings));
   check("notices identical", norm(after.notices) === norm(before.notices));
+  check("complaints identical", norm(after.complaints) === norm(before.complaints));
+  const restoredComplaint = after.complaints[0];
+  check("complaint status preserved", restoredComplaint.status === "in_progress", restoredComplaint.status);
+  check("complaint keeps its quoted text", restoredComplaint.description.includes('\"corner\"'), restoredComplaint.description);
+  check("complaint still linked to its room", restoredComplaint.roomId === before.complaints[0].roomId);
   check("branches identical", norm(after.branches) === norm(before.branches));
   check("both branches restored", after.branches.length === 2, "n=" + after.branches.length);
 

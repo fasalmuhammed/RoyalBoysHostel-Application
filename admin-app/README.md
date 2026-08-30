@@ -27,6 +27,8 @@ Built with Expo (React Native) + TypeScript + SQLite.
 | **Admission numbers are issued, not typed** | The number is the student's id, so it is generated as a sequence (1, 2, 3...) from a stored counter combined with the highest number in use. A departed student's number is never reissued — two people sharing an id would make old receipts and exports ambiguous. |
 | **Branches are a filter, not separate stores** | Both hostels share one database and one backup file, so a single export covers the organisation and moving an inmate between branches is an edit rather than a migration. |
 | **"Inmate" in the UI, `students` in SQL** | The vocabulary changed; the table name did not. Existing `.hostelbak` files carry `students` rows, and renaming the table would break restoring a backup taken before the change. The seam is confined to the service layer. |
+| **Complaints clear rather than cascade** | A complaint names a room and optionally the inmate who raised it, but outlives both. Most are about a fitting, not a person, so the references null out when an inmate leaves or a room is reorganised. |
+| **The notification feed is derived, not stored** | With no server to keep a notifications table in step, alerts are computed from the data each time. An item disappears the moment its cause is fixed, and there is no read/unread state to drift. |
 | **Derived room occupancy** | Counted from `students.roomId` rather than stored on the room, so it cannot go stale when a student is deleted or a backup is restored. |
 
 ---
@@ -132,7 +134,10 @@ board without going to every student's phone.
 **Inmates** — list & search · add/edit with camera capture, rent and billing cycle · detail with fee history
 **Rooms** — list with occupancy · add/edit · detail with bed map, move-in/move-out, and moving an existing inmate in from another room
 **Fees** — list by month & status · bill detail · collect payment · bulk-raise monthly bills · PDF receipt
-**Notices** — notice board by category, pinning, and one-tap send to students
+**Complaints** — register by status (open / in progress / resolved), category, photo, room link
+**Notices** — notice board by category, pinning, and one-tap send to inmates
+**Search** — one box across inmates, rooms, bills and notices
+**Notifications** — what needs attention, derived live from the data
 **WhatsApp** — announcements · fee reminders · templates · send queue
 **Other** — Backup & restore · CSV reports · Settings · Change PIN · Lock screen
 
@@ -146,7 +151,7 @@ npm install
 
 npm start          # Expo dev server
 npm run android    # build & run on a connected device
-npm test           # 279 tests, no device needed
+npm test           # 343 tests, no device needed
 npm run typecheck  # tsc --noEmit
 ```
 
@@ -166,11 +171,11 @@ sandboxes storage and its database can be cleared when the Expo Go app updates.
 
 ## Tests
 
-`npm test` runs 279 assertions against the real service code, using an
+`npm test` runs 343 assertions against the real service code, using an
 in-memory filesystem and a real SQLite engine (`node:sqlite`). No device or
 emulator needed.
 
-**`tests/backup.test.js` (75)** — the parts where a bug means data loss:
+**`tests/backup.test.js` (80)** — the parts where a bug means data loss:
 encrypted round trip, ciphertext contains no plaintext names or phone numbers,
 wrong passphrase rejected, tampered chunk caught by the MAC, truncated file
 rejected, data left untouched after every failed restore, exact row-for-row
@@ -178,7 +183,7 @@ fidelity, Unicode and multi-line fields preserved, photo bytes identical,
 relationships still resolve afterwards, and a 63-student dataset spanning many
 chunks, and a backup claiming a newer schema refused outright.
 
-**`tests/logic.test.js` (204)** — every migration applied to an existing install
+**`tests/logic.test.js` (263)** — every migration applied to an existing install
 (including the v3 rent backfill from the occupied room), room capacity enforced on create/edit/assign,
 beds freed on move-out, deleting a room detaches students instead of deleting
 them, payment arithmetic, overpayment rejected rather than clamped, reversal

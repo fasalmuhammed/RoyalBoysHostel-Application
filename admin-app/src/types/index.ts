@@ -154,6 +154,50 @@ export interface Notice {
   updatedAt: number;
 }
 
+export type ComplaintStatus = "open" | "in_progress" | "resolved";
+
+export type ComplaintCategory =
+  | "electrical"
+  | "plumbing"
+  | "furniture"
+  | "cleanliness"
+  | "internet"
+  | "food"
+  | "other";
+
+/**
+ * A maintenance complaint.
+ *
+ * Both `roomId` and `studentId` are nullable and clear rather than cascade:
+ * most complaints are about a fitting, not a person, so one must outlive the
+ * inmate who reported it and the room being reorganised.
+ */
+export interface Complaint {
+  id: string;
+  branchId: string;
+  roomId: string | null;
+  /** Who reported it, when that is worth recording. */
+  studentId: string | null;
+  title: string;
+  description: string;
+  category: ComplaintCategory;
+  status: ComplaintStatus;
+  photoFile: string | null;
+  /** ISO yyyy-mm-dd. */
+  raisedOn: string;
+  /** Epoch millis, set only while the status is `resolved`. */
+  resolvedAt: number | null;
+  resolution: string;
+  createdAt: number;
+  updatedAt: number;
+}
+
+export interface ComplaintWithContext extends Complaint {
+  roomLabel: string | null;
+  raisedByName: string | null;
+  raisedByPhoto: string | null;
+}
+
 export type MessageKind = "announcement" | "fee_reminder" | "custom";
 
 export interface MessageTemplate {

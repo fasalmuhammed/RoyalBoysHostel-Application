@@ -211,6 +211,11 @@ export default function DashboardScreen({ navigation }: Props) {
             onPress={() => navigation.navigate("GenerateInvoices")}
           />
           <QuickAction
+            label="Complaints"
+            icon="construct-outline"
+            onPress={() => navigation.navigate("Complaints")}
+          />
+          <QuickAction
             label="Notice"
             icon="megaphone-outline"
             onPress={() => navigation.navigate("NoticeForm")}

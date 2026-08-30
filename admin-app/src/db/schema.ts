@@ -5,7 +5,7 @@
  * stamped into every backup file. Restoring a backup created by a *newer* app
  * version is refused rather than half-applied — see services/backup.ts.
  */
-export const SCHEMA_VERSION = 6;
+export const SCHEMA_VERSION = 7;
 
 /** Ordered DDL for a fresh database. */
 const V1 = `
@@ -242,6 +242,37 @@ WHERE key = 'activeBranchId' AND value = '"branch-kannanad"';
 `;
 
 /**
+ * Adds the complaints register.
+ *
+ * A complaint points at a room and, optionally, the inmate who raised it. The
+ * room reference is the one that matters -- most complaints are about a
+ * fitting rather than a person, and they must survive that inmate leaving, so
+ * both foreign keys clear rather than cascade.
+ */
+const V7 = `
+CREATE TABLE IF NOT EXISTS complaints (
+  id          TEXT PRIMARY KEY NOT NULL,
+  branchId    TEXT,
+  roomId      TEXT REFERENCES rooms(id) ON DELETE SET NULL,
+  studentId   TEXT REFERENCES students(id) ON DELETE SET NULL,
+  title       TEXT NOT NULL,
+  description TEXT NOT NULL DEFAULT '',
+  category    TEXT NOT NULL DEFAULT 'other',
+  status      TEXT NOT NULL DEFAULT 'open',
+  photoFile   TEXT,
+  raisedOn    TEXT NOT NULL DEFAULT '',
+  resolvedAt  INTEGER,
+  resolution  TEXT NOT NULL DEFAULT '',
+  createdAt   INTEGER NOT NULL,
+  updatedAt   INTEGER NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_complaints_branch ON complaints (branchId);
+CREATE INDEX IF NOT EXISTS idx_complaints_status ON complaints (status);
+CREATE INDEX IF NOT EXISTS idx_complaints_room   ON complaints (roomId);
+`;
+
+/**
  * Migrations indexed by the version they upgrade *to*. To add a change, bump
  * SCHEMA_VERSION and add the matching entry — never edit an existing one in
  * place, or existing installs and old backups will diverge from new ones.
@@ -253,6 +284,7 @@ export const MIGRATIONS: Record<number, string> = {
   4: V4,
   5: V5,
   6: V6,
+  7: V7,
 };
 
 /** Tables included in a backup, in dependency order (parents first). */
@@ -265,6 +297,7 @@ export const BACKUP_TABLES = [
   "message_templates",
   "message_log",
   "notices",
+  "complaints",
   "settings",
 ] as const;
 

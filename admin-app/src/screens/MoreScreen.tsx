@@ -58,6 +58,12 @@ export default function MoreScreen({ navigation }: Props) {
             onPress={() => navigation.navigate("Notifications")}
           />
           <Row
+            icon="construct-outline"
+            label="Complaints"
+            sublabel="Track maintenance issues to resolved"
+            onPress={() => navigation.navigate("Complaints")}
+          />
+          <Row
             icon="megaphone-outline"
             label="Notice board"
             sublabel="Post notices and send them to inmates"

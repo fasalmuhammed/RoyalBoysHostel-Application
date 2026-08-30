@@ -42,6 +42,9 @@ export type RootStackParamList = {
   Notices: undefined;
   NoticeForm: { noticeId?: string } | undefined;
 
+  Complaints: undefined;
+  ComplaintForm: { complaintId?: string; roomId?: string } | undefined;
+
   Notifications: undefined;
   Search: undefined;
 

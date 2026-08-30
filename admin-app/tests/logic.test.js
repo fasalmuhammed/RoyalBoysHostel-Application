@@ -18,6 +18,7 @@ const fees = h.load("services/fees");
 const settings = h.load("services/settings");
 const branches = h.load("services/branches");
 const overview = h.load("services/overview");
+const complaints = h.load("services/complaints");
 const format = h.load("utils/format");
 const validate = h.load("utils/validate");
 const csv = h.load("services/csv");
@@ -327,6 +328,20 @@ async function run() {
     check("lastSentAt defaults to null", inserted.lastSentAt === null);
 
     check("notices is included in backups", schema.BACKUP_TABLES.includes("notices"), schema.BACKUP_TABLES.join(","));
+
+    // v7 adds the complaints register.
+    const tables = legacy
+      .prepare("SELECT name FROM sqlite_master WHERE type='table';")
+      .all()
+      .map((t) => t.name);
+    check("complaints table created by migration", tables.includes("complaints"), tables.join(","));
+    check("branches table created by migration", tables.includes("branches"));
+    check("complaints are included in backups", schema.BACKUP_TABLES.includes("complaints"), schema.BACKUP_TABLES.join(","));
+
+    const complaintCols = legacy.prepare("PRAGMA table_info(complaints);").all().map((c) => c.name);
+    for (const col of ["branchId", "roomId", "studentId", "status", "resolvedAt", "photoFile"]) {
+      check("complaints has " + col, complaintCols.includes(col), complaintCols.join(","));
+    }
 
     // v3 moved rent onto the student; existing rows must be backfilled from
     // the room they occupy rather than silently dropping to zero.
@@ -929,6 +944,93 @@ async function run() {
     await settings.saveSettings({ lastBackupAt: Date.now() });
     const after = (await overview.buildAlerts()).find((a) => a.id === "backup-overdue");
     check("warning disappears once the cause is fixed", after === undefined);
+  }
+
+  console.log("\n== complaints ==");
+  {
+    branches.setActiveBranchId("branch-thammanam");
+    const cRoom = await rooms.createRoom({
+      branchId: "", block: "C", roomNumber: "77", floor: "", capacity: 2,
+      rent: 5000, deposit: 0, amenities: "", notes: "",
+    });
+    const reporter = await inmates.createInmate(mk("Complainer", cRoom, { admissionNo: "" }));
+
+    const c1 = await complaints.createComplaint({
+      branchId: "", roomId: cRoom, studentId: reporter,
+      title: "Wi-Fi not working", description: "No signal since morning",
+      category: "internet", status: "open", photoFile: null, raisedOn: "2027-04-01",
+    });
+    const c2 = await complaints.createComplaint({
+      branchId: "", roomId: cRoom, studentId: null,
+      title: "Tap leaking", description: "Bathroom tap drips",
+      category: "plumbing", status: "open", photoFile: null, raisedOn: "2027-04-02",
+    });
+
+    const all = await complaints.listComplaints("all");
+    check("both complaints listed", all.length === 2, "n=" + all.length);
+    const wifi = all.find((c) => c.id === c1);
+    check("room label resolved", wifi.roomLabel === "C-77", String(wifi.roomLabel));
+    check("reporter name resolved", wifi.raisedByName === "Complainer", String(wifi.raisedByName));
+    check("unreported complaint has no name", all.find((c) => c.id === c2).raisedByName === null);
+
+    const counts = await complaints.complaintCounts();
+    check("counts open", counts.open === 2 && counts.all === 2, JSON.stringify(counts));
+
+    console.log("\n== status moves and stamps a resolution date ==");
+    await complaints.setStatus(c1, "in_progress");
+    let current = await complaints.getComplaint(c1);
+    check("moved to in progress", current.status === "in_progress");
+    check("not resolved yet, so no date", current.resolvedAt === null);
+
+    await complaints.setStatus(c1, "resolved", "Router restarted");
+    current = await complaints.getComplaint(c1);
+    check("marked resolved", current.status === "resolved");
+    check("resolution date stamped", typeof current.resolvedAt === "number" && current.resolvedAt > 0);
+    check("resolution note kept", current.resolution === "Router restarted");
+
+    await complaints.setStatus(c1, "open");
+    current = await complaints.getComplaint(c1);
+    check("reopening clears the resolution date", current.resolvedAt === null);
+    check("reopening clears the resolution note", current.resolution === "");
+
+    console.log("\n== filtering and ordering ==");
+    await complaints.setStatus(c2, "resolved", "Washer replaced");
+    const open = await complaints.listComplaints("open");
+    check("open filter", open.length === 1 && open[0].id === c1, "n=" + open.length);
+    const resolved = await complaints.listComplaints("resolved");
+    check("resolved filter", resolved.length === 1 && resolved[0].id === c2);
+    const ordered = await complaints.listComplaints("all");
+    check("open sorts above resolved", ordered[0].status === "open", ordered.map((c) => c.status).join(","));
+
+    const searched = await complaints.listComplaints("all", "leaking");
+    check("search matches the title", searched.length === 1 && searched[0].id === c2, "n=" + searched.length);
+    const searchedBody = await complaints.listComplaints("all", "drips");
+    check("search matches the description", searchedBody.length === 1 && searchedBody[0].id === c2);
+
+    console.log("\n== complaints are scoped to their branch ==");
+    branches.setActiveBranchId("branch-kakkanad");
+    const otherBranch = await complaints.listComplaints("all");
+    check("other branch sees none of them", otherBranch.length === 0, "n=" + otherBranch.length);
+    check("counts are branch scoped", (await complaints.complaintCounts()).all === 0);
+    branches.setActiveBranchId("branch-thammanam");
+
+    console.log("\n== a complaint outlives the people and rooms it names ==");
+    await inmates.deleteInmate(reporter);
+    const afterInmate = await complaints.getComplaint(c1);
+    check("complaint survives the reporter leaving", afterInmate !== null);
+    check("reporter reference cleared", afterInmate.studentId === null, String(afterInmate.studentId));
+    check("room reference still intact", afterInmate.roomId === cRoom);
+
+    await rooms.deleteRoom(cRoom);
+    const afterRoom = await complaints.getComplaint(c1);
+    check("complaint survives the room being deleted", afterRoom !== null);
+    check("room reference cleared", afterRoom.roomId === null, String(afterRoom.roomId));
+
+    console.log("\n== deleting a complaint ==");
+    await complaints.deleteComplaint(c2);
+    check("deleted", (await complaints.getComplaint(c2)) === null);
+    check("the other is untouched", (await complaints.getComplaint(c1)) !== null);
+    await complaints.deleteComplaint(c1);
   }
 
   console.log("\n== search and filters ==");
