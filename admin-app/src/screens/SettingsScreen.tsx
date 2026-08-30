@@ -6,7 +6,7 @@ import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { Callout, CalloutText, Card, SectionTitle } from "@/components/Base";
 import Button from "@/components/Button";
 import Input from "@/components/Input";
-import { colors, fontSize, spacing } from "@/constants/theme";
+import { colors, font, fontSize, spacing } from "@/constants/theme";
 import { useApp } from "@/context/AppContext";
 import {
   BiometricSupport,
@@ -168,6 +168,6 @@ const styles = StyleSheet.create({
   content: { padding: spacing.lg, paddingBottom: spacing.xl * 2 },
   pair: { flexDirection: "row", gap: spacing.md },
   switchRow: { flexDirection: "row", alignItems: "center", gap: spacing.md },
-  switchLabel: { fontSize: fontSize.md, fontWeight: "600", color: colors.text },
+  switchLabel: { fontSize: fontSize.md, fontFamily: font.semibold, color: colors.text },
   switchHint: { fontSize: fontSize.sm, color: colors.textMuted, marginTop: 2, lineHeight: 18 },
 });

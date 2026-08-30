@@ -7,7 +7,7 @@ import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { Badge, Callout, CalloutText, EmptyState, Loading } from "@/components/Base";
 import { SearchBar } from "@/components/Controls";
 import Avatar from "@/components/Avatar";
-import { colors, fontSize, radius, spacing } from "@/constants/theme";
+import { colors, font, fontSize, radius, spacing } from "@/constants/theme";
 import { useApp } from "@/context/AppContext";
 import { useAsyncData, useDebounced } from "@/utils/hooks";
 import { getRoom } from "@/services/rooms";
@@ -198,7 +198,7 @@ export default function AssignInmatesScreen({ navigation, route }: Props) {
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.background },
   header: { paddingHorizontal: spacing.lg, paddingTop: spacing.md },
-  title: { fontSize: fontSize.xl, fontWeight: "800", color: colors.text },
+  title: { fontSize: fontSize.xl, fontFamily: font.extrabold, color: colors.text },
   subtitle: { fontSize: fontSize.sm, color: colors.textMuted, marginTop: 2 },
   searchWrap: { paddingHorizontal: spacing.lg, paddingTop: spacing.md, paddingBottom: spacing.sm },
   list: { padding: spacing.lg, paddingTop: spacing.sm, paddingBottom: 100 },
@@ -211,7 +211,7 @@ const styles = StyleSheet.create({
     padding: spacing.md,
     marginBottom: spacing.sm,
   },
-  name: { fontSize: fontSize.md, fontWeight: "700", color: colors.text },
+  name: { fontSize: fontSize.md, fontFamily: font.bold, color: colors.text },
   meta: { fontSize: fontSize.xs, color: colors.textMuted, marginTop: 2 },
   addButton: {
     flexDirection: "row",
@@ -222,7 +222,7 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.sm,
     borderRadius: radius.pill,
   },
-  addText: { color: colors.primaryOn, fontWeight: "700", fontSize: fontSize.sm },
+  addText: { color: colors.primaryOn, fontFamily: font.bold, fontSize: fontSize.sm },
   doneBar: {
     position: "absolute",
     left: spacing.lg,
@@ -233,5 +233,5 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.md - 2,
     alignItems: "center",
   },
-  doneText: { color: colors.primaryOn, fontWeight: "700", fontSize: fontSize.md },
+  doneText: { color: colors.primaryOn, fontFamily: font.bold, fontSize: fontSize.md },
 });

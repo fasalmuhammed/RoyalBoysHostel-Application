@@ -9,7 +9,8 @@ import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { Badge, Card, EmptyState, Loading } from "@/components/Base";
 import { Fab, SearchBar, StatCard } from "@/components/Controls";
 import Button from "@/components/Button";
-import { colors, fontSize, spacing } from "@/constants/theme";
+import { colors, font, fontSize, spacing } from "@/constants/theme";
+import { FadeIn, SkeletonList } from "@/components/Motion";
 import { useApp } from "@/context/AppContext";
 import { useAsyncData, useDebounced } from "@/utils/hooks";
 import { listRooms, occupancyTotals } from "@/services/rooms";
@@ -51,7 +52,7 @@ export default function RoomsScreen({ navigation }: Props) {
       </View>
 
       {loading && !rooms ? (
-        <Loading />
+        <SkeletonList />
       ) : (
         <FlatList
           data={rooms ?? []}
@@ -78,9 +79,10 @@ export default function RoomsScreen({ navigation }: Props) {
               }
             />
           }
-          renderItem={({ item }) => {
+          renderItem={({ item, index }) => {
             const full = item.vacant <= 0;
             return (
+              <FadeIn index={index}>
               <Card
                 style={styles.row}
                 onPress={() => navigation.navigate("RoomDetail", { roomId: item.id })}
@@ -109,6 +111,7 @@ export default function RoomsScreen({ navigation }: Props) {
                   tone={full ? "neutral" : "success"}
                 />
               </Card>
+              </FadeIn>
             );
           }}
         />
@@ -122,7 +125,7 @@ export default function RoomsScreen({ navigation }: Props) {
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.background },
   header: { paddingHorizontal: spacing.lg, paddingTop: spacing.sm },
-  title: { fontSize: fontSize.xxl, fontWeight: "800", color: colors.text },
+  title: { fontSize: fontSize.xxl, fontFamily: font.extrabold, color: colors.text },
   statRow: {
     flexDirection: "row",
     gap: spacing.sm,
@@ -140,6 +143,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  roomName: { fontSize: fontSize.md, fontWeight: "700", color: colors.text },
+  roomName: { fontSize: fontSize.md, fontFamily: font.bold, color: colors.text },
   roomMeta: { fontSize: fontSize.xs, color: colors.textMuted, marginTop: 2 },
 });

@@ -7,7 +7,7 @@ import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { EmptyState, SectionTitle } from "@/components/Base";
 import { SearchBar } from "@/components/Controls";
 import Avatar from "@/components/Avatar";
-import { colors, fontSize, radius, spacing } from "@/constants/theme";
+import { colors, font, fontSize, radius, spacing } from "@/constants/theme";
 import { useAsyncData, useDebounced } from "@/utils/hooks";
 import { globalSearch, SearchHit } from "@/services/overview";
 import type { RootStackParamList } from "@/navigation/types";
@@ -127,6 +127,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  title: { fontSize: fontSize.md, fontWeight: "700", color: colors.text },
+  title: { fontSize: fontSize.md, fontFamily: font.bold, color: colors.text },
   subtitle: { fontSize: fontSize.xs, color: colors.textMuted, marginTop: 2 },
 });

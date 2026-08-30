@@ -5,7 +5,7 @@ import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { Ionicons } from "@expo/vector-icons";
 
-import { colors, fontSize, spacing } from "@/constants/theme";
+import { colors, font, fontSize, spacing } from "@/constants/theme";
 import { useApp } from "@/context/AppContext";
 import { Loading } from "@/components/Base";
 
@@ -90,7 +90,7 @@ function MainTabs() {
           paddingBottom: 8,
           paddingTop: 6,
         },
-        tabBarLabelStyle: { fontSize: 11, fontWeight: "600" },
+        tabBarLabelStyle: { fontSize: 11, fontFamily: font.semibold },
         tabBarIcon: ({ color, size }) => (
           <Ionicons name={TAB_ICONS[route.name]} size={size - 2} color={color} />
         ),
@@ -105,7 +105,15 @@ function MainTabs() {
   );
 }
 
-const detailOptions = { headerShown: true, headerBackTitle: "Back" };
+const detailOptions = {
+  headerShown: true,
+  headerBackTitle: "Back",
+  // Slide from the right on both platforms so a push always reads as "deeper
+  // in", and the gesture back matches it.
+  animation: "slide_from_right" as const,
+  headerTitleStyle: { fontFamily: font.semibold, fontSize: fontSize.md },
+  headerShadowVisible: false,
+};
 
 function MainStack() {
   return (
@@ -293,7 +301,7 @@ const styles = StyleSheet.create({
     padding: spacing.xl,
     gap: spacing.sm,
   },
-  errorTitle: { fontSize: fontSize.lg, fontWeight: "800", color: colors.text },
+  errorTitle: { fontSize: fontSize.lg, fontFamily: font.extrabold, color: colors.text },
   errorMessage: { fontSize: fontSize.sm, color: colors.textMuted, textAlign: "center" },
   errorHint: {
     fontSize: fontSize.xs,

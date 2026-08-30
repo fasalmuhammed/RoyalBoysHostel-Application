@@ -12,7 +12,8 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 
-import { colors, fontSize, radius, shadow, spacing, Tone, toneColor } from "@/constants/theme";
+import { colors, font, fontSize, radius, shadow, spacing, toneColor, Tone } from "@/constants/theme";
+import { PressableScale } from "./Motion";
 
 /** Full-screen container with the standard background and safe-area insets. */
 export function Screen({
@@ -49,12 +50,9 @@ export function Card({
 }: PropsWithChildren<{ style?: ViewStyle; onPress?: () => void }>) {
   if (onPress) {
     return (
-      <Pressable
-        onPress={onPress}
-        style={({ pressed }) => [styles.card, pressed && styles.cardPressed, style]}
-      >
+      <PressableScale onPress={onPress} scaleTo={0.985} style={[styles.card, style] as ViewStyle[]}>
         {children}
-      </Pressable>
+      </PressableScale>
     );
   }
   return <View style={[styles.card, style]}>{children}</View>;
@@ -118,7 +116,7 @@ export function DetailRow({
     <View style={styles.detailRow}>
       <Text style={styles.detailLabel}>{label}</Text>
       <Text
-        style={[styles.detailValue, tone ? { color: toneColor[tone].fg, fontWeight: "700" } : null]}
+        style={[styles.detailValue, tone ? { color: toneColor[tone].fg, fontFamily: font.bold } : null]}
       >
         {text}
       </Text>
@@ -174,14 +172,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.sm + 2,
     paddingVertical: 3,
   },
-  badgeText: { fontSize: fontSize.xs, fontWeight: "700", letterSpacing: 0.3 },
+  badgeText: { fontSize: fontSize.xs, fontFamily: font.bold, letterSpacing: 0.3 },
   sectionRow: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
     marginBottom: spacing.sm,
   },
-  sectionTitle: { fontSize: fontSize.lg, fontWeight: "700", color: colors.text },
+  sectionTitle: { fontSize: fontSize.lg, fontFamily: font.bold, color: colors.text },
   empty: { alignItems: "center", paddingVertical: spacing.xl },
   emptyIcon: {
     width: 64,
@@ -192,7 +190,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     marginBottom: spacing.md,
   },
-  emptyTitle: { fontSize: fontSize.md, fontWeight: "700", color: colors.text },
+  emptyTitle: { fontSize: fontSize.md, fontFamily: font.bold, color: colors.text },
   emptyMessage: {
     fontSize: fontSize.sm,
     color: colors.textMuted,
@@ -212,7 +210,7 @@ const styles = StyleSheet.create({
   detailValue: {
     fontSize: fontSize.sm,
     color: colors.text,
-    fontWeight: "600",
+    fontFamily: font.semibold,
     flexShrink: 1,
     textAlign: "right",
   },

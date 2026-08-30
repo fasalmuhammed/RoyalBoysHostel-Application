@@ -10,7 +10,8 @@ import { Badge, Card, EmptyState, Loading } from "@/components/Base";
 import { Fab, SearchBar, SegmentedTabs } from "@/components/Controls";
 import Button from "@/components/Button";
 import Avatar from "@/components/Avatar";
-import { colors, fontSize, spacing } from "@/constants/theme";
+import { colors, font, fontSize, spacing } from "@/constants/theme";
+import { FadeIn, SkeletonList } from "@/components/Motion";
 import { useAsyncData, useDebounced } from "@/utils/hooks";
 import { listInmates, InmateFilter, inmateCounts } from "@/services/inmates";
 import { formatInmateId } from "@/services/branches";
@@ -69,7 +70,7 @@ export default function InmatesScreen({ navigation, route }: Props) {
       </View>
 
       {loading && !inmates ? (
-        <Loading />
+        <SkeletonList />
       ) : (
         <FlatList
           data={inmates ?? []}
@@ -96,7 +97,8 @@ export default function InmatesScreen({ navigation, route }: Props) {
               }
             />
           }
-          renderItem={({ item }) => (
+          renderItem={({ item, index }) => (
+            <FadeIn index={index}>
             <Card
               style={styles.row}
               onPress={() => navigation.navigate("InmateDetail", { studentId: item.id })}
@@ -124,6 +126,7 @@ export default function InmatesScreen({ navigation, route }: Props) {
 
               <Ionicons name="chevron-forward" size={18} color={colors.textFaint} />
             </Card>
+            </FadeIn>
           )}
         />
       )}
@@ -150,12 +153,12 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  title: { fontSize: fontSize.xxl, fontWeight: "800", color: colors.text },
+  title: { fontSize: fontSize.xxl, fontFamily: font.extrabold, color: colors.text },
   subtitle: { fontSize: fontSize.sm, color: colors.textMuted, marginTop: 2 },
   controls: { paddingHorizontal: spacing.lg, paddingTop: spacing.md, gap: spacing.sm },
   list: { padding: spacing.lg, paddingBottom: 110 },
   row: { flexDirection: "row", alignItems: "center", gap: spacing.md },
-  name: { fontSize: fontSize.md, fontWeight: "700", color: colors.text },
+  name: { fontSize: fontSize.md, fontFamily: font.bold, color: colors.text },
   meta: { fontSize: fontSize.xs, color: colors.textMuted, marginTop: 2 },
   badges: { flexDirection: "row", gap: spacing.xs, marginTop: spacing.xs + 2 },
 });

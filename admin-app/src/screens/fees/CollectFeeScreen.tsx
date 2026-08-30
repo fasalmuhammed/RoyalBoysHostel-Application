@@ -7,13 +7,14 @@ import { Card, Loading, SectionTitle } from "@/components/Base";
 import Button from "@/components/Button";
 import Input, { PickerField } from "@/components/Input";
 import { OptionPicker } from "@/components/Controls";
-import { colors, fontSize, radius, spacing } from "@/constants/theme";
+import { colors, font, fontSize, radius, spacing } from "@/constants/theme";
 import { useApp } from "@/context/AppContext";
 import { useAsyncData } from "@/utils/hooks";
 import { getFee, OverpaymentError, recordPayment } from "@/services/fees";
 import { PaymentMethod } from "@/types";
 import { formatMoney, formatPeriod, toIsoDate } from "@/utils/format";
 import { parseAmount } from "@/utils/validate";
+import { successFeedback } from "@/utils/haptics";
 import type { RootStackParamList } from "@/navigation/types";
 
 type Props = NativeStackScreenProps<RootStackParamList, "CollectFee">;
@@ -63,6 +64,7 @@ export default function CollectFeeScreen({ navigation, route }: Props) {
     setSaving(true);
     try {
       await recordPayment(feeId, entered, method, paidOn, reference.trim(), note.trim());
+      successFeedback();
       invalidate();
       navigation.goBack();
     } catch (e) {
@@ -194,11 +196,11 @@ const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.background },
   content: { padding: spacing.lg, paddingBottom: spacing.xl * 2 },
   summary: { marginBottom: spacing.lg },
-  inmate: { fontSize: fontSize.lg, fontWeight: "800", color: colors.text },
+  inmate: { fontSize: fontSize.lg, fontFamily: font.extrabold, color: colors.text },
   period: { fontSize: fontSize.sm, color: colors.textMuted, marginTop: 2 },
   summaryRow: { flexDirection: "row", marginTop: spacing.md, gap: spacing.sm },
   cellLabel: { fontSize: fontSize.xs, color: colors.textMuted },
-  cellValue: { fontSize: fontSize.md, fontWeight: "700", color: colors.text, marginTop: 2 },
+  cellValue: { fontSize: fontSize.md, fontFamily: font.bold, color: colors.text, marginTop: 2 },
   quickAmounts: { flexDirection: "row", gap: spacing.sm, marginBottom: spacing.md, marginTop: -8 },
   chip: {
     paddingHorizontal: spacing.md,
@@ -206,7 +208,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.pill,
     backgroundColor: colors.primaryLight,
   },
-  chipText: { fontSize: fontSize.sm, fontWeight: "700", color: colors.primary },
+  chipText: { fontSize: fontSize.sm, fontFamily: font.bold, color: colors.primary },
   remaining: {
     fontSize: fontSize.sm,
     color: colors.warning,

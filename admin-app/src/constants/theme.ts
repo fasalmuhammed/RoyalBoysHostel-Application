@@ -56,6 +56,21 @@ export const radius = {
   pill: 999,
 } as const;
 
+/**
+ * Inter, loaded at start-up.
+ *
+ * Weight is chosen by picking the right family rather than by `fontWeight`:
+ * Android ignores numeric weights for custom fonts and would silently render
+ * everything at regular.
+ */
+export const font = {
+  regular: "Inter_400Regular",
+  medium: "Inter_500Medium",
+  semibold: "Inter_600SemiBold",
+  bold: "Inter_700Bold",
+  extrabold: "Inter_800ExtraBold",
+} as const;
+
 export const fontSize = {
   xs: 11,
   sm: 13,

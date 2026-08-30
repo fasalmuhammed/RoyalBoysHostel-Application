@@ -18,7 +18,7 @@ import { SectionTitle } from "@/components/Base";
 import Button from "@/components/Button";
 import Input, { PickerField } from "@/components/Input";
 import { OptionPicker } from "@/components/Controls";
-import { colors, fontSize, radius, spacing } from "@/constants/theme";
+import { colors, font, fontSize, radius, spacing } from "@/constants/theme";
 import { useApp } from "@/context/AppContext";
 import { useAsyncData } from "@/utils/hooks";
 import {
@@ -35,6 +35,7 @@ import { listInmates } from "@/services/inmates";
 import { deletePhoto, photoUri, savePhoto } from "@/services/photos";
 import { ComplaintCategory, ComplaintStatus } from "@/types";
 import { toIsoDate } from "@/utils/format";
+import { successFeedback } from "@/utils/haptics";
 import type { RootStackParamList } from "@/navigation/types";
 
 type Props = NativeStackScreenProps<RootStackParamList, "ComplaintForm">;
@@ -186,6 +187,7 @@ export default function ComplaintFormScreen({ navigation, route }: Props) {
       if (complaintId) await updateComplaint(complaintId, payload);
       else await createComplaint(payload);
 
+      successFeedback();
       committedRef.current = true;
       invalidate();
       navigation.goBack();
@@ -357,7 +359,7 @@ const styles = StyleSheet.create({
   label: {
     fontSize: fontSize.sm,
     color: colors.textMuted,
-    fontWeight: "600",
+    fontFamily: font.semibold,
     marginBottom: spacing.xs + 2,
   },
   chipRow: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm, marginBottom: spacing.md },
@@ -370,7 +372,7 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
   },
   chipActive: { backgroundColor: colors.primary, borderColor: colors.primary },
-  chipText: { fontSize: fontSize.sm, fontWeight: "600", color: colors.textMuted },
+  chipText: { fontSize: fontSize.sm, fontFamily: font.semibold, color: colors.textMuted },
   chipTextActive: { color: colors.primaryOn },
   photoBox: {
     height: 120,
@@ -386,5 +388,5 @@ const styles = StyleSheet.create({
     overflow: "hidden",
   },
   photo: { width: "100%", height: "100%" },
-  photoText: { fontSize: fontSize.sm, fontWeight: "600", color: colors.primary },
+  photoText: { fontSize: fontSize.sm, fontFamily: font.semibold, color: colors.primary },
 });

@@ -7,7 +7,7 @@ import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { Callout, CalloutText, SectionTitle } from "@/components/Base";
 import Button from "@/components/Button";
 import Input from "@/components/Input";
-import { colors, fontSize, radius, spacing } from "@/constants/theme";
+import { colors, font, fontSize, radius, spacing } from "@/constants/theme";
 import { useApp } from "@/context/AppContext";
 import { getActiveBranchId } from "@/services/branches";
 import {
@@ -19,6 +19,7 @@ import {
 } from "@/services/notices";
 import { NoticeCategory } from "@/types";
 import { toIsoDate } from "@/utils/format";
+import { successFeedback } from "@/utils/haptics";
 import type { RootStackParamList } from "@/navigation/types";
 
 type Props = NativeStackScreenProps<RootStackParamList, "NoticeForm">;
@@ -88,6 +89,7 @@ export default function NoticeFormScreen({ navigation, route }: Props) {
     setSaving(true);
     try {
       await persist();
+      successFeedback();
       invalidate();
       navigation.goBack();
     } catch (e) {
@@ -248,7 +250,7 @@ const styles = StyleSheet.create({
   label: {
     fontSize: fontSize.sm,
     color: colors.textMuted,
-    fontWeight: "600",
+    fontFamily: font.semibold,
     marginBottom: spacing.xs + 2,
   },
   chipRow: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm, marginBottom: spacing.md },
@@ -261,7 +263,7 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
   },
   chipActive: { backgroundColor: colors.primary, borderColor: colors.primary },
-  chipText: { fontSize: fontSize.sm, fontWeight: "600", color: colors.textMuted },
+  chipText: { fontSize: fontSize.sm, fontFamily: font.semibold, color: colors.textMuted },
   chipTextActive: { color: colors.primaryOn },
   switchRow: {
     flexDirection: "row",
@@ -270,7 +272,7 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.sm,
     marginBottom: spacing.md,
   },
-  switchLabel: { fontSize: fontSize.md, fontWeight: "600", color: colors.text },
+  switchLabel: { fontSize: fontSize.md, fontFamily: font.semibold, color: colors.text },
   switchHint: { fontSize: fontSize.sm, color: colors.textMuted, marginTop: 2 },
   preview: {
     backgroundColor: "#E7FFDB",

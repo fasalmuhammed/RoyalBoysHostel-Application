@@ -9,7 +9,8 @@ import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { Callout, CalloutText, Card, Loading, SectionTitle } from "@/components/Base";
 import { QuickAction, StatCard } from "@/components/Controls";
 import Avatar from "@/components/Avatar";
-import { colors, fontSize, radius, shadow, spacing } from "@/constants/theme";
+import { colors, font, fontSize, radius, shadow, spacing } from "@/constants/theme";
+import { AnimatedBar, FadeIn } from "@/components/Motion";
 import { useApp } from "@/context/AppContext";
 import { useAsyncData } from "@/utils/hooks";
 import { inmateCounts } from "@/services/inmates";
@@ -78,6 +79,7 @@ export default function DashboardScreen({ navigation }: Props) {
           </Pressable>
         </View>
 
+        <FadeIn>
         <View style={styles.banner}>
           <View style={{ flex: 1 }}>
             <Text style={styles.bannerGreeting}>{greeting()} 👋</Text>
@@ -94,13 +96,14 @@ export default function DashboardScreen({ navigation }: Props) {
             <Text style={styles.bannerBadgeText}>{activeBranch?.code ?? "?"}</Text>
           </View>
         </View>
+        </FadeIn>
 
         <SectionTitle title="Overview" />
 
         {backupOverdue ? (
           <Pressable onPress={() => navigation.navigate("Backup")}>
             <Callout tone="warning" icon="cloud-upload-outline">
-              <CalloutText style={{ fontWeight: "700" }}>
+              <CalloutText style={{ fontFamily: font.bold }}>
                 {backupAgeDays === null
                   ? "You have never backed up"
                   : `Last backup was ${backupAgeDays} days ago`}
@@ -167,18 +170,10 @@ export default function DashboardScreen({ navigation }: Props) {
             </View>
           </View>
 
-          <View style={styles.progressTrack}>
-            <View
-              style={[
-                styles.progressFill,
-                {
-                  width: `${
-                    data && data.fees.billed > 0
-                      ? Math.min((data.fees.collected / data.fees.billed) * 100, 100)
-                      : 0
-                  }%`,
-                },
-              ]}
+          <View style={{ marginTop: spacing.md }}>
+            <AnimatedBar
+              fraction={data && data.fees.billed > 0 ? data.fees.collected / data.fees.billed : 0}
+              color={colors.success}
             />
           </View>
 
@@ -297,7 +292,7 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
     marginBottom: spacing.md,
   },
-  headerTitle: { flex: 1, fontSize: fontSize.xl, fontWeight: "800", color: colors.text },
+  headerTitle: { flex: 1, fontSize: fontSize.xl, fontFamily: font.extrabold, color: colors.text },
   banner: {
     flexDirection: "row",
     alignItems: "center",
@@ -308,7 +303,7 @@ const styles = StyleSheet.create({
     marginBottom: spacing.lg,
     ...shadow.card,
   },
-  bannerGreeting: { color: colors.primaryOn, fontSize: fontSize.lg, fontWeight: "800" },
+  bannerGreeting: { color: colors.primaryOn, fontSize: fontSize.lg, fontFamily: font.extrabold },
   bannerHostel: { color: "rgba(255,255,255,0.92)", fontSize: fontSize.sm, marginTop: 2 },
   bannerNote: { color: "rgba(255,255,255,0.78)", fontSize: fontSize.xs, marginTop: spacing.xs },
   bannerBadge: {
@@ -319,7 +314,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  bannerBadgeText: { color: colors.primaryOn, fontSize: fontSize.lg, fontWeight: "800" },
+  bannerBadgeText: { color: colors.primaryOn, fontSize: fontSize.lg, fontFamily: font.extrabold },
   iconButton: {
     width: 42,
     height: 42,
@@ -333,7 +328,7 @@ const styles = StyleSheet.create({
   feeRow: { flexDirection: "row", alignItems: "center" },
   feeCell: { flex: 1 },
   feeDivider: { width: 1, height: 34, backgroundColor: colors.border },
-  feeValue: { fontSize: fontSize.lg, fontWeight: "800", color: colors.text },
+  feeValue: { fontSize: fontSize.lg, fontFamily: font.extrabold, color: colors.text },
   feeLabel: { fontSize: fontSize.xs, color: colors.textMuted, marginTop: 2 },
   progressTrack: {
     height: 6,
@@ -346,16 +341,16 @@ const styles = StyleSheet.create({
   pillRow: { flexDirection: "row", gap: spacing.md, marginTop: spacing.md },
   miniPill: { flexDirection: "row", alignItems: "center", gap: spacing.xs },
   miniDot: { width: 7, height: 7, borderRadius: 4 },
-  miniText: { fontSize: fontSize.xs, color: colors.textMuted, fontWeight: "600" },
+  miniText: { fontSize: fontSize.xs, color: colors.textMuted, fontFamily: font.semibold },
   quickRow: {
     flexDirection: "row",
     gap: spacing.sm,
     paddingBottom: spacing.lg,
     paddingRight: spacing.md,
   },
-  link: { color: colors.primary, fontWeight: "700", fontSize: fontSize.sm },
+  link: { color: colors.primary, fontFamily: font.bold, fontSize: fontSize.sm },
   dueCard: { flexDirection: "row", alignItems: "center", gap: spacing.md },
-  dueName: { fontSize: fontSize.md, fontWeight: "700", color: colors.text },
+  dueName: { fontSize: fontSize.md, fontFamily: font.bold, color: colors.text },
   dueMeta: { fontSize: fontSize.xs, color: colors.textMuted, marginTop: 2 },
-  dueAmount: { fontSize: fontSize.md, fontWeight: "800", color: colors.danger },
+  dueAmount: { fontSize: fontSize.md, fontFamily: font.extrabold, color: colors.danger },
 });

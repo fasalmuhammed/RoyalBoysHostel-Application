@@ -1,8 +1,9 @@
 import React from "react";
-import { ActivityIndicator, Pressable, StyleSheet, Text, View, ViewStyle } from "react-native";
+import { ActivityIndicator, StyleSheet, Text, View, ViewStyle } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 
-import { colors, fontSize, radius, shadow, spacing } from "@/constants/theme";
+import { colors, font, fontSize, radius, shadow, spacing } from "@/constants/theme";
+import { PressableScale } from "./Motion";
 
 type Variant = "primary" | "secondary" | "ghost" | "danger";
 
@@ -32,12 +33,14 @@ export default function Button({
     variant === "primary" || variant === "danger" ? colors.primaryOn : colors.primary;
 
   return (
-    <Pressable
+    <PressableScale
       onPress={onPress}
       disabled={isDisabled}
       accessibilityRole="button"
       accessibilityState={{ disabled: isDisabled, busy: loading }}
-      style={({ pressed }) => [
+      // A destructive button should not feel inviting to press.
+      haptic={!isDisabled && variant !== "danger"}
+      style={[
         styles.base,
         compact && styles.compact,
         variant === "primary" && styles.primary,
@@ -45,9 +48,8 @@ export default function Button({
         variant === "ghost" && styles.ghost,
         variant === "danger" && styles.danger,
         isDisabled && styles.disabled,
-        pressed && !isDisabled && styles.pressed,
         style,
-      ]}
+      ] as ViewStyle[]}
     >
       {loading ? (
         <ActivityIndicator color={foreground} size="small" />
@@ -67,7 +69,7 @@ export default function Button({
           </Text>
         </View>
       )}
-    </Pressable>
+    </PressableScale>
   );
 }
 
@@ -88,5 +90,5 @@ const styles = StyleSheet.create({
   danger: { backgroundColor: colors.danger },
   disabled: { opacity: 0.45 },
   pressed: { opacity: 0.82 },
-  text: { fontSize: fontSize.md, fontWeight: "700" },
+  text: { fontSize: fontSize.md, fontFamily: font.bold },
 });

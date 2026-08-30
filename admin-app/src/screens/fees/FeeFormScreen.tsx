@@ -7,7 +7,7 @@ import { Card, SectionTitle } from "@/components/Base";
 import Button from "@/components/Button";
 import Input, { PickerField } from "@/components/Input";
 import { OptionPicker } from "@/components/Controls";
-import { colors, fontSize, spacing } from "@/constants/theme";
+import { colors, font, fontSize, spacing } from "@/constants/theme";
 import { useApp } from "@/context/AppContext";
 import { useAsyncData } from "@/utils/hooks";
 import {
@@ -271,6 +271,6 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     backgroundColor: colors.primaryLight,
   },
-  totalLabel: { fontSize: fontSize.md, fontWeight: "600", color: colors.primary },
-  totalValue: { fontSize: fontSize.xl, fontWeight: "800", color: colors.primary },
+  totalLabel: { fontSize: fontSize.md, fontFamily: font.semibold, color: colors.primary },
+  totalValue: { fontSize: fontSize.xl, fontFamily: font.extrabold, color: colors.primary },
 });

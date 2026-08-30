@@ -20,7 +20,7 @@ import { Callout, CalloutText, SectionTitle } from "@/components/Base";
 import Button from "@/components/Button";
 import Input, { PickerField } from "@/components/Input";
 import { OptionPicker } from "@/components/Controls";
-import { colors, fontSize, radius, spacing } from "@/constants/theme";
+import { colors, font, fontSize, radius, spacing } from "@/constants/theme";
 import { useApp } from "@/context/AppContext";
 import { useAsyncData } from "@/utils/hooks";
 import {
@@ -37,6 +37,7 @@ import { formatMoney, initials, toIsoDate } from "@/utils/format";
 import { isValidEmail, isValidPhone, parseAmount } from "@/utils/validate";
 import { DEFAULT_CYCLE_DAYS } from "@/services/fees";
 import { formatInmateId } from "@/services/branches";
+import { successFeedback } from "@/utils/haptics";
 import type { RootStackParamList } from "@/navigation/types";
 
 type Props = NativeStackScreenProps<RootStackParamList, "InmateForm">;
@@ -271,6 +272,7 @@ export default function InmateFormScreen({ navigation, route }: Props) {
         await createInmate(payload);
       }
       // Committed: the photo now belongs to a row, so it must not be cleaned up.
+      successFeedback();
       committedRef.current = true;
       invalidate();
       navigation.goBack();
@@ -573,7 +575,7 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: colors.surface,
   },
-  photoInitials: { fontSize: 34, fontWeight: "800", color: colors.primary },
+  photoInitials: { fontSize: 34, fontFamily: font.extrabold, color: colors.primary },
   cameraBadge: {
     position: "absolute",
     right: 0,
@@ -599,7 +601,7 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.md - 2,
     marginBottom: spacing.md,
   },
-  admissionLabel: { fontSize: fontSize.sm, fontWeight: "700", color: colors.text },
+  admissionLabel: { fontSize: fontSize.sm, fontFamily: font.bold, color: colors.text },
   admissionHint: { fontSize: fontSize.xs, color: colors.textMuted, marginTop: 2 },
-  admissionValue: { fontSize: fontSize.xl, fontWeight: "800", color: colors.primary },
+  admissionValue: { fontSize: fontSize.xl, fontFamily: font.extrabold, color: colors.primary },
 });

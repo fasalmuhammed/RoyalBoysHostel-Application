@@ -7,7 +7,7 @@ import { Callout, CalloutText, Card, SectionTitle } from "@/components/Base";
 import Button from "@/components/Button";
 import { PickerField } from "@/components/Input";
 import { OptionPicker } from "@/components/Controls";
-import { colors, fontSize, spacing } from "@/constants/theme";
+import { colors, font, fontSize, spacing } from "@/constants/theme";
 import { useApp } from "@/context/AppContext";
 import { useAsyncData } from "@/utils/hooks";
 import { currentPeriod, generateInvoices, listFees } from "@/services/fees";
@@ -154,7 +154,7 @@ function Row({ label, value, highlight }: { label: string; value: string; highli
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.background },
   content: { padding: spacing.lg, paddingBottom: spacing.xl * 2 },
-  title: { fontSize: fontSize.xl, fontWeight: "800", color: colors.text },
+  title: { fontSize: fontSize.xl, fontFamily: font.extrabold, color: colors.text },
   subtitle: {
     fontSize: fontSize.sm,
     color: colors.textMuted,
@@ -169,5 +169,5 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.sm,
   },
   rowLabel: { fontSize: fontSize.sm, color: colors.textMuted, flex: 1 },
-  rowValue: { fontSize: fontSize.md, fontWeight: "800", color: colors.text },
+  rowValue: { fontSize: fontSize.md, fontFamily: font.extrabold, color: colors.text },
 });

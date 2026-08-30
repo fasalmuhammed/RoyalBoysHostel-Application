@@ -6,7 +6,7 @@ import type { CompositeScreenProps } from "@react-navigation/native";
 import type { BottomTabScreenProps } from "@react-navigation/bottom-tabs";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 
-import { colors, fontSize, radius, spacing } from "@/constants/theme";
+import { colors, font, fontSize, radius, spacing } from "@/constants/theme";
 import { useApp } from "@/context/AppContext";
 import { formatDateTime } from "@/utils/format";
 import type { MainTabParamList, RootStackParamList } from "@/navigation/types";
@@ -153,7 +153,7 @@ function Row({
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.background },
   content: { padding: spacing.lg, paddingBottom: spacing.xl * 2 },
-  title: { fontSize: fontSize.xxl, fontWeight: "800", color: colors.text, marginBottom: spacing.lg },
+  title: { fontSize: fontSize.xxl, fontFamily: font.extrabold, color: colors.text, marginBottom: spacing.lg },
   branchCard: {
     flexDirection: "row",
     alignItems: "center",
@@ -171,9 +171,9 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  branchBadgeText: { color: colors.goldLight, fontSize: fontSize.lg, fontWeight: "800" },
+  branchBadgeText: { color: colors.goldLight, fontSize: fontSize.lg, fontFamily: font.extrabold },
   branchLabel: { fontSize: fontSize.xs, color: colors.textMuted },
-  branchName: { fontSize: fontSize.md, fontWeight: "700", color: colors.text, marginTop: 1 },
+  branchName: { fontSize: fontSize.md, fontFamily: font.bold, color: colors.text, marginTop: 1 },
   switchPill: {
     flexDirection: "row",
     alignItems: "center",
@@ -183,7 +183,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.sm + 2,
     paddingVertical: 5,
   },
-  switchPillText: { fontSize: fontSize.xs, fontWeight: "700", color: colors.primary },
+  switchPillText: { fontSize: fontSize.xs, fontFamily: font.bold, color: colors.primary },
   group: {
     backgroundColor: colors.surface,
     borderRadius: radius.lg,
@@ -207,7 +207,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  rowLabel: { fontSize: fontSize.md, fontWeight: "600", color: colors.text },
+  rowLabel: { fontSize: fontSize.md, fontFamily: font.semibold, color: colors.text },
   rowSublabel: { fontSize: fontSize.xs, color: colors.textMuted, marginTop: 2 },
   footer: {
     fontSize: fontSize.xs,

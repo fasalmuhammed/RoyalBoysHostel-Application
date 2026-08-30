@@ -6,7 +6,7 @@ import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { Callout, CalloutText } from "@/components/Base";
 import Button from "@/components/Button";
 import Input from "@/components/Input";
-import { colors, fontSize, spacing } from "@/constants/theme";
+import { colors, font, fontSize, spacing } from "@/constants/theme";
 import { changePin } from "@/services/security";
 import type { RootStackParamList } from "@/navigation/types";
 
@@ -97,7 +97,7 @@ const styles = StyleSheet.create({
   content: { padding: spacing.lg },
   title: {
     fontSize: fontSize.xl,
-    fontWeight: "800",
+    fontFamily: font.extrabold,
     color: colors.text,
     marginBottom: spacing.lg,
   },

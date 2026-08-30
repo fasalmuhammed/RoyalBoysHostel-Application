@@ -5,7 +5,7 @@ import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { Callout, CalloutText, Screen } from "@/components/Base";
 import Button from "@/components/Button";
 import Input from "@/components/Input";
-import { colors, fontSize, spacing } from "@/constants/theme";
+import { colors, font, fontSize, spacing } from "@/constants/theme";
 import { useApp } from "@/context/AppContext";
 import type { SetupStackParamList } from "@/navigation/types";
 
@@ -98,7 +98,7 @@ export default function HostelDetailsScreen({ navigation }: Props) {
 }
 
 const styles = StyleSheet.create({
-  title: { fontSize: fontSize.xxl, fontWeight: "800", color: colors.text },
+  title: { fontSize: fontSize.xxl, fontFamily: font.extrabold, color: colors.text },
   subtitle: {
     fontSize: fontSize.md,
     color: colors.textMuted,

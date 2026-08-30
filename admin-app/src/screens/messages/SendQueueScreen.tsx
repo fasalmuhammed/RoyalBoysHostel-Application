@@ -6,7 +6,7 @@ import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 
 import { Badge, Callout, CalloutText, Card, Loading, SectionTitle } from "@/components/Base";
 import Button from "@/components/Button";
-import { colors, fontSize, radius, spacing } from "@/constants/theme";
+import { colors, font, fontSize, radius, spacing } from "@/constants/theme";
 import { useApp } from "@/context/AppContext";
 import { useAsyncData } from "@/utils/hooks";
 import {
@@ -209,11 +209,11 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     marginBottom: spacing.sm,
   },
-  progressCount: { fontSize: fontSize.md, fontWeight: "800", color: colors.text },
+  progressCount: { fontSize: fontSize.md, fontFamily: font.extrabold, color: colors.text },
   track: { height: 6, borderRadius: 3, backgroundColor: colors.border, overflow: "hidden" },
   fill: { height: 6, borderRadius: 3, backgroundColor: colors.success },
   nextCard: { padding: spacing.md },
-  nextName: { fontSize: fontSize.lg, fontWeight: "800", color: colors.text },
+  nextName: { fontSize: fontSize.lg, fontFamily: font.extrabold, color: colors.text },
   nextPhone: { fontSize: fontSize.sm, color: colors.textMuted, marginTop: 2 },
   bubble: {
     backgroundColor: "#E7FFDB",
@@ -225,7 +225,7 @@ const styles = StyleSheet.create({
   nextActions: { flexDirection: "row", gap: spacing.sm, marginTop: spacing.md },
   row: { flexDirection: "row", alignItems: "center", gap: spacing.md, paddingVertical: spacing.sm + 2 },
   statusDot: { width: 9, height: 9, borderRadius: 5 },
-  rowName: { fontSize: fontSize.md, fontWeight: "600", color: colors.text },
+  rowName: { fontSize: fontSize.md, fontFamily: font.semibold, color: colors.text },
   rowMeta: { fontSize: fontSize.xs, color: colors.textMuted, marginTop: 1 },
   smallButton: {
     width: 34,

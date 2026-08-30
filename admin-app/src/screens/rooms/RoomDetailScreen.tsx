@@ -7,7 +7,7 @@ import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { Badge, Card, DetailRow, Divider, EmptyState, Loading, SectionTitle } from "@/components/Base";
 import Button from "@/components/Button";
 import Avatar from "@/components/Avatar";
-import { colors, fontSize, radius, spacing } from "@/constants/theme";
+import { colors, font, fontSize, radius, spacing } from "@/constants/theme";
 import { useApp } from "@/context/AppContext";
 import { useAsyncData } from "@/utils/hooks";
 import { deleteRoom, getRoom } from "@/services/rooms";
@@ -252,7 +252,7 @@ const styles = StyleSheet.create({
     marginBottom: spacing.lg,
   },
   heroTop: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between" },
-  roomTitle: { fontSize: fontSize.xl, fontWeight: "800", color: colors.text },
+  roomTitle: { fontSize: fontSize.xl, fontFamily: font.extrabold, color: colors.text },
   roomSubtitle: { fontSize: fontSize.sm, color: colors.textMuted, marginTop: 2 },
   bedRow: { flexDirection: "row", gap: spacing.sm, marginTop: spacing.md, flexWrap: "wrap" },
   bed: { width: 38, height: 38, borderRadius: radius.sm, alignItems: "center", justifyContent: "center" },
@@ -262,7 +262,7 @@ const styles = StyleSheet.create({
   empty: { fontSize: fontSize.sm, color: colors.textMuted, textAlign: "center" },
   occupantRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
   occupantMain: { flex: 1, flexDirection: "row", alignItems: "center", gap: spacing.md },
-  occupantName: { fontSize: fontSize.md, fontWeight: "700", color: colors.text },
+  occupantName: { fontSize: fontSize.md, fontFamily: font.bold, color: colors.text },
   occupantMeta: { fontSize: fontSize.xs, color: colors.textMuted, marginTop: 2 },
   amenityBlock: { paddingVertical: spacing.sm },
   amenityLabel: { fontSize: fontSize.sm, color: colors.textMuted, marginBottom: spacing.sm },
@@ -273,7 +273,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.sm + 2,
     paddingVertical: 5,
   },
-  amenityText: { fontSize: fontSize.xs, fontWeight: "700", color: colors.primary },
+  amenityText: { fontSize: fontSize.xs, fontFamily: font.bold, color: colors.primary },
   callButton: {
     width: 38,
     height: 38,

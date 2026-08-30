@@ -12,8 +12,9 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 
-import { colors, fontSize, radius, shadow, spacing, Tone, toneColor } from "@/constants/theme";
+import { colors, font, fontSize, radius, shadow, spacing, toneColor, Tone } from "@/constants/theme";
 import Button from "./Button";
+import { AnimatedBar, FadeIn, PressableScale, useCountUp } from "./Motion";
 
 // --- search -----------------------------------------------------------------
 
@@ -107,6 +108,11 @@ export function StatCard({
   style?: ViewStyle;
 }) {
   const { fg, bg } = toneColor[tone];
+  // Numbers tick up; anything already formatted (a ratio, an amount) is left
+  // alone rather than animated into nonsense.
+  const numeric = typeof value === "number";
+  const counted = useCountUp(numeric ? value : 0);
+
   const body = (
     <>
       {icon ? (
@@ -115,7 +121,7 @@ export function StatCard({
         </View>
       ) : null}
       <Text style={styles.statValue} numberOfLines={1} adjustsFontSizeToFit>
-        {value}
+        {numeric ? counted : value}
       </Text>
       <Text style={styles.statLabel} numberOfLines={2}>
         {label}
@@ -125,12 +131,9 @@ export function StatCard({
 
   if (onPress) {
     return (
-      <Pressable
-        onPress={onPress}
-        style={({ pressed }) => [styles.stat, pressed && { opacity: 0.85 }, style]}
-      >
+      <PressableScale onPress={onPress} scaleTo={0.97} style={[styles.stat, style] as ViewStyle[]}>
         {body}
-      </Pressable>
+      </PressableScale>
     );
   }
   return <View style={[styles.stat, style]}>{body}</View>;
@@ -148,17 +151,14 @@ export function QuickAction({
   onPress: () => void;
 }) {
   return (
-    <Pressable
-      onPress={onPress}
-      style={({ pressed }) => [styles.quick, pressed && { opacity: 0.8 }]}
-    >
+    <PressableScale onPress={onPress} scaleTo={0.93} style={styles.quick}>
       <View style={styles.quickIcon}>
         <Ionicons name={icon} size={21} color={colors.primary} />
       </View>
       <Text style={styles.quickLabel} numberOfLines={2}>
         {label}
       </Text>
-    </Pressable>
+    </PressableScale>
   );
 }
 
@@ -195,7 +195,7 @@ export function OptionPicker({
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
       <Pressable style={styles.backdrop} onPress={onClose} />
-      <View style={styles.sheet}>
+      <FadeIn offsetY={24} style={styles.sheet}>
         <View style={styles.sheetHandle} />
         <Text style={styles.sheetTitle}>{title}</Text>
 
@@ -209,17 +209,14 @@ export function OptionPicker({
             renderItem={({ item }) => {
               const selected = item.key === selectedKey;
               return (
-                <Pressable
+                <PressableScale
                   disabled={item.disabled}
+                  scaleTo={0.98}
                   onPress={() => {
                     onSelect(item.key);
                     onClose();
                   }}
-                  style={({ pressed }) => [
-                    styles.option,
-                    pressed && { backgroundColor: colors.surfaceAlt },
-                    item.disabled && { opacity: 0.4 },
-                  ]}
+                  style={[styles.option, item.disabled && { opacity: 0.4 }] as ViewStyle[]}
                 >
                   <View style={{ flex: 1 }}>
                     <Text style={styles.optionLabel}>{item.label}</Text>
@@ -230,14 +227,14 @@ export function OptionPicker({
                   {selected ? (
                     <Ionicons name="checkmark-circle" size={20} color={colors.primary} />
                   ) : null}
-                </Pressable>
+                </PressableScale>
               );
             }}
           />
         )}
 
         <Button title="Cancel" variant="ghost" onPress={onClose} />
-      </View>
+      </FadeIn>
     </Modal>
   );
 }
@@ -263,14 +260,7 @@ export function ProgressOverlay({
         <View style={styles.progressCard}>
           <Text style={styles.progressTitle}>{title}</Text>
           {detail ? <Text style={styles.progressDetail}>{detail}</Text> : null}
-          <View style={styles.progressTrack}>
-            <View
-              style={[
-                styles.progressFill,
-                percent == null ? { width: "35%" } : { width: `${percent}%` },
-              ]}
-            />
-          </View>
+          <AnimatedBar fraction={percent == null ? 0.35 : percent / 100} />
           {percent != null ? <Text style={styles.progressPercent}>{percent}%</Text> : null}
         </View>
       </View>
@@ -326,7 +316,7 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
   },
   tabActive: { backgroundColor: colors.primary, borderColor: colors.primary },
-  tabText: { fontSize: fontSize.sm, fontWeight: "600", color: colors.textMuted },
+  tabText: { fontSize: fontSize.sm, fontFamily: font.semibold, color: colors.textMuted },
   tabTextActive: { color: colors.primaryOn },
 
   stat: {
@@ -344,7 +334,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     marginBottom: spacing.sm,
   },
-  statValue: { fontSize: fontSize.xl, fontWeight: "800", color: colors.text },
+  statValue: { fontSize: fontSize.xl, fontFamily: font.extrabold, color: colors.text },
   statLabel: { fontSize: fontSize.xs, color: colors.textMuted, marginTop: 2 },
 
   quick: { alignItems: "center", width: 74 },
@@ -361,7 +351,7 @@ const styles = StyleSheet.create({
     fontSize: fontSize.xs,
     color: colors.textMuted,
     textAlign: "center",
-    fontWeight: "600",
+    fontFamily: font.semibold,
   },
 
   backdrop: { flex: 1, backgroundColor: colors.overlay },
@@ -382,7 +372,7 @@ const styles = StyleSheet.create({
   },
   sheetTitle: {
     fontSize: fontSize.lg,
-    fontWeight: "700",
+    fontFamily: font.bold,
     color: colors.text,
     marginBottom: spacing.sm,
   },
@@ -400,7 +390,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.sm,
     gap: spacing.sm,
   },
-  optionLabel: { fontSize: fontSize.md, color: colors.text, fontWeight: "600" },
+  optionLabel: { fontSize: fontSize.md, color: colors.text, fontFamily: font.semibold },
   optionSublabel: { fontSize: fontSize.sm, color: colors.textMuted, marginTop: 1 },
 
   progressBackdrop: {
@@ -417,7 +407,7 @@ const styles = StyleSheet.create({
     padding: spacing.lg,
     ...shadow.raised,
   },
-  progressTitle: { fontSize: fontSize.lg, fontWeight: "700", color: colors.text },
+  progressTitle: { fontSize: fontSize.lg, fontFamily: font.bold, color: colors.text },
   progressDetail: { fontSize: fontSize.sm, color: colors.textMuted, marginTop: spacing.xs },
   progressTrack: {
     height: 6,
@@ -447,5 +437,5 @@ const styles = StyleSheet.create({
     borderRadius: radius.pill,
     ...shadow.raised,
   },
-  fabLabel: { color: colors.primaryOn, fontWeight: "700", fontSize: fontSize.md },
+  fabLabel: { color: colors.primaryOn, fontFamily: font.bold, fontSize: fontSize.md },
 });

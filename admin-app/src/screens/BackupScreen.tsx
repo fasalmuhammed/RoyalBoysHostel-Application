@@ -10,7 +10,7 @@ import { Callout, CalloutText, Card, DetailRow, Divider, SectionTitle } from "@/
 import Button from "@/components/Button";
 import Input from "@/components/Input";
 import { ProgressOverlay } from "@/components/Controls";
-import { colors, fontSize, radius, spacing } from "@/constants/theme";
+import { colors, font, fontSize, radius, spacing } from "@/constants/theme";
 import { useApp } from "@/context/AppContext";
 import { useAsyncData } from "@/utils/hooks";
 import {
@@ -204,7 +204,7 @@ export default function BackupScreen({}: Props) {
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <Callout tone={overdue ? "warning" : "success"}
           icon={overdue ? "warning-outline" : "shield-checkmark-outline"}>
-          <CalloutText style={{ fontWeight: "700" }}>
+          <CalloutText style={{ fontFamily: font.bold }}>
             {lastBackup ? `Last backup ${formatDateTime(lastBackup)}` : "You have never backed up"}
           </CalloutText>
           <CalloutText style={{ marginTop: 3 }}>
@@ -393,18 +393,18 @@ const styles = StyleSheet.create({
     lineHeight: 20,
     marginBottom: spacing.md,
   },
-  bold: { fontWeight: "700", color: colors.text },
+  bold: { fontFamily: font.bold, color: colors.text },
   restoreBox: {
     marginTop: spacing.md,
     padding: spacing.md,
     backgroundColor: colors.background,
     borderRadius: radius.md,
   },
-  restoreName: { fontSize: fontSize.md, fontWeight: "700", color: colors.text },
+  restoreName: { fontSize: fontSize.md, fontFamily: font.bold, color: colors.text },
   restoreMeta: { fontSize: fontSize.xs, color: colors.textMuted, marginTop: 3 },
   error: { color: colors.danger, fontSize: fontSize.sm, marginTop: spacing.sm },
   localRow: { flexDirection: "row", alignItems: "center", gap: spacing.md },
-  localName: { fontSize: fontSize.sm, fontWeight: "600", color: colors.text },
+  localName: { fontSize: fontSize.sm, fontFamily: font.semibold, color: colors.text },
   localMeta: { fontSize: fontSize.xs, color: colors.textMuted, marginTop: 2 },
   backdrop: { flex: 1, backgroundColor: colors.overlay },
   sheet: {
@@ -422,7 +422,7 @@ const styles = StyleSheet.create({
     alignSelf: "center",
     marginBottom: spacing.md,
   },
-  sheetTitle: { fontSize: fontSize.lg, fontWeight: "800", color: colors.text },
+  sheetTitle: { fontSize: fontSize.lg, fontFamily: font.extrabold, color: colors.text },
   sheetText: {
     fontSize: fontSize.sm,
     color: colors.textMuted,

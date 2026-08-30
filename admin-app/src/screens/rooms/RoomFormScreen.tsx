@@ -10,6 +10,7 @@ import { colors, spacing } from "@/constants/theme";
 import { useApp } from "@/context/AppContext";
 import { createRoom, getRoom, updateRoom } from "@/services/rooms";
 import { parseAmount } from "@/utils/validate";
+import { successFeedback } from "@/utils/haptics";
 import type { RootStackParamList } from "@/navigation/types";
 
 type Props = NativeStackScreenProps<RootStackParamList, "RoomForm">;
@@ -86,6 +87,7 @@ export default function RoomFormScreen({ navigation, route }: Props) {
       if (roomId) await updateRoom(roomId, payload);
       else await createRoom(payload);
 
+      successFeedback();
       invalidate();
       navigation.goBack();
     } catch (e) {

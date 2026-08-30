@@ -5,7 +5,7 @@ import { Ionicons } from "@expo/vector-icons";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 
 import { Badge, Callout, CalloutText, Card, Loading, SectionTitle } from "@/components/Base";
-import { colors, fontSize, radius, spacing } from "@/constants/theme";
+import { colors, font, fontSize, radius, spacing } from "@/constants/theme";
 import { useAsyncData } from "@/utils/hooks";
 import { listBatches } from "@/services/messaging";
 import { listDueForReminder } from "@/services/fees";
@@ -29,7 +29,7 @@ export default function MessagesScreen({ navigation }: Props) {
     <SafeAreaView style={styles.screen} edges={["left", "right", "bottom"]}>
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <Callout tone="info" icon="information-circle-outline">
-          <CalloutText style={{ fontWeight: "700" }}>How sending works</CalloutText>
+          <CalloutText style={{ fontFamily: font.bold }}>How sending works</CalloutText>
           <CalloutText style={{ marginTop: 3 }}>
             The app writes each message and opens WhatsApp with it ready to go — you tap send. No
             third-party app is allowed to send from your number silently, and tools that claim
@@ -176,7 +176,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  actionTitle: { fontSize: fontSize.md, fontWeight: "700", color: colors.text },
+  actionTitle: { fontSize: fontSize.md, fontFamily: font.bold, color: colors.text },
   actionDescription: { fontSize: fontSize.sm, color: colors.textMuted, marginTop: 2, lineHeight: 18 },
   countBadge: {
     minWidth: 26,
@@ -187,9 +187,9 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     paddingHorizontal: 6,
   },
-  countText: { color: colors.primaryOn, fontSize: fontSize.xs, fontWeight: "800" },
+  countText: { color: colors.primaryOn, fontSize: fontSize.xs, fontFamily: font.extrabold },
   empty: { fontSize: fontSize.sm, color: colors.textMuted, textAlign: "center" },
   batchRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
-  batchTitle: { fontSize: fontSize.md, fontWeight: "700", color: colors.text },
+  batchTitle: { fontSize: fontSize.md, fontFamily: font.bold, color: colors.text },
   batchMeta: { fontSize: fontSize.xs, color: colors.textMuted, marginTop: 2 },
 });

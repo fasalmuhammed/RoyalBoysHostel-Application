@@ -1,7 +1,7 @@
 import React from "react";
 import { Image, StyleSheet, Text, View } from "react-native";
 
-import { colors, fontSize } from "@/constants/theme";
+import { colors, font, fontSize } from "@/constants/theme";
 import { initials } from "@/utils/format";
 import { photoUri } from "@/services/photos";
 
@@ -39,5 +39,5 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  initials: { color: colors.primary, fontWeight: "700", fontSize: fontSize.md },
+  initials: { color: colors.primary, fontFamily: font.bold, fontSize: fontSize.md },
 });

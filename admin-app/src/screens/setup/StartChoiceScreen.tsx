@@ -4,7 +4,7 @@ import { Ionicons } from "@expo/vector-icons";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 
 import { Screen } from "@/components/Base";
-import { colors, fontSize, radius, shadow, spacing } from "@/constants/theme";
+import { colors, font, fontSize, radius, shadow, spacing } from "@/constants/theme";
 import type { SetupStackParamList } from "@/navigation/types";
 
 type Props = NativeStackScreenProps<SetupStackParamList, "StartChoice">;
@@ -91,7 +91,7 @@ const styles = StyleSheet.create({
     marginBottom: spacing.md,
     ...shadow.raised,
   },
-  title: { fontSize: fontSize.xxl, fontWeight: "800", color: colors.text },
+  title: { fontSize: fontSize.xxl, fontFamily: font.extrabold, color: colors.text },
   subtitle: {
     fontSize: fontSize.md,
     color: colors.textMuted,
@@ -117,7 +117,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  choiceTitle: { fontSize: fontSize.md, fontWeight: "700", color: colors.text },
+  choiceTitle: { fontSize: fontSize.md, fontFamily: font.bold, color: colors.text },
   choiceDescription: {
     fontSize: fontSize.sm,
     color: colors.textMuted,

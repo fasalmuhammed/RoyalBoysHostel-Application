@@ -7,7 +7,7 @@ import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { Badge, Card, DetailRow, Divider, EmptyState, Loading, SectionTitle } from "@/components/Base";
 import Button from "@/components/Button";
 import Avatar from "@/components/Avatar";
-import { colors, fontSize, radius, spacing } from "@/constants/theme";
+import { colors, font, fontSize, radius, spacing } from "@/constants/theme";
 import { useApp } from "@/context/AppContext";
 import { useAsyncData } from "@/utils/hooks";
 import { deleteInmate, getInmate, markLeft, reinstate } from "@/services/inmates";
@@ -288,7 +288,7 @@ const styles = StyleSheet.create({
   hero: { alignItems: "center", marginBottom: spacing.lg },
   name: {
     fontSize: fontSize.xl,
-    fontWeight: "800",
+    fontFamily: font.extrabold,
     color: colors.text,
     marginTop: spacing.md,
     textAlign: "center",
@@ -310,10 +310,10 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
     borderRadius: radius.md,
   },
-  actionLabel: { fontSize: fontSize.xs, fontWeight: "700", color: colors.primary },
-  link: { color: colors.primary, fontWeight: "700", fontSize: fontSize.sm },
+  actionLabel: { fontSize: fontSize.xs, fontFamily: font.bold, color: colors.primary },
+  link: { color: colors.primary, fontFamily: font.bold, fontSize: fontSize.sm },
   emptyFees: { fontSize: fontSize.sm, color: colors.textMuted, textAlign: "center" },
   feeRow: { flexDirection: "row", alignItems: "center", gap: spacing.md },
-  feePeriod: { fontSize: fontSize.md, fontWeight: "700", color: colors.text },
+  feePeriod: { fontSize: fontSize.md, fontFamily: font.bold, color: colors.text },
   feeMeta: { fontSize: fontSize.xs, color: colors.textMuted, marginTop: 2 },
 });

@@ -9,7 +9,7 @@ import Button from "@/components/Button";
 import Input, { PickerField } from "@/components/Input";
 import { OptionPicker } from "@/components/Controls";
 import Avatar from "@/components/Avatar";
-import { colors, fontSize, radius, spacing } from "@/constants/theme";
+import { colors, font, fontSize, radius, spacing } from "@/constants/theme";
 import { useApp } from "@/context/AppContext";
 import { useAsyncData } from "@/utils/hooks";
 import {
@@ -341,7 +341,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.pill,
     backgroundColor: colors.primaryLight,
   },
-  chipText: { fontSize: fontSize.xs, fontWeight: "700", color: colors.primary },
+  chipText: { fontSize: fontSize.xs, fontFamily: font.bold, color: colors.primary },
   chipHint: {
     fontSize: fontSize.xs,
     color: colors.textFaint,
@@ -350,7 +350,7 @@ const styles = StyleSheet.create({
   },
   previewCard: { backgroundColor: "#E7FFDB" },
   previewText: { fontSize: fontSize.sm, color: colors.text, lineHeight: 20 },
-  link: { color: colors.primary, fontWeight: "700", fontSize: fontSize.sm },
+  link: { color: colors.primary, fontFamily: font.bold, fontSize: fontSize.sm },
   recipient: {
     flexDirection: "row",
     alignItems: "center",
@@ -369,6 +369,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  recipientName: { fontSize: fontSize.md, fontWeight: "600", color: colors.text },
+  recipientName: { fontSize: fontSize.md, fontFamily: font.semibold, color: colors.text },
   recipientMeta: { fontSize: fontSize.xs, color: colors.textMuted, marginTop: 1 },
 });

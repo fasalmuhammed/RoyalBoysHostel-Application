@@ -10,7 +10,7 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 
-import { colors, fontSize, radius, spacing } from "@/constants/theme";
+import { colors, font, fontSize, radius, spacing } from "@/constants/theme";
 
 interface Props extends TextInputProps {
   label?: string;
@@ -133,7 +133,7 @@ const styles = StyleSheet.create({
     fontSize: fontSize.sm,
     color: colors.textMuted,
     marginBottom: spacing.xs + 2,
-    fontWeight: "600",
+    fontFamily: font.semibold,
   },
   required: { color: colors.danger },
   field: {

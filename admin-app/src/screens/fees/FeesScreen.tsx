@@ -10,7 +10,8 @@ import { Badge, Card, EmptyState, Loading } from "@/components/Base";
 import { Fab, OptionPicker, SearchBar, SegmentedTabs } from "@/components/Controls";
 import Button from "@/components/Button";
 import Avatar from "@/components/Avatar";
-import { colors, fontSize, radius, spacing } from "@/constants/theme";
+import { colors, font, fontSize, radius, spacing } from "@/constants/theme";
+import { FadeIn, SkeletonList } from "@/components/Motion";
 import { useApp } from "@/context/AppContext";
 import { useAsyncData, useDebounced } from "@/utils/hooks";
 import { currentPeriod, FeeFilter, feeTotals, listFees } from "@/services/fees";
@@ -91,7 +92,7 @@ export default function FeesScreen({ navigation, route }: Props) {
       </View>
 
       {loading && !fees ? (
-        <Loading />
+        <SkeletonList />
       ) : (
         <FlatList
           data={fees ?? []}
@@ -116,7 +117,8 @@ export default function FeesScreen({ navigation, route }: Props) {
               }
             />
           }
-          renderItem={({ item }) => (
+          renderItem={({ item, index }) => (
+            <FadeIn index={index}>
             <Card
               style={styles.row}
               onPress={() => navigation.navigate("FeeDetail", { feeId: item.id })}
@@ -147,6 +149,7 @@ export default function FeesScreen({ navigation, route }: Props) {
                 />
               </View>
             </Card>
+            </FadeIn>
           )}
         />
       )}
@@ -181,7 +184,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.lg,
     paddingTop: spacing.sm,
   },
-  title: { fontSize: fontSize.xxl, fontWeight: "800", color: colors.text },
+  title: { fontSize: fontSize.xxl, fontFamily: font.extrabold, color: colors.text },
   periodChip: {
     flexDirection: "row",
     alignItems: "center",
@@ -191,7 +194,7 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.sm,
     borderRadius: radius.pill,
   },
-  periodText: { fontSize: fontSize.sm, fontWeight: "700", color: colors.primary },
+  periodText: { fontSize: fontSize.sm, fontFamily: font.bold, color: colors.primary },
   summary: {
     flexDirection: "row",
     backgroundColor: colors.surface,
@@ -201,13 +204,13 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.md,
   },
   summaryCell: { flex: 1, alignItems: "center" },
-  summaryValue: { fontSize: fontSize.md, fontWeight: "800", color: colors.text },
+  summaryValue: { fontSize: fontSize.md, fontFamily: font.extrabold, color: colors.text },
   summaryLabel: { fontSize: fontSize.xs, color: colors.textMuted, marginTop: 2 },
   controls: { paddingHorizontal: spacing.lg, paddingTop: spacing.md, gap: spacing.sm },
   list: { padding: spacing.lg, paddingBottom: 110 },
   row: { flexDirection: "row", alignItems: "center", gap: spacing.md },
-  name: { fontSize: fontSize.md, fontWeight: "700", color: colors.text },
+  name: { fontSize: fontSize.md, fontFamily: font.bold, color: colors.text },
   meta: { fontSize: fontSize.xs, color: colors.textMuted, marginTop: 2 },
   amountCell: { alignItems: "flex-end", gap: spacing.xs },
-  amount: { fontSize: fontSize.md, fontWeight: "800", color: colors.text },
+  amount: { fontSize: fontSize.md, fontFamily: font.extrabold, color: colors.text },
 });

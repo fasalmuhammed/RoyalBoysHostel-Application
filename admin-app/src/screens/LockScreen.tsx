@@ -3,7 +3,7 @@ import { Pressable, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 
-import { colors, fontSize, radius, shadow, spacing } from "@/constants/theme";
+import { colors, font, fontSize, radius, shadow, spacing } from "@/constants/theme";
 import { useApp } from "@/context/AppContext";
 import {
   authenticateBiometric,
@@ -199,7 +199,7 @@ const styles = StyleSheet.create({
   },
   hostel: {
     fontSize: fontSize.lg,
-    fontWeight: "800",
+    fontFamily: font.extrabold,
     color: colors.text,
     marginTop: spacing.md,
     paddingHorizontal: spacing.lg,
@@ -236,7 +236,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   keyPressed: { backgroundColor: colors.primaryLight },
-  keyText: { fontSize: fontSize.xl, fontWeight: "600", color: colors.text },
+  keyText: { fontSize: fontSize.xl, fontFamily: font.semibold, color: colors.text },
   unlockButton: { alignSelf: "center", padding: spacing.md },
-  unlockText: { fontSize: fontSize.md, fontWeight: "700", color: colors.primary },
+  unlockText: { fontSize: fontSize.md, fontFamily: font.bold, color: colors.primary },
 });

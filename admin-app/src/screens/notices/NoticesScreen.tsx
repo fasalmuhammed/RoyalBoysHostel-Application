@@ -7,7 +7,8 @@ import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { Badge, Card, EmptyState, Loading } from "@/components/Base";
 import { Fab, SearchBar, SegmentedTabs } from "@/components/Controls";
 import Button from "@/components/Button";
-import { colors, fontSize, radius, spacing, Tone } from "@/constants/theme";
+import { colors, font, fontSize, radius, spacing, Tone } from "@/constants/theme";
+import { FadeIn, SkeletonList } from "@/components/Motion";
 import { useApp } from "@/context/AppContext";
 import { useAsyncData, useDebounced } from "@/utils/hooks";
 import {
@@ -84,7 +85,7 @@ export default function NoticesScreen({ navigation }: Props) {
       </View>
 
       {loading && !notices ? (
-        <Loading />
+        <SkeletonList />
       ) : (
         <FlatList
           data={notices ?? []}
@@ -111,7 +112,8 @@ export default function NoticesScreen({ navigation }: Props) {
               }
             />
           }
-          renderItem={({ item }) => (
+          renderItem={({ item, index }) => (
+            <FadeIn index={index}>
             <Card style={styles.card}>
               <Pressable onPress={() => navigation.navigate("NoticeForm", { noticeId: item.id })}>
                 <View style={styles.head}>
@@ -187,6 +189,7 @@ export default function NoticesScreen({ navigation }: Props) {
                 </Pressable>
               </View>
             </Card>
+            </FadeIn>
           )}
         />
       )}
@@ -210,7 +213,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   titleRow: { flexDirection: "row", alignItems: "center", gap: spacing.xs },
-  title: { fontSize: fontSize.md, fontWeight: "700", color: colors.text, flexShrink: 1 },
+  title: { fontSize: fontSize.md, fontFamily: font.bold, color: colors.text, flexShrink: 1 },
   date: { fontSize: fontSize.xs, color: colors.textMuted, marginTop: 2 },
   body: {
     fontSize: fontSize.sm,
@@ -218,7 +221,7 @@ const styles = StyleSheet.create({
     lineHeight: 19,
     marginTop: spacing.sm,
   },
-  sent: { fontSize: fontSize.xs, color: colors.success, marginTop: spacing.sm, fontWeight: "600" },
+  sent: { fontSize: fontSize.xs, color: colors.success, marginTop: spacing.sm, fontFamily: font.semibold },
   actions: {
     flexDirection: "row",
     alignItems: "center",
@@ -229,5 +232,5 @@ const styles = StyleSheet.create({
     borderTopColor: colors.border,
   },
   action: { flexDirection: "row", alignItems: "center", gap: spacing.xs },
-  actionText: { fontSize: fontSize.sm, fontWeight: "700" },
+  actionText: { fontSize: fontSize.sm, fontFamily: font.bold },
 });
