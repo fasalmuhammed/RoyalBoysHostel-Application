@@ -5,7 +5,7 @@ server, no cloud, no internet. The manager adds inmates (with a photo taken on
 the spot), allocates rooms, raises and collects fees, and sends WhatsApp
 reminders — and moves the whole dataset to a new phone with one file.
 
-It covers two branches, **Thammanam** and **Kannanad**, which share one
+It covers two branches, **Thammanam** and **Kakkanad**, which share one
 database and one backup file.
 
 Built with Expo (React Native) + TypeScript + SQLite.
@@ -127,7 +127,7 @@ board without going to every student's phone.
 ## Screens
 
 **Setup (first run)** — Start fresh · Restore from a backup · Hostel details · Create PIN
-**Branch picker** — choose Thammanam or Kannanad, asked on every launch
+**Branch picker** — choose Thammanam or Kakkanad, asked on every launch
 **Main** — Dashboard · Inmates · Rooms · Fees · More
 **Inmates** — list & search · add/edit with camera capture, rent and billing cycle · detail with fee history
 **Rooms** — list with occupancy · add/edit · detail with bed map, move-in/move-out, and moving an existing inmate in from another room
@@ -146,7 +146,7 @@ npm install
 
 npm start          # Expo dev server
 npm run android    # build & run on a connected device
-npm test           # 267 tests, no device needed
+npm test           # 279 tests, no device needed
 npm run typecheck  # tsc --noEmit
 ```
 
@@ -166,7 +166,7 @@ sandboxes storage and its database can be cleared when the Expo Go app updates.
 
 ## Tests
 
-`npm test` runs 267 assertions against the real service code, using an
+`npm test` runs 279 assertions against the real service code, using an
 in-memory filesystem and a real SQLite engine (`node:sqlite`). No device or
 emulator needed.
 
@@ -178,7 +178,7 @@ fidelity, Unicode and multi-line fields preserved, photo bytes identical,
 relationships still resolve afterwards, and a 63-student dataset spanning many
 chunks, and a backup claiming a newer schema refused outright.
 
-**`tests/logic.test.js` (192)** — every migration applied to an existing install
+**`tests/logic.test.js` (204)** — every migration applied to an existing install
 (including the v3 rent backfill from the occupied room), room capacity enforced on create/edit/assign,
 beds freed on move-out, deleting a room detaches students instead of deleting
 them, payment arithmetic, overpayment rejected rather than clamped, reversal

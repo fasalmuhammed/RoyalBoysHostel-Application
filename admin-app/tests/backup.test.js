@@ -105,20 +105,20 @@ async function run() {
   const ids = await seed();
   console.log("\n== a second branch, to prove the backup is not scoped ==");
   {
-    branches.setActiveBranchId("branch-kannanad");
+    branches.setActiveBranchId("branch-kakkanad");
     const kRoom = await rooms.createRoom({
       branchId: "", block: "K", roomNumber: "7", floor: "", capacity: 2,
       rent: 7000, deposit: 0, amenities: "", notes: "",
     });
     await students.createInmate({
-      admissionNo: "", fullName: "Kannanad Person", phone: "9871234567",
+      admissionNo: "", fullName: "Kakkanad Person", phone: "9871234567",
       guardianName: "", guardianPhone: "", email: "", course: "", year: "",
       address: "", idProof: "", photoFile: null, roomId: kRoom, branchId: "",
       status: "active", monthlyRent: 7000, billingCycleDays: 30,
       joinedOn: "2026-03-01", leftOn: null, notes: "",
     });
     const kOnly = await students.listInmates("", "all");
-    check("Kannanad sees only its own inmate", kOnly.length === 1, "n=" + kOnly.length);
+    check("Kakkanad sees only its own inmate", kOnly.length === 1, "n=" + kOnly.length);
     // Export runs with a branch active; it must still capture everything.
     branches.setActiveBranchId("branch-thammanam");
   }
@@ -222,12 +222,12 @@ async function run() {
     branches.setActiveBranchId("branch-thammanam");
     const t = await students.listInmates("", "all");
     check("Thammanam inmates came back", t.length === 3, "n=" + t.length);
-    check("and none of them belong to Kannanad",
-      t.every((s) => s.fullName !== "Kannanad Person"), t.map((s) => s.fullName).join(","));
+    check("and none of them belong to Kakkanad",
+      t.every((s) => s.fullName !== "Kakkanad Person"), t.map((s) => s.fullName).join(","));
 
-    branches.setActiveBranchId("branch-kannanad");
+    branches.setActiveBranchId("branch-kakkanad");
     const k = await students.listInmates("", "all");
-    check("Kannanad inmate came back too", k.length === 1 && k[0].fullName === "Kannanad Person",
+    check("Kakkanad inmate came back too", k.length === 1 && k[0].fullName === "Kakkanad Person",
       k.map((s) => s.fullName).join(","));
     check("its room came back as well", (await rooms.listRooms()).length === 1);
 

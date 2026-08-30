@@ -644,14 +644,76 @@ async function run() {
     await rooms.deleteRoom(roomY);
   }
 
+  console.log("\n== v6 repairs a database that ran the misspelled branch ==");
+  {
+    const { DatabaseSync } = require("node:sqlite");
+    const schema = h.load("db/schema");
+    const legacy = new DatabaseSync(":memory:");
+
+    for (const v of [1, 2, 3, 4]) legacy.exec(schema.MIGRATIONS[v]);
+    // Recreate the original V5 exactly as it was first written, misspelling included.
+    legacy.exec(schema.MIGRATIONS[5].replace(/kakkanad/g, "kannanad").replace(/Kakkanad/g, "Kannanad"));
+    legacy.exec("PRAGMA user_version = 5;");
+
+    legacy.prepare(
+      "INSERT INTO rooms (id, branchId, block, roomNumber, capacity, rent, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?);"
+    ).run("r-k", "branch-kannanad", "K", "1", 2, 6000, 1, 1);
+    legacy.prepare(
+      "INSERT INTO students (id, branchId, fullName, admissionNo, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?);"
+    ).run("s-k", "branch-kannanad", "Old Spelling Resident", "1", 1, 1);
+    legacy.prepare(
+      "INSERT INTO notices (id, branchId, title, category, postedOn, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?);"
+    ).run("n-k", "branch-kannanad", "Local notice", "general", "2027-01-01", 1, 1);
+    legacy.prepare("INSERT INTO settings (key, value) VALUES (?, ?);")
+      .run("admissionCounter:branch-kannanad", "7");
+    legacy.prepare("INSERT INTO settings (key, value) VALUES (?, ?);")
+      .run("activeBranchId", '"branch-kannanad"');
+
+    const before = legacy.prepare("SELECT shortName FROM branches WHERE id = ?;").all("branch-kannanad");
+    check("started out misspelled", before.length === 1 && before[0].shortName === "Kannanad");
+
+    legacy.exec(schema.MIGRATIONS[6]);
+
+    const branch = legacy.prepare("SELECT id, name, shortName, code FROM branches WHERE code = 'K';").all()[0];
+    check("branch id corrected", branch.id === "branch-kakkanad", branch.id);
+    check("branch name corrected", branch.name === "Kakkanad - Royal Boys Hostel", branch.name);
+    check("short name corrected", branch.shortName === "Kakkanad", branch.shortName);
+    check("no misspelled branch remains",
+      legacy.prepare("SELECT COUNT(*) AS n FROM branches WHERE id = 'branch-kannanad';").all()[0].n === 0);
+
+    // The point of the repair: records must follow the branch, not be orphaned.
+    const inmate = legacy.prepare("SELECT branchId FROM students WHERE id = ?;").all("s-k")[0];
+    check("inmate follows the renamed branch", inmate.branchId === "branch-kakkanad", inmate.branchId);
+    const room = legacy.prepare("SELECT branchId FROM rooms WHERE id = ?;").all("r-k")[0];
+    check("room follows the renamed branch", room.branchId === "branch-kakkanad", room.branchId);
+    const notice = legacy.prepare("SELECT branchId FROM notices WHERE id = ?;").all("n-k")[0];
+    check("notice follows the renamed branch", notice.branchId === "branch-kakkanad", notice.branchId);
+
+    const counter = legacy.prepare("SELECT value FROM settings WHERE key = ?;")
+      .all("admissionCounter:branch-kakkanad")[0];
+    check("the id sequence carries over", counter && counter.value === "7", JSON.stringify(counter));
+    const active = legacy.prepare("SELECT value FROM settings WHERE key = 'activeBranchId';").all()[0];
+    check("last-used branch points at the new id", active.value === '"branch-kakkanad"', active.value);
+
+    check("Thammanam untouched",
+      legacy.prepare("SELECT COUNT(*) AS n FROM branches WHERE id = 'branch-thammanam';").all()[0].n === 1);
+
+    // Re-running must be harmless; migrations can be replayed on a fresh db.
+    legacy.exec(schema.MIGRATIONS[6]);
+    check("repair is idempotent",
+      legacy.prepare("SELECT COUNT(*) AS n FROM branches;").all()[0].n === 2);
+
+    legacy.close();
+  }
+
   console.log("\n== the two branches are seeded ==");
   {
     const all = await branches.listBranches();
     check("both branches exist", all.length === 2, all.map((b) => b.name).join(" | "));
     const tham = all.find((b) => b.id === "branch-thammanam");
-    const kann = all.find((b) => b.id === "branch-kannanad");
+    const kann = all.find((b) => b.id === "branch-kakkanad");
     check("Thammanam named in full", tham.name === "Thammanam - Royal Boys Hostel", tham.name);
-    check("Kannanad named in full", kann.name === "Kannanad - Royal Boys Hostel", kann.name);
+    check("Kakkanad named in full", kann.name === "Kakkanad - Royal Boys Hostel", kann.name);
     check("letters are T and K", tham.code === "T" && kann.code === "K", tham.code + "/" + kann.code);
 
     console.log("\n== inmate ids are prefixed with the branch letter ==");
@@ -670,50 +732,50 @@ async function run() {
     });
     const tOne = await students.createInmate(mk("Thammanam Resident", tRoom, { admissionNo: "" }));
 
-    branches.setActiveBranchId("branch-kannanad");
+    branches.setActiveBranchId("branch-kakkanad");
     const kRoom = await rooms.createRoom({
       branchId: "", block: "K", roomNumber: "1", floor: "", capacity: 4,
       rent: 6000, deposit: 0, amenities: "", notes: "",
     });
-    const kOne = await students.createInmate(mk("Kannanad Resident", kRoom, { admissionNo: "" }));
+    const kOne = await students.createInmate(mk("Kakkanad Resident", kRoom, { admissionNo: "" }));
 
     const kList = await students.listInmates("", "all");
-    check("Kannanad list excludes Thammanam inmates",
+    check("Kakkanad list excludes Thammanam inmates",
       kList.every((s) => s.fullName !== "Thammanam Resident"),
       kList.map((s) => s.fullName).join(","));
-    check("Kannanad list includes its own", kList.some((s) => s.fullName === "Kannanad Resident"));
+    check("Kakkanad list includes its own", kList.some((s) => s.fullName === "Kakkanad Resident"));
 
     const kRooms = await rooms.listRooms();
-    check("Kannanad rooms exclude Thammanam rooms",
+    check("Kakkanad rooms exclude Thammanam rooms",
       kRooms.every((r) => r.block !== "T"), kRooms.map((r) => r.block + r.roomNumber).join(","));
 
     branches.setActiveBranchId("branch-thammanam");
     const tList = await students.listInmates("", "all");
-    check("Thammanam list excludes Kannanad inmates",
-      tList.every((s) => s.fullName !== "Kannanad Resident"),
+    check("Thammanam list excludes Kakkanad inmates",
+      tList.every((s) => s.fullName !== "Kakkanad Resident"),
       tList.map((s) => s.fullName).join(","));
 
     console.log("\n== numbering restarts in each branch ==");
     const t = await students.getInmate(tOne);
     const k = await students.getInmate(kOne);
     check("Thammanam inmate carries the T code", t.branchCode === "T", String(t.branchCode));
-    check("Kannanad inmate carries the K code", k.branchCode === "K", String(k.branchCode));
+    check("Kakkanad inmate carries the K code", k.branchCode === "K", String(k.branchCode));
     check("both branches issued number 1", k.admissionNo === "1", "K number was " + k.admissionNo);
     check("ids only differ by branch letter",
       branches.formatInmateId(t.branchCode, t.admissionNo) !== branches.formatInmateId(k.branchCode, k.admissionNo),
       branches.formatInmateId(t.branchCode, t.admissionNo) + " vs " + branches.formatInmateId(k.branchCode, k.admissionNo));
 
-    branches.setActiveBranchId("branch-kannanad");
-    const kSecond = await students.createInmate(mk("Kannanad Second", null, { admissionNo: "" }));
-    check("Kannanad continues its own sequence",
+    branches.setActiveBranchId("branch-kakkanad");
+    const kSecond = await students.createInmate(mk("Kakkanad Second", null, { admissionNo: "" }));
+    check("Kakkanad continues its own sequence",
       (await students.getInmate(kSecond)).admissionNo === "2",
       (await students.getInmate(kSecond)).admissionNo);
 
     console.log("\n== occupancy and counts are per branch ==");
     const kOcc = await rooms.occupancyTotals();
-    check("Kannanad counts only its beds", kOcc.beds === 4, "beds=" + kOcc.beds);
+    check("Kakkanad counts only its beds", kOcc.beds === 4, "beds=" + kOcc.beds);
     const kCounts = await students.inmateCounts();
-    check("Kannanad counts only its inmates", kCounts.total === 2, "total=" + kCounts.total);
+    check("Kakkanad counts only its inmates", kCounts.total === 2, "total=" + kCounts.total);
 
     console.log("\n== fees are scoped through the inmate ==");
     await fees.createFee({
@@ -721,11 +783,11 @@ async function run() {
       other: 0, discount: 0, dueDate: "2027-01-31", note: "",
     });
     const kFees = await fees.listFees("all", "2027-01", "");
-    check("Kannanad sees its own bill", kFees.length === 1 && kFees[0].studentName === "Kannanad Resident");
+    check("Kakkanad sees its own bill", kFees.length === 1 && kFees[0].studentName === "Kakkanad Resident");
 
     branches.setActiveBranchId("branch-thammanam");
     const tFees = await fees.listFees("all", "2027-01", "");
-    check("Thammanam does not see Kannanad's bill", tFees.length === 0, "n=" + tFees.length);
+    check("Thammanam does not see Kakkanad's bill", tFees.length === 0, "n=" + tFees.length);
     const tTotals = await fees.feeTotals("2027-01");
     check("totals exclude the other branch", tTotals.billed === 0, "billed=" + tTotals.billed);
 
@@ -733,20 +795,20 @@ async function run() {
     const raised = await fees.generateInvoices("2027-02");
     const tFeb = await fees.listFees("all", "2027-02", "");
     check("bills raised for Thammanam only",
-      tFeb.every((f) => f.studentName !== "Kannanad Resident"),
+      tFeb.every((f) => f.studentName !== "Kakkanad Resident"),
       tFeb.map((f) => f.studentName).join(","));
     check("something was raised", raised.created > 0, "created=" + raised.created);
-    branches.setActiveBranchId("branch-kannanad");
+    branches.setActiveBranchId("branch-kakkanad");
     const kFeb = await fees.listFees("all", "2027-02", "");
-    check("Kannanad got no February bills", kFeb.length === 0, "n=" + kFeb.length);
+    check("Kakkanad got no February bills", kFeb.length === 0, "n=" + kFeb.length);
 
     console.log("\n== moving an inmate between branches ==");
     branches.setActiveBranchId("branch-thammanam");
     const movedId = (await students.getInmate(tOne)).admissionNo;
-    await students.moveToBranch(tOne, "branch-kannanad");
+    await students.moveToBranch(tOne, "branch-kakkanad");
     const afterT = await students.listInmates("", "all");
     check("gone from the old branch", afterT.every((s) => s.id !== tOne));
-    branches.setActiveBranchId("branch-kannanad");
+    branches.setActiveBranchId("branch-kakkanad");
     const afterK = await students.getInmate(tOne);
     check("now in the new branch", afterK !== null && afterK.branchCode === "K", String(afterK && afterK.branchCode));
     check("keeps the id it was issued", afterK.admissionNo === movedId, afterK.admissionNo);
@@ -771,12 +833,12 @@ async function run() {
     check("Thammanam sees its own notice", tBoard.some((n) => n.title === "Thammanam only"));
     check("Thammanam sees the shared notice", tBoard.some((n) => n.title === "Both branches"));
 
-    branches.setActiveBranchId("branch-kannanad");
+    branches.setActiveBranchId("branch-kakkanad");
     const kBoard = await notices.listNotices("all");
-    check("Kannanad does NOT see the other branch's notice",
+    check("Kakkanad does NOT see the other branch's notice",
       kBoard.every((n) => n.title !== "Thammanam only"),
       kBoard.map((n) => n.title).join(","));
-    check("Kannanad does see the shared notice", kBoard.some((n) => n.title === "Both branches"));
+    check("Kakkanad does see the shared notice", kBoard.some((n) => n.title === "Both branches"));
 
     const kCounts = await notices.noticeCounts();
     const kTitles = kBoard.map((n) => n.title);
