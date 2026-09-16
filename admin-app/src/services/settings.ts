@@ -2,7 +2,7 @@ import { getDb } from "@/db";
 import { AppSettings } from "@/types";
 
 export const DEFAULT_SETTINGS: AppSettings = {
-  hostelName: "My Hostel",
+  hostelName: "Royal Boys Hostel",
   countryCode: "91",
   currencySymbol: "₹",
   activeBranchId: null,

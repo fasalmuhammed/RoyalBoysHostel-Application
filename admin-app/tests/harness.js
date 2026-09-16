@@ -222,6 +222,7 @@ function resetDatabase() {
 
 // ---------------------------------------------------------------- module stubs
 let manipCounter = 0;
+const secureStore = new Map();
 
 const stubs = {
   "expo-file-system": { File: FSFile, Directory: FSDirectory, Paths },
@@ -256,6 +257,26 @@ const stubs = {
     },
   },
   "expo-sqlite": expoSqlite,
+  // In-memory stand-in for the platform keystore. Matches the contract the
+  // security service relies on: values are strings, a missing key reads back
+  // as null, and deleting one that was never there is not an error.
+  "expo-secure-store": {
+    getItemAsync: async (key) => (secureStore.has(key) ? secureStore.get(key) : null),
+    setItemAsync: async (key, value) => {
+      secureStore.set(key, String(value));
+    },
+    deleteItemAsync: async (key) => {
+      secureStore.delete(key);
+    },
+  },
+  // No biometric hardware under test; the PIN path is what needs exercising.
+  "expo-local-authentication": {
+    hasHardwareAsync: async () => false,
+    isEnrolledAsync: async () => false,
+    supportedAuthenticationTypesAsync: async () => [],
+    authenticateAsync: async () => ({ success: false }),
+    AuthenticationType: { FINGERPRINT: 1, FACIAL_RECOGNITION: 2 },
+  },
   // Only the surface the services touch. Nothing here drives UI; it exists so
   // messaging.ts (which imports Linking) can be loaded outside a device.
   "react-native": {
@@ -293,6 +314,7 @@ module.exports = {
   FSFile,
   FSDirectory,
   Paths,
+  secureStore,
   resetDatabase,
   load: (rel) => require(path.join(BUILD, rel)),
 };

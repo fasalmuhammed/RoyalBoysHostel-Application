@@ -18,7 +18,7 @@ import { SectionTitle } from "@/components/Base";
 import Button from "@/components/Button";
 import Input, { PickerField } from "@/components/Input";
 import { OptionPicker } from "@/components/Controls";
-import { colors, font, fontSize, radius, spacing } from "@/constants/theme";
+import { colors, font, fontSize, radius, spacing, type } from "@/constants/theme";
 import { useApp } from "@/context/AppContext";
 import { useAsyncData } from "@/utils/hooks";
 import {
@@ -372,7 +372,7 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
   },
   chipActive: { backgroundColor: colors.primary, borderColor: colors.primary },
-  chipText: { fontSize: fontSize.sm, fontFamily: font.semibold, color: colors.textMuted },
+  chipText: { ...type.bodyStrong, fontSize: fontSize.sm, color: colors.textMuted },
   chipTextActive: { color: colors.primaryOn },
   photoBox: {
     height: 120,
@@ -388,5 +388,5 @@ const styles = StyleSheet.create({
     overflow: "hidden",
   },
   photo: { width: "100%", height: "100%" },
-  photoText: { fontSize: fontSize.sm, fontFamily: font.semibold, color: colors.primary },
+  photoText: { ...type.bodyStrong, fontSize: fontSize.sm, color: colors.primary },
 });

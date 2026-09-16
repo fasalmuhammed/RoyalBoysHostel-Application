@@ -1,0 +1,23 @@
+rules_version = '2';
+
+service firebase.storage {
+  match /b/{bucket}/o {
+    // Backups contain sensitive identity and financial records. Each account
+    // can access only its own folder, and only the app's encrypted file type
+    // can be created there.
+    match /admin-backups/{userId}/{fileName} {
+      allow read, delete: if request.auth != null && request.auth.uid == userId;
+      allow create, update: if request.auth != null
+        && request.auth.uid == userId
+        && fileName.matches('.*[.]hostelbak')
+        && request.resource.contentType == 'application/octet-stream'
+        && request.resource.size < 250 * 1024 * 1024
+        && request.resource.metadata.encrypted == 'true';
+    }
+
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}
+

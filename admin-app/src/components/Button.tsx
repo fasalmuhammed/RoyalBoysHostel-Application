@@ -2,7 +2,7 @@ import React from "react";
 import { ActivityIndicator, StyleSheet, Text, View, ViewStyle } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 
-import { colors, font, fontSize, radius, shadow, spacing } from "@/constants/theme";
+import { HIT_TARGET, colors, fontSize, radius, shadow, spacing, type } from "@/constants/theme";
 import { PressableScale } from "./Motion";
 
 type Variant = "primary" | "secondary" | "ghost" | "danger";
@@ -80,15 +80,17 @@ const styles = StyleSheet.create({
     borderRadius: radius.md,
     alignItems: "center",
     justifyContent: "center",
-    minHeight: 48,
+    minHeight: HIT_TARGET + 4,
   },
-  compact: { paddingVertical: spacing.sm, minHeight: 38, paddingHorizontal: spacing.md },
+  compact: { paddingVertical: spacing.sm, minHeight: HIT_TARGET - 6, paddingHorizontal: spacing.md },
   content: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
   primary: { backgroundColor: colors.primary, ...shadow.card },
-  secondary: { backgroundColor: colors.surface, borderWidth: 1.5, borderColor: colors.primary },
+  // A hairline neutral border reads as a secondary action; a heavy coloured
+  // outline competes with the primary button sitting next to it.
+  secondary: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.borderStrong },
   ghost: { backgroundColor: "transparent" },
   danger: { backgroundColor: colors.danger },
   disabled: { opacity: 0.45 },
   pressed: { opacity: 0.82 },
-  text: { fontSize: fontSize.md, fontFamily: font.bold },
+  text: { ...type.bodyStrong, fontSize: fontSize.md },
 });

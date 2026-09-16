@@ -12,9 +12,9 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 
-import { colors, font, fontSize, radius, shadow, spacing, toneColor, Tone } from "@/constants/theme";
+import { colors, font, fontSize, radius, shadow, spacing } from "@/constants/theme";
 import Button from "./Button";
-import { AnimatedBar, FadeIn, PressableScale, useCountUp } from "./Motion";
+import { AnimatedBar, FadeIn, PressableScale } from "./Motion";
 
 // --- search -----------------------------------------------------------------
 
@@ -87,78 +87,6 @@ export function SegmentedTabs<T extends string>({
         );
       })}
     </ScrollView>
-  );
-}
-
-// --- stat tile --------------------------------------------------------------
-
-export function StatCard({
-  label,
-  value,
-  icon,
-  tone = "info",
-  onPress,
-  style,
-}: {
-  label: string;
-  value: string | number;
-  icon?: keyof typeof Ionicons.glyphMap;
-  tone?: Tone;
-  onPress?: () => void;
-  style?: ViewStyle;
-}) {
-  const { fg, bg } = toneColor[tone];
-  // Numbers tick up; anything already formatted (a ratio, an amount) is left
-  // alone rather than animated into nonsense.
-  const numeric = typeof value === "number";
-  const counted = useCountUp(numeric ? value : 0);
-
-  const body = (
-    <>
-      {icon ? (
-        <View style={[styles.statIcon, { backgroundColor: bg }]}>
-          <Ionicons name={icon} size={16} color={fg} />
-        </View>
-      ) : null}
-      <Text style={styles.statValue} numberOfLines={1} adjustsFontSizeToFit>
-        {numeric ? counted : value}
-      </Text>
-      <Text style={styles.statLabel} numberOfLines={2}>
-        {label}
-      </Text>
-    </>
-  );
-
-  if (onPress) {
-    return (
-      <PressableScale onPress={onPress} scaleTo={0.97} style={[styles.stat, style] as ViewStyle[]}>
-        {body}
-      </PressableScale>
-    );
-  }
-  return <View style={[styles.stat, style]}>{body}</View>;
-}
-
-// --- quick action -----------------------------------------------------------
-
-export function QuickAction({
-  label,
-  icon,
-  onPress,
-}: {
-  label: string;
-  icon: keyof typeof Ionicons.glyphMap;
-  onPress: () => void;
-}) {
-  return (
-    <PressableScale onPress={onPress} scaleTo={0.93} style={styles.quick}>
-      <View style={styles.quickIcon}>
-        <Ionicons name={icon} size={21} color={colors.primary} />
-      </View>
-      <Text style={styles.quickLabel} numberOfLines={2}>
-        {label}
-      </Text>
-    </PressableScale>
   );
 }
 
@@ -318,41 +246,6 @@ const styles = StyleSheet.create({
   tabActive: { backgroundColor: colors.primary, borderColor: colors.primary },
   tabText: { fontSize: fontSize.sm, fontFamily: font.semibold, color: colors.textMuted },
   tabTextActive: { color: colors.primaryOn },
-
-  stat: {
-    flex: 1,
-    backgroundColor: colors.surface,
-    borderRadius: radius.lg,
-    padding: spacing.md,
-    ...shadow.card,
-  },
-  statIcon: {
-    width: 30,
-    height: 30,
-    borderRadius: 15,
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: spacing.sm,
-  },
-  statValue: { fontSize: fontSize.xl, fontFamily: font.extrabold, color: colors.text },
-  statLabel: { fontSize: fontSize.xs, color: colors.textMuted, marginTop: 2 },
-
-  quick: { alignItems: "center", width: 74 },
-  quickIcon: {
-    width: 52,
-    height: 52,
-    borderRadius: radius.lg,
-    backgroundColor: colors.primaryLight,
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: spacing.xs + 2,
-  },
-  quickLabel: {
-    fontSize: fontSize.xs,
-    color: colors.textMuted,
-    textAlign: "center",
-    fontFamily: font.semibold,
-  },
 
   backdrop: { flex: 1, backgroundColor: colors.overlay },
   sheet: {

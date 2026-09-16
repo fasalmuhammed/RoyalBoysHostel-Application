@@ -1,11 +1,12 @@
-# Royal Boys Hostel — offline admin app
+# Royal Boys Hostel — offline-first admin app
 
-A single-admin hostel register that runs entirely on one phone. No accounts, no
-server, no cloud, no internet. The manager adds inmates (with a photo taken on
-the spot), allocates rooms, raises and collects fees, and sends WhatsApp
-reminders — and moves the whole dataset to a new phone with one file.
+A single-admin hostel register that keeps working from a local database without
+internet. The manager adds inmates, captures both sides of their Aadhaar card,
+allocates rooms, raises and collects fees, and sends WhatsApp reminders. An
+optional authenticated Firebase account keeps encrypted recovery backups away
+from the phone; Firebase is never required for day-to-day work.
 
-It covers two branches, **Thammanam** and **Kakkanad**, which share one
+It covers two branches, **Thammanam** and **Kalamassery**, which share one
 database and one backup file.
 
 Built with Expo (React Native) + TypeScript + SQLite.
@@ -79,9 +80,9 @@ real sync, not file swapping.
 **Uninstalling the app deletes everything.** So do a factory reset, a lost
 phone, and a broken screen. The in-app snapshots live inside the app sandbox and
 die with it — they protect against *mistakes*, not against losing the phone.
-Only an exported file kept somewhere else protects against that. The dashboard
-nags when the last export is over a week old, and a repeating notification does
-the same.
+Only an exported file or encrypted cloud backup protects against that. The
+dashboard nags when the last export is over a week old, and a repeating
+notification does the same.
 
 **A forgotten PIN cannot be reset.** There is no account and no email recovery.
 The same is true of a lost backup passphrase — the file becomes unreadable.
@@ -129,9 +130,9 @@ board without going to every student's phone.
 ## Screens
 
 **Setup (first run)** — Start fresh · Restore from a backup · Hostel details · Create PIN
-**Branch picker** — choose Thammanam or Kakkanad, asked on every launch
+**Branch picker** — choose Thammanam or Kalamassery, asked on every launch
 **Main** — Dashboard · Inmates · Rooms · Fees · More
-**Inmates** — list & search · add/edit with camera capture, rent and billing cycle · detail with fee history
+**Inmates** — list & search · add/edit with profile and Aadhaar front/back capture, rent and billing cycle · detail with fee history
 **Rooms** — list with occupancy · add/edit · detail with bed map, move-in/move-out, and moving an existing inmate in from another room
 **Fees** — list by month & status · bill detail · collect payment · bulk-raise monthly bills · PDF receipt
 **Complaints** — register by status (open / in progress / resolved), category, photo, room link
@@ -139,7 +140,31 @@ board without going to every student's phone.
 **Search** — one box across inmates, rooms, bills and notices
 **Notifications** — what needs attention, derived live from the data
 **WhatsApp** — announcements · fee reminders · templates · send queue
-**Other** — Backup & restore · CSV reports · Settings · Change PIN · Lock screen
+**Other** — Local/cloud backup & restore · CSV reports · Settings · Change PIN · Lock screen
+
+### Firebase cloud backups
+
+Cloud backup uploads the existing `.hostelbak` format, encrypted on the phone
+before any bytes leave it. Firebase Authentication protects each administrator's
+folder and `storage.rules` prevents one account from reading another account's
+files. This is disaster recovery, not multi-device live editing.
+
+The checked-in client configuration points at the Firebase project already used
+by this repository. To use a different production project, copy `.env.example`
+to `.env` and fill in the `EXPO_PUBLIC_FIREBASE_*` values.
+
+Before cloud backup can be used:
+
+1. Enable Email/Password in Firebase Authentication.
+2. Enable Firebase Storage and attach the required Blaze billing account.
+3. From `admin-app`, run `firebase deploy --only storage` to deploy the private
+   rules in `storage.rules`.
+4. Build a new APK; cloud dependencies are native/runtime dependencies and are
+   not part of older installed builds.
+
+The administrator can then create or sign in to a cloud account from **Backup &
+restore**, upload an encrypted backup, download one into the existing verified
+restore flow, or permanently delete an old cloud copy.
 
 ---
 

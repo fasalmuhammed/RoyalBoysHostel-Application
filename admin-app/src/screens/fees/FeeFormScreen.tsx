@@ -7,13 +7,13 @@ import { Card, SectionTitle } from "@/components/Base";
 import Button from "@/components/Button";
 import Input, { PickerField } from "@/components/Input";
 import { OptionPicker } from "@/components/Controls";
-import { colors, font, fontSize, spacing } from "@/constants/theme";
+import { colors, spacing, type } from "@/constants/theme";
 import { useApp } from "@/context/AppContext";
 import { useAsyncData } from "@/utils/hooks";
 import {
+  anchorDayFor,
   createFee,
   currentPeriod,
-  DEFAULT_CYCLE_DAYS,
   DuplicateInvoiceError,
   dueDateFor,
   getFee,
@@ -39,7 +39,7 @@ export default function FeeFormScreen({ navigation, route }: Props) {
   const [water, setWater] = useState("");
   const [other, setOther] = useState("");
   const [discount, setDiscount] = useState("");
-  const [cycleDays, setCycleDays] = useState(DEFAULT_CYCLE_DAYS);
+  const [anchorDay, setAnchorDay] = useState(1);
   const [dueDate, setDueDate] = useState(dueDateFor(currentPeriod()));
   const [note, setNote] = useState("");
 
@@ -81,9 +81,9 @@ export default function FeeFormScreen({ navigation, route }: Props) {
       if (!inmate) return;
       setInmateName(inmate.fullName);
       setRent(String(inmate.monthlyRent > 0 ? inmate.monthlyRent : (inmate.roomRent ?? 0)));
-      const cycle = inmate.billingCycleDays || DEFAULT_CYCLE_DAYS;
-      setCycleDays(cycle);
-      setDueDate(dueDateFor(period, cycle));
+      const anchor = anchorDayFor(inmate.joinedOn);
+      setAnchorDay(anchor);
+      setDueDate(dueDateFor(period, anchor));
     })();
   }, [studentId, isEditing, period]);
 
@@ -250,7 +250,7 @@ export default function FeeFormScreen({ navigation, route }: Props) {
         onClose={() => setPeriodPickerOpen(false)}
         onSelect={(value) => {
           setPeriod(value);
-          setDueDate(dueDateFor(value, cycleDays));
+          setDueDate(dueDateFor(value, anchorDay));
         }}
         options={Array.from({ length: 14 }, (_, index) => {
           const value = shiftPeriod(currentPeriod(), 1 - index);
@@ -271,6 +271,6 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     backgroundColor: colors.primaryLight,
   },
-  totalLabel: { fontSize: fontSize.md, fontFamily: font.semibold, color: colors.primary },
-  totalValue: { fontSize: fontSize.xl, fontFamily: font.extrabold, color: colors.primary },
+  totalLabel: { ...type.bodyStrong, color: colors.primary },
+  totalValue: { ...type.title, color: colors.primary },
 });

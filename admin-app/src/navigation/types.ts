@@ -5,7 +5,7 @@ export type MainTabParamList = {
   Dashboard: undefined;
   Inmates: { filter?: "all" | "active" | "left" | "unassigned" } | undefined;
   Rooms: undefined;
-  Fees: { filter?: "all" | "paid" | "unpaid" | "partial" } | undefined;
+  Fees: { filter?: "all" | "due" | "paid" | "unpaid" | "partial"; period?: string | null } | undefined;
   More: undefined;
 };
 
@@ -23,6 +23,7 @@ export type RootStackParamList = {
   FeeForm: { feeId?: string; studentId?: string } | undefined;
   CollectFee: { feeId: string };
   GenerateInvoices: undefined;
+  Dues: undefined;
 
   Messages: undefined;
   Compose:
@@ -58,7 +59,6 @@ export type SetupStackParamList = {
   Welcome: undefined;
   StartChoice: undefined;
   RestoreExisting: undefined;
-  HostelDetails: undefined;
   CreatePin: undefined;
 };
 

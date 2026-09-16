@@ -1,7 +1,7 @@
 import { getDb } from "@/db";
 import { FeeRecord, FeeRecordWithInmate, FeeStatus, Payment, PaymentMethod } from "@/types";
 import { newId } from "@/utils/id";
-import { toIsoDate, toPeriod } from "@/utils/format";
+import { daysUntil, toIsoDate, toPeriod } from "@/utils/format";
 import { branchClause } from "./branches";
 
 export type FeeInput = Omit<FeeRecord, "id" | "createdAt" | "updatedAt" | "total" | "amountPaid">;
@@ -23,10 +23,11 @@ const STATUS_SQL = `
 
 const SELECT_WITH_STUDENT = `
   SELECT f.*,
-         s.fullName    AS studentName,
-         s.admissionNo AS admissionNo,
-         s.phone       AS studentPhone,
-         s.photoFile   AS photoFile,
+         s.fullName      AS studentName,
+         s.admissionNo   AS admissionNo,
+         s.phone         AS studentPhone,
+         s.photoFile     AS photoFile,
+         s.admissionType AS admissionType,
          CASE WHEN r.id IS NULL THEN NULL
               WHEN r.block = '' THEN r.roomNumber
               ELSE r.block || '-' || r.roomNumber END AS roomLabel,
@@ -37,7 +38,8 @@ const SELECT_WITH_STUDENT = `
   LEFT JOIN rooms r ON r.id = s.roomId
 `;
 
-export type FeeFilter = "all" | FeeStatus;
+/** `"due"` combines unpaid + partial -- everything still owed, across any status split. */
+export type FeeFilter = "all" | "due" | FeeStatus;
 
 export async function listFees(
   filter: FeeFilter = "all",
@@ -66,7 +68,9 @@ export async function listFees(
     clauses.push("(LOWER(s.fullName) LIKE ? OR LOWER(s.admissionNo) LIKE ?)");
     params.push(`%${term}%`, `%${term}%`);
   }
-  if (filter !== "all") {
+  if (filter === "due") {
+    clauses.push(`${STATUS_SQL} IN ('unpaid', 'partial')`);
+  } else if (filter !== "all") {
     clauses.push(`${STATUS_SQL} = ?`);
     params.push(filter);
   }
@@ -154,7 +158,7 @@ export interface GenerateResult {
 export async function generateInvoices(period: string): Promise<GenerateResult> {
   const db = await getDb();
 
-  // Each student carries their own rent and cycle, so a batch run produces
+  // Each student carries their own rent and join date, so a batch run produces
   // per-student amounts and deadlines rather than one blanket figure. Their
   // room's rent is only a fallback for records created before rent moved onto
   // the student.
@@ -164,22 +168,26 @@ export async function generateInvoices(period: string): Promise<GenerateResult> 
   const candidates = await db.getAllAsync<{
     id: string;
     monthlyRent: number;
-    billingCycleDays: number;
+    joinedOn: string;
     roomRent: number | null;
   }>(
-    `SELECT s.id AS id, s.monthlyRent AS monthlyRent, s.billingCycleDays AS billingCycleDays,
+    `SELECT s.id AS id, s.monthlyRent AS monthlyRent, s.joinedOn AS joinedOn,
             r.rent AS roomRent
      FROM students s
      LEFT JOIN rooms r ON r.id = s.roomId
      WHERE s.status = 'active'
+       AND s.admissionType != 'stay'
        AND s.id NOT IN (SELECT studentId FROM fee_records WHERE period = ?)
        ${branchAnd};`,
     [period, ...branch.params]
   );
 
+  // Fixed-days stays are billed once at admission (see InmateFormScreen), never
+  // swept into this recurring monthly batch -- so they don't count toward the
+  // "active inmates this batch could bill" total either.
   const activeBranch = branchClause("branchId");
   const total = await db.getFirstAsync<{ n: number }>(
-    `SELECT COUNT(*) AS n FROM students WHERE status = 'active'
+    `SELECT COUNT(*) AS n FROM students WHERE status = 'active' AND admissionType != 'stay'
      ${activeBranch.sql ? `AND ${activeBranch.sql}` : ""};`,
     activeBranch.params
   );
@@ -189,7 +197,7 @@ export async function generateInvoices(period: string): Promise<GenerateResult> 
     await db.withExclusiveTransactionAsync(async (txn) => {
       for (const row of candidates) {
         const rent = row.monthlyRent > 0 ? row.monthlyRent : (row.roomRent ?? 0);
-        const dueDate = dueDateFor(period, row.billingCycleDays);
+        const dueDate = dueDateFor(period, anchorDayFor(row.joinedOn));
         await txn.runAsync(
           `INSERT INTO fee_records (id, studentId, period, rent, electricity, water, other,
              discount, total, amountPaid, dueDate, note, createdAt, updatedAt)
@@ -342,26 +350,132 @@ export async function listDueForReminder(throughDate: string): Promise<FeeRecord
   );
 }
 
+/**
+ * Every unsettled bill, overdue or not yet due, ordered by deadline.
+ *
+ * `listDueForReminder` deliberately stops at today because it drives the
+ * reminder queue. Collection rounds need to look forward as well: an admin
+ * doing the morning pass wants to know who is due tomorrow, not only who has
+ * already slipped.
+ */
+export async function listAllDues(): Promise<FeeRecordWithInmate[]> {
+  const db = await getDb();
+  const branch = branchClause("s.branchId");
+  return db.getAllAsync<FeeRecordWithInmate>(
+    `${SELECT_WITH_STUDENT}
+     WHERE f.amountPaid < f.total - 0.01
+       AND s.status = 'active'
+       ${branch.sql ? `AND ${branch.sql}` : ""}
+     ORDER BY (f.dueDate = '') ASC, f.dueDate ASC, s.fullName COLLATE NOCASE;`,
+    branch.params
+  );
+}
+
+/** Buckets a collection round is actually organised around. */
+export type DueBucket = "overdue" | "today" | "tomorrow" | "week" | "later";
+
+export interface DueGroup {
+  key: DueBucket;
+  title: string;
+  /** Plain-language subtitle, so the grouping needs no legend. */
+  subtitle: string;
+  fees: FeeRecordWithInmate[];
+  total: number;
+}
+
+const BUCKET_META: Record<DueBucket, { title: string; subtitle: string }> = {
+  overdue: { title: "Overdue", subtitle: "Past the due date and still unpaid" },
+  today: { title: "Due today", subtitle: "Collect or remind them today" },
+  tomorrow: { title: "Due tomorrow", subtitle: "Worth a heads-up now" },
+  week: { title: "Due this week", subtitle: "Within the next 7 days" },
+  later: { title: "Later", subtitle: "More than a week away" },
+};
+
+const BUCKET_ORDER: DueBucket[] = ["overdue", "today", "tomorrow", "week", "later"];
+
+/**
+ * Sorts unsettled bills into collection buckets.
+ *
+ * Split here rather than in the screen so the same grouping backs the dues
+ * list, its counts and anything else that needs "who is due when" -- and so
+ * it stays testable without a renderer.
+ */
+export function groupDues(fees: FeeRecordWithInmate[]): DueGroup[] {
+  const buckets: Record<DueBucket, FeeRecordWithInmate[]> = {
+    overdue: [],
+    today: [],
+    tomorrow: [],
+    week: [],
+    later: [],
+  };
+
+  for (const fee of fees) {
+    // A bill with no deadline cannot be chased on a date; treat it as later
+    // rather than silently dropping it from the round.
+    const days = fee.dueDate ? daysUntil(fee.dueDate) : Number.POSITIVE_INFINITY;
+    if (days < 0) buckets.overdue.push(fee);
+    else if (days === 0) buckets.today.push(fee);
+    else if (days === 1) buckets.tomorrow.push(fee);
+    else if (days <= 7) buckets.week.push(fee);
+    else buckets.later.push(fee);
+  }
+
+  return BUCKET_ORDER.filter((key) => buckets[key].length > 0).map((key) => ({
+    key,
+    title: BUCKET_META[key].title,
+    subtitle: BUCKET_META[key].subtitle,
+    fees: buckets[key],
+    total: buckets[key].reduce((sum, fee) => sum + fee.balance, 0),
+  }));
+}
+
 /** Convenience for the "this month" default across the Fees screens. */
 export function currentPeriod(): string {
   return toPeriod();
 }
 
-/** A billing cycle, in days, when a student has none recorded. */
+/**
+ * Legacy value for the `billingCycleDays` column, which no longer drives any
+ * billing logic (see `dueDateFor` below) but still exists on old records and
+ * backups. Kept only so writes to that column have something to write.
+ */
 export const DEFAULT_CYCLE_DAYS = 30;
 
+/** The day-of-month a monthly bill is due, taken from when the student joined. */
+export function anchorDayFor(joinedOn: string): number {
+  const day = Number(joinedOn.slice(8, 10));
+  return Number.isFinite(day) && day > 0 ? day : 1;
+}
+
 /**
- * Due date for a billing period: the start of the month plus the student's
- * cycle length.
+ * Due date for a billing period: the same day-of-month the student joined on.
  *
- * Rent is charged per period of occupancy, so the deadline follows the length
- * of that period rather than a hostel-wide day of the month -- a student on a
- * 15-day arrangement should not inherit someone else's monthly deadline.
+ * A join date the admin already recognises makes a better deadline than a
+ * separately configured cycle length -- someone who joined on the 1st is
+ * always due on the 1st, someone who joined on the 15th is always due on the
+ * 15th, with nothing to set up or get out of sync per student. Clamped to the
+ * last day of a shorter month (join on the 31st, due on the 28th/30th in
+ * February or a 30-day month).
  */
-export function dueDateFor(period: string, cycleDays = DEFAULT_CYCLE_DAYS): string {
+export function dueDateFor(period: string, anchorDay = 1): string {
   const [y, m] = period.split("-").map(Number);
-  const days = Number.isFinite(cycleDays) && cycleDays > 0 ? Math.round(cycleDays) : DEFAULT_CYCLE_DAYS;
-  const start = new Date(y, m - 1, 1);
+  const daysInMonth = new Date(y, m, 0).getDate();
+  const day =
+    Number.isFinite(anchorDay) && anchorDay > 0 ? Math.min(Math.round(anchorDay), daysInMonth) : 1;
+  return toIsoDate(new Date(y, m - 1, day));
+}
+
+/**
+ * Due date for a fixed-days stay: the day the stay began, plus its length.
+ *
+ * Unlike a recurring monthly bill, a stay bill isn't anchored to a calendar
+ * month -- it is owed exactly `stayDays` after move-in, whichever month that
+ * lands in.
+ */
+export function stayDueDateFor(joinedOn: string, stayDays: number): string {
+  const [y, m, d] = joinedOn.split("-").map(Number);
+  const days = Number.isFinite(stayDays) && stayDays > 0 ? Math.round(stayDays) : 1;
+  const start = new Date(y, (m || 1) - 1, d || 1);
   start.setDate(start.getDate() + days);
   return toIsoDate(start);
 }

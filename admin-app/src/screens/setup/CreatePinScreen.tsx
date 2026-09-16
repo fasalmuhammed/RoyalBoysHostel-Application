@@ -5,7 +5,7 @@ import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { Callout, CalloutText, Screen } from "@/components/Base";
 import Button from "@/components/Button";
 import Input from "@/components/Input";
-import { colors, font, fontSize, spacing } from "@/constants/theme";
+import { colors, fontSize, spacing, type } from "@/constants/theme";
 import { useApp } from "@/context/AppContext";
 import { BiometricSupport, biometricSupport, setBiometricEnabled, setPin } from "@/services/security";
 import { initReminders, scheduleBackupReminder, scheduleFeeReminder } from "@/services/reminders";
@@ -124,7 +124,7 @@ export default function CreatePinScreen({}: Props) {
 }
 
 const styles = StyleSheet.create({
-  title: { fontSize: fontSize.xxl, fontFamily: font.extrabold, color: colors.text },
+  title: { ...type.title, color: colors.text },
   subtitle: {
     fontSize: fontSize.md,
     color: colors.textMuted,
@@ -139,7 +139,7 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.sm,
     marginBottom: spacing.md,
   },
-  switchLabel: { fontSize: fontSize.md, fontFamily: font.semibold, color: colors.text },
+  switchLabel: { ...type.bodyStrong, color: colors.text },
   switchHint: { fontSize: fontSize.sm, color: colors.textMuted, marginTop: 2 },
   error: { color: colors.danger, fontSize: fontSize.sm, marginBottom: spacing.md },
 });

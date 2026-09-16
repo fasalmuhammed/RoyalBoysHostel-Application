@@ -9,7 +9,7 @@ import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { Badge, Card, DetailRow, Divider, EmptyState, Loading, SectionTitle } from "@/components/Base";
 import Button from "@/components/Button";
 import Avatar from "@/components/Avatar";
-import { colors, font, fontSize, radius, spacing } from "@/constants/theme";
+import { colors, radius, scaleFont, spacing, type } from "@/constants/theme";
 import { useApp } from "@/context/AppContext";
 import { useAsyncData } from "@/utils/hooks";
 import { deleteFee, deletePayment, getFee, listPayments } from "@/services/fees";
@@ -132,12 +132,15 @@ export default function FeeDetailScreen({ navigation, route }: Props) {
             {formatMoney(Math.max(fee.balance, 0), symbol)}
           </Text>
           <View style={styles.balanceMeta}>
-            <Badge
-              label={fee.status.toUpperCase()}
-              tone={
-                fee.status === "paid" ? "success" : fee.status === "partial" ? "warning" : "danger"
-              }
-            />
+            <View style={styles.balanceBadges}>
+              <Badge
+                label={fee.status.toUpperCase()}
+                tone={
+                  fee.status === "paid" ? "success" : fee.status === "partial" ? "warning" : "danger"
+                }
+              />
+              {fee.admissionType === "stay" ? <Badge label="STAY" tone="info" /> : null}
+            </View>
             <Text style={styles.balancePeriod}>{formatPeriod(fee.period)}</Text>
           </View>
         </View>
@@ -246,19 +249,20 @@ const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.background },
   content: { padding: spacing.lg, paddingBottom: spacing.xl * 2 },
   studentCard: { flexDirection: "row", alignItems: "center", gap: spacing.md },
-  studentName: { fontSize: fontSize.md, fontFamily: font.bold, color: colors.text },
-  studentMeta: { fontSize: fontSize.xs, color: colors.textMuted, marginTop: 2 },
+  studentName: { ...type.bodyStrong, color: colors.text },
+  studentMeta: { ...type.caption, color: colors.textMuted, marginTop: 2 },
   balanceCard: {
     backgroundColor: colors.primary,
     borderRadius: radius.lg,
     padding: spacing.lg,
     marginBottom: spacing.md,
   },
-  balanceLabel: { color: "rgba(255,255,255,0.85)", fontSize: fontSize.sm },
+  balanceLabel: { ...type.support, color: "rgba(255,255,255,0.85)" },
   balanceValue: {
+    ...type.display,
+    fontSize: scaleFont(34),
+    lineHeight: scaleFont(40),
     color: colors.primaryOn,
-    fontSize: 34,
-    fontFamily: font.extrabold,
     marginTop: spacing.xs,
   },
   balanceMeta: {
@@ -267,8 +271,13 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     marginTop: spacing.md,
   },
-  balancePeriod: { color: "rgba(255,255,255,0.9)", fontSize: fontSize.sm, fontFamily: font.semibold },
-  empty: { fontSize: fontSize.sm, color: colors.textMuted, textAlign: "center" },
+  balanceBadges: { flexDirection: "row", alignItems: "center", gap: spacing.xs },
+  balancePeriod: {
+    ...type.support,
+    fontFamily: type.bodyStrong.fontFamily,
+    color: "rgba(255,255,255,0.9)",
+  },
+  empty: { ...type.support, color: colors.textMuted, textAlign: "center" },
   paymentRow: { flexDirection: "row", alignItems: "center", gap: spacing.md },
   paymentIcon: {
     width: 34,
@@ -278,6 +287,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  paymentAmount: { fontSize: fontSize.md, fontFamily: font.bold, color: colors.text },
-  paymentMeta: { fontSize: fontSize.xs, color: colors.textMuted, marginTop: 2 },
+  paymentAmount: { ...type.bodyStrong, color: colors.text },
+  paymentMeta: { ...type.caption, color: colors.textMuted, marginTop: 2 },
 });

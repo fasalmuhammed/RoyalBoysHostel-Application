@@ -8,7 +8,7 @@ import { Badge, Card, Loading } from "@/components/Base";
 import Button from "@/components/Button";
 import Input from "@/components/Input";
 import { Fab } from "@/components/Controls";
-import { colors, font, fontSize, radius, spacing } from "@/constants/theme";
+import { colors, font, fontSize, radius, spacing, type } from "@/constants/theme";
 import { useAsyncData } from "@/utils/hooks";
 import { deleteTemplate, listTemplates, saveTemplate, TEMPLATE_PLACEHOLDERS } from "@/services/messaging";
 import { MessageKind, MessageTemplate } from "@/types";
@@ -192,18 +192,18 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     marginBottom: spacing.sm,
   },
-  cardTitle: { fontSize: fontSize.md, fontFamily: font.bold, color: colors.text, flex: 1 },
+  cardTitle: { ...type.bodyStrong, color: colors.text, flex: 1 },
   cardBody: { fontSize: fontSize.sm, color: colors.textMuted, lineHeight: 19 },
   cardActions: { flexDirection: "row", gap: spacing.lg, marginTop: spacing.md },
   cardAction: { flexDirection: "row", alignItems: "center", gap: spacing.xs },
-  cardActionText: { fontSize: fontSize.sm, fontFamily: font.bold, color: colors.primary },
+  cardActionText: { ...type.bodyStrong, fontSize: fontSize.sm, color: colors.primary },
   modalHead: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
     marginBottom: spacing.lg,
   },
-  modalTitle: { fontSize: fontSize.xl, fontFamily: font.extrabold, color: colors.text },
+  modalTitle: { ...type.title, color: colors.text },
   kindLabel: {
     fontSize: fontSize.sm,
     color: colors.textMuted,
@@ -220,7 +220,7 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
   },
   kindChipActive: { backgroundColor: colors.primary, borderColor: colors.primary },
-  kindText: { fontSize: fontSize.sm, fontFamily: font.semibold, color: colors.textMuted },
+  kindText: { ...type.bodyStrong, fontSize: fontSize.sm, color: colors.textMuted },
   kindTextActive: { color: colors.primaryOn },
   chips: { flexDirection: "row", flexWrap: "wrap", gap: spacing.xs, marginBottom: spacing.lg },
   chip: {
@@ -229,5 +229,5 @@ const styles = StyleSheet.create({
     borderRadius: radius.pill,
     backgroundColor: colors.primaryLight,
   },
-  chipText: { fontSize: fontSize.xs, fontFamily: font.bold, color: colors.primary },
+  chipText: { ...type.label, color: colors.primary },
 });

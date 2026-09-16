@@ -14,10 +14,17 @@ export interface InmateWithRoom extends Inmate {
   /** Branch letter, for rendering the id as `T-14`. */
   branchCode: string | null;
   branchName: string | null;
+  /** Unpaid balance across every bill raised for them. 0 when settled. */
+  outstanding: number;
 }
 
 export type InmateFilter = "all" | "active" | "left" | "unassigned";
 
+/**
+ * `outstanding` is summed in the same read rather than fetched per row: "who
+ * owes money" is the first thing an admin scans this list for, and a
+ * follow-up query per inmate would turn one read into hundreds.
+ */
 const SELECT_WITH_ROOM = `
   SELECT s.*,
          CASE WHEN r.id IS NULL THEN NULL
@@ -25,7 +32,9 @@ const SELECT_WITH_ROOM = `
               ELSE r.block || '-' || r.roomNumber END AS roomLabel,
          r.rent AS roomRent,
          b.code AS branchCode,
-         b.shortName AS branchName
+         b.shortName AS branchName,
+         COALESCE((SELECT SUM(f.total - f.amountPaid) FROM fee_records f
+                   WHERE f.studentId = s.id AND f.amountPaid < f.total - 0.01), 0) AS outstanding
   FROM students s
   LEFT JOIN rooms r ON r.id = s.roomId
   LEFT JOIN branches b ON b.id = s.branchId
@@ -178,6 +187,13 @@ export async function createInmate(input: InmateInput): Promise<string> {
   const now = Date.now();
 
   const branchId = input.branchId || requireActiveBranchId();
+  // Bound as NULL rather than falling back to the column's own DEFAULT when a
+  // caller leaves this unset (SQLite only applies a column DEFAULT when the
+  // column is omitted from the statement entirely, not when it's explicitly
+  // bound to NULL) -- so every caller gets today's "monthly" behaviour even
+  // if it predates this field.
+  const admissionType = input.admissionType ?? "monthly";
+  const stayDays = admissionType === "stay" ? (input.stayDays ?? null) : null;
 
   await db.withExclusiveTransactionAsync(async (txn) => {
     if (input.roomId && input.status === "active") {
@@ -188,13 +204,13 @@ export async function createInmate(input: InmateInput): Promise<string> {
     const admissionNo = input.admissionNo.trim() || (await claimAdmissionNo(txn, branchId));
     await txn.runAsync(
       `INSERT INTO students (id, branchId, admissionNo, fullName, phone, guardianName, guardianPhone,
-         email, course, year, address, idProof, photoFile, roomId, status, monthlyRent,
-         billingCycleDays, joinedOn, leftOn, notes, createdAt, updatedAt)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`,
+         email, course, year, address, idProof, photoFile, idProofFile, idProofBackFile, roomId, status, monthlyRent,
+         billingCycleDays, admissionType, stayDays, joinedOn, leftOn, notes, createdAt, updatedAt)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`,
       id, branchId, admissionNo, input.fullName, input.phone, input.guardianName, input.guardianPhone,
       input.email, input.course, input.year, input.address, input.idProof, input.photoFile,
-      input.roomId, input.status, input.monthlyRent, input.billingCycleDays,
-      input.joinedOn, input.leftOn, input.notes, now, now
+      input.idProofFile, input.idProofBackFile, input.roomId, input.status, input.monthlyRent, input.billingCycleDays,
+      admissionType, stayDays, input.joinedOn, input.leftOn, input.notes, now, now
     );
   });
 
@@ -205,6 +221,9 @@ export async function updateInmate(id: string, input: InmateInput): Promise<void
   const db = await getDb();
   const existing = await getInmate(id);
 
+  const admissionType = input.admissionType ?? "monthly";
+  const stayDays = admissionType === "stay" ? (input.stayDays ?? null) : null;
+
   await db.withExclusiveTransactionAsync(async (txn) => {
     const movingIn = input.roomId && input.status === "active" && input.roomId !== existing?.roomId;
     if (movingIn && input.roomId) {
@@ -213,19 +232,25 @@ export async function updateInmate(id: string, input: InmateInput): Promise<void
     await txn.runAsync(
       `UPDATE students SET fullName = ?, phone = ?, guardianName = ?,
          guardianPhone = ?, email = ?, course = ?, year = ?, address = ?, idProof = ?,
-         photoFile = ?, roomId = ?, status = ?, monthlyRent = ?, billingCycleDays = ?,
-         joinedOn = ?, leftOn = ?, notes = ?, updatedAt = ?
+         photoFile = ?, idProofFile = ?, idProofBackFile = ?, roomId = ?, status = ?, monthlyRent = ?, billingCycleDays = ?,
+         admissionType = ?, stayDays = ?, joinedOn = ?, leftOn = ?, notes = ?, updatedAt = ?
        WHERE id = ?;`,
       input.fullName, input.phone, input.guardianName, input.guardianPhone,
       input.email, input.course, input.year, input.address, input.idProof, input.photoFile,
-      input.roomId, input.status, input.monthlyRent, input.billingCycleDays,
-      input.joinedOn, input.leftOn, input.notes, Date.now(), id
+      input.idProofFile, input.idProofBackFile, input.roomId, input.status, input.monthlyRent, input.billingCycleDays,
+      admissionType, stayDays, input.joinedOn, input.leftOn, input.notes, Date.now(), id
     );
   });
 
-  // Drop the old image only once the row that referenced it is committed.
+  // Drop the old images only once the row that referenced them is committed.
   if (existing?.photoFile && existing.photoFile !== input.photoFile) {
     deletePhoto(existing.photoFile);
+  }
+  if (existing?.idProofFile && existing.idProofFile !== input.idProofFile) {
+    deletePhoto(existing.idProofFile);
+  }
+  if (existing?.idProofBackFile && existing.idProofBackFile !== input.idProofBackFile) {
+    deletePhoto(existing.idProofBackFile);
   }
 }
 
@@ -306,6 +331,8 @@ export async function deleteInmate(studentId: string): Promise<void> {
   const existing = await getInmate(studentId);
   await db.runAsync("DELETE FROM students WHERE id = ?;", studentId);
   deletePhoto(existing?.photoFile ?? null);
+  deletePhoto(existing?.idProofFile ?? null);
+  deletePhoto(existing?.idProofBackFile ?? null);
 }
 
 /**

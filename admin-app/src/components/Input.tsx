@@ -10,7 +10,7 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 
-import { colors, font, fontSize, radius, spacing } from "@/constants/theme";
+import { HIT_TARGET, colors, radius, spacing, type } from "@/constants/theme";
 
 interface Props extends TextInputProps {
   label?: string;
@@ -130,33 +130,35 @@ export function PickerField({
 const styles = StyleSheet.create({
   wrapper: { marginBottom: spacing.md },
   label: {
-    fontSize: fontSize.sm,
+    ...type.support,
+    fontFamily: type.bodyStrong.fontFamily,
     color: colors.textMuted,
     marginBottom: spacing.xs + 2,
-    fontFamily: font.semibold,
   },
   required: { color: colors.danger },
   field: {
     flexDirection: "row",
     alignItems: "center",
-    borderWidth: 1.5,
+    // A hairline at rest, thickening only on focus: a permanently heavy border
+    // on every field makes a form look like a spreadsheet.
+    borderWidth: 1,
     borderColor: colors.border,
     borderRadius: radius.md,
     backgroundColor: colors.surface,
     paddingHorizontal: spacing.md,
-    minHeight: 50,
+    minHeight: HIT_TARGET + 6,
   },
   fieldMultiline: { alignItems: "flex-start", paddingVertical: spacing.sm },
-  fieldFocused: { borderColor: colors.primary },
-  fieldError: { borderColor: colors.danger },
+  fieldFocused: { borderColor: colors.primary, borderWidth: 1.5 },
+  fieldError: { borderColor: colors.danger, borderWidth: 1.5 },
   icon: { marginRight: spacing.sm },
   input: {
     flex: 1,
-    fontSize: fontSize.md,
+    ...type.body,
     color: colors.text,
     paddingVertical: spacing.sm + 2,
   },
   inputMultiline: { minHeight: 96, textAlignVertical: "top" },
-  error: { color: colors.danger, fontSize: fontSize.sm, marginTop: spacing.xs },
-  hint: { color: colors.textFaint, fontSize: fontSize.sm, marginTop: spacing.xs },
+  error: { ...type.support, color: colors.danger, marginTop: spacing.xs },
+  hint: { ...type.support, color: colors.textFaint, marginTop: spacing.xs },
 });

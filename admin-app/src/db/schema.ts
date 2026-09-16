@@ -5,7 +5,7 @@
  * stamped into every backup file. Restoring a backup created by a *newer* app
  * version is refused rather than half-applied — see services/backup.ts.
  */
-export const SCHEMA_VERSION = 7;
+export const SCHEMA_VERSION = 10;
 
 /** Ordered DDL for a fresh database. */
 const V1 = `
@@ -195,7 +195,7 @@ INSERT OR IGNORE INTO branches (id, name, shortName, code, sortOrder, createdAt,
 VALUES
   ('branch-thammanam', 'Thammanam - Royal Boys Hostel', 'Thammanam', 'T', 1,
    CAST(strftime('%s','now') AS INTEGER) * 1000, CAST(strftime('%s','now') AS INTEGER) * 1000),
-  ('branch-kakkanad', 'Kakkanad - Royal Boys Hostel', 'Kakkanad', 'K', 2,
+  ('branch-Kalamassery', 'Kalamassery - Royal Boys Hostel', 'Kalamassery', 'K', 2,
    CAST(strftime('%s','now') AS INTEGER) * 1000, CAST(strftime('%s','now') AS INTEGER) * 1000);
 
 ALTER TABLE students    ADD COLUMN branchId TEXT;
@@ -212,7 +212,7 @@ CREATE INDEX IF NOT EXISTS idx_notices_branch  ON notices (branchId);
 `;
 
 /**
- * Corrects the Kakkanad branch, which was first written as "Kannanad".
+ * Corrects the Kalamassery branch, which was first written as "Kannanad".
  *
  * V5 itself is fixed at source because it never shipped in a build. This
  * repair exists for any database that did run the original -- a development
@@ -224,20 +224,20 @@ CREATE INDEX IF NOT EXISTS idx_notices_branch  ON notices (branchId);
  */
 const V6 = `
 UPDATE branches
-SET id = 'branch-kakkanad', name = 'Kakkanad - Royal Boys Hostel', shortName = 'Kakkanad'
+SET id = 'branch-Kalamassery', name = 'Kalamassery - Royal Boys Hostel', shortName = 'Kalamassery'
 WHERE id = 'branch-kannanad';
 
-UPDATE students    SET branchId = 'branch-kakkanad' WHERE branchId = 'branch-kannanad';
-UPDATE rooms       SET branchId = 'branch-kakkanad' WHERE branchId = 'branch-kannanad';
-UPDATE notices     SET branchId = 'branch-kakkanad' WHERE branchId = 'branch-kannanad';
-UPDATE message_log SET branchId = 'branch-kakkanad' WHERE branchId = 'branch-kannanad';
+UPDATE students    SET branchId = 'branch-Kalamassery' WHERE branchId = 'branch-kannanad';
+UPDATE rooms       SET branchId = 'branch-Kalamassery' WHERE branchId = 'branch-kannanad';
+UPDATE notices     SET branchId = 'branch-Kalamassery' WHERE branchId = 'branch-kannanad';
+UPDATE message_log SET branchId = 'branch-Kalamassery' WHERE branchId = 'branch-kannanad';
 
 UPDATE settings
-SET key = 'admissionCounter:branch-kakkanad'
+SET key = 'admissionCounter:branch-Kalamassery'
 WHERE key = 'admissionCounter:branch-kannanad';
 
 UPDATE settings
-SET value = '"branch-kakkanad"'
+SET value = '"branch-Kalamassery"'
 WHERE key = 'activeBranchId' AND value = '"branch-kannanad"';
 `;
 
@@ -273,6 +273,47 @@ CREATE INDEX IF NOT EXISTS idx_complaints_room   ON complaints (roomId);
 `;
 
 /**
+ * Adds a photo slot for the inmate's ID proof document (e.g. an Aadhaar
+ * card), alongside the existing profile photo.
+ *
+ * The old free-text `idProof` column (originally "Aadhaar last 4 digits") is
+ * left in place rather than dropped -- existing records keep whatever was
+ * typed there. It is simply no longer editable from the form now that a
+ * photo of the document itself is captured instead.
+ */
+const V8 = `
+ALTER TABLE students ADD COLUMN idProofFile TEXT;
+`;
+
+/**
+ * Adds fixed-days admissions.
+ *
+ * Most students are billed on a recurring monthly cycle (the default). A
+ * short-term guest can instead be admitted for a fixed number of days and
+ * billed exactly once for the whole stay -- see services/fees.ts, which reads
+ * `admissionType` to keep these students out of the monthly "raise bills"
+ * batch. `monthlyRent` is reused rather than duplicated: for a `'stay'`
+ * admission it holds the flat total for the stay instead of a monthly rate.
+ * `DEFAULT 'monthly'` means every existing student keeps today's behaviour
+ * unchanged.
+ */
+const V9 = `
+ALTER TABLE students ADD COLUMN admissionType TEXT NOT NULL DEFAULT 'monthly';
+ALTER TABLE students ADD COLUMN stayDays INTEGER;
+`;
+
+/**
+ * Stores the reverse side of an inmate's Aadhaar/ID card separately.
+ *
+ * `idProofFile` remains the front image so every existing record and backup
+ * keeps working unchanged. Existing inmates start with no back image and are
+ * prompted to add it the next time their record is edited.
+ */
+const V10 = `
+ALTER TABLE students ADD COLUMN idProofBackFile TEXT;
+`;
+
+/**
  * Migrations indexed by the version they upgrade *to*. To add a change, bump
  * SCHEMA_VERSION and add the matching entry — never edit an existing one in
  * place, or existing installs and old backups will diverge from new ones.
@@ -285,6 +326,9 @@ export const MIGRATIONS: Record<number, string> = {
   5: V5,
   6: V6,
   7: V7,
+  8: V8,
+  9: V9,
+  10: V10,
 };
 
 /** Tables included in a backup, in dependency order (parents first). */

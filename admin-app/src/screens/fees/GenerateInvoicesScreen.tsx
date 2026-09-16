@@ -7,7 +7,7 @@ import { Callout, CalloutText, Card, SectionTitle } from "@/components/Base";
 import Button from "@/components/Button";
 import { PickerField } from "@/components/Input";
 import { OptionPicker } from "@/components/Controls";
-import { colors, font, fontSize, spacing } from "@/constants/theme";
+import { colors, fontSize, spacing, type } from "@/constants/theme";
 import { useApp } from "@/context/AppContext";
 import { useAsyncData } from "@/utils/hooks";
 import { currentPeriod, generateInvoices, listFees } from "@/services/fees";
@@ -52,8 +52,8 @@ export default function GenerateInvoicesScreen({ navigation }: Props) {
     Alert.alert(
       "Raise bills",
       `${toRaise} bill(s) will be created for ${formatPeriod(period)}, each priced at that ` +
-        "inmate's own rent and due after their own billing cycle. Inmates who already have a " +
-        "bill for this month are skipped.",
+        "inmate's own rent and due on the day-of-month they joined on. Inmates who already " +
+        "have a bill for this month are skipped.",
       [
         { text: "Cancel", style: "cancel" },
         {
@@ -112,8 +112,8 @@ export default function GenerateInvoicesScreen({ navigation }: Props) {
 
         <Callout tone="info" icon="information-circle-outline">
           <CalloutText>
-            Each bill uses the rent recorded on that inmate, and falls due after their own
-            billing cycle (30 days unless you changed it). Edit a inmate to adjust their terms.
+            Each bill uses the rent recorded on that inmate, and falls due on the same
+            day-of-month they joined on. Edit a inmate to adjust their rent or join date.
           </CalloutText>
         </Callout>
 
@@ -154,7 +154,7 @@ function Row({ label, value, highlight }: { label: string; value: string; highli
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.background },
   content: { padding: spacing.lg, paddingBottom: spacing.xl * 2 },
-  title: { fontSize: fontSize.xl, fontFamily: font.extrabold, color: colors.text },
+  title: { ...type.title, color: colors.text },
   subtitle: {
     fontSize: fontSize.sm,
     color: colors.textMuted,
@@ -169,5 +169,5 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.sm,
   },
   rowLabel: { fontSize: fontSize.sm, color: colors.textMuted, flex: 1 },
-  rowValue: { fontSize: fontSize.md, fontFamily: font.extrabold, color: colors.text },
+  rowValue: { ...type.bodyStrong, color: colors.text },
 });

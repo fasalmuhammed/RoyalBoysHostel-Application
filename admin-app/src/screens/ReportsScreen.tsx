@@ -7,7 +7,7 @@ import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 
 import { Callout, CalloutText, SectionTitle } from "@/components/Base";
 import { OptionPicker } from "@/components/Controls";
-import { colors, font, fontSize, radius, spacing } from "@/constants/theme";
+import { colors, font, fontSize, radius, spacing, type } from "@/constants/theme";
 import { exportReport, ReportKind } from "@/services/csv";
 import { currentPeriod } from "@/services/fees";
 import { formatPeriod, shiftPeriod } from "@/utils/format";
@@ -160,6 +160,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  title: { fontSize: fontSize.md, fontFamily: font.bold, color: colors.text },
+  title: { ...type.bodyStrong, color: colors.text },
   description: { fontSize: fontSize.sm, color: colors.textMuted, marginTop: 2, lineHeight: 18 },
 });

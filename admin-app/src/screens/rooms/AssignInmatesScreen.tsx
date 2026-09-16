@@ -7,7 +7,7 @@ import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { Badge, Callout, CalloutText, EmptyState, Loading } from "@/components/Base";
 import { SearchBar } from "@/components/Controls";
 import Avatar from "@/components/Avatar";
-import { colors, font, fontSize, radius, spacing } from "@/constants/theme";
+import { colors, font, fontSize, radius, spacing, type } from "@/constants/theme";
 import { useApp } from "@/context/AppContext";
 import { useAsyncData, useDebounced } from "@/utils/hooks";
 import { getRoom } from "@/services/rooms";
@@ -198,7 +198,7 @@ export default function AssignInmatesScreen({ navigation, route }: Props) {
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.background },
   header: { paddingHorizontal: spacing.lg, paddingTop: spacing.md },
-  title: { fontSize: fontSize.xl, fontFamily: font.extrabold, color: colors.text },
+  title: { ...type.title, color: colors.text },
   subtitle: { fontSize: fontSize.sm, color: colors.textMuted, marginTop: 2 },
   searchWrap: { paddingHorizontal: spacing.lg, paddingTop: spacing.md, paddingBottom: spacing.sm },
   list: { padding: spacing.lg, paddingTop: spacing.sm, paddingBottom: 100 },
@@ -211,7 +211,7 @@ const styles = StyleSheet.create({
     padding: spacing.md,
     marginBottom: spacing.sm,
   },
-  name: { fontSize: fontSize.md, fontFamily: font.bold, color: colors.text },
+  name: { ...type.bodyStrong, color: colors.text },
   meta: { fontSize: fontSize.xs, color: colors.textMuted, marginTop: 2 },
   addButton: {
     flexDirection: "row",

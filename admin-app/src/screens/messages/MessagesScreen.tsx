@@ -5,7 +5,7 @@ import { Ionicons } from "@expo/vector-icons";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 
 import { Badge, Callout, CalloutText, Card, Loading, SectionTitle } from "@/components/Base";
-import { colors, font, fontSize, radius, spacing } from "@/constants/theme";
+import { colors, font, fontSize, radius, spacing, type } from "@/constants/theme";
 import { useAsyncData } from "@/utils/hooks";
 import { listBatches } from "@/services/messaging";
 import { listDueForReminder } from "@/services/fees";
@@ -176,7 +176,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  actionTitle: { fontSize: fontSize.md, fontFamily: font.bold, color: colors.text },
+  actionTitle: { ...type.bodyStrong, color: colors.text },
   actionDescription: { fontSize: fontSize.sm, color: colors.textMuted, marginTop: 2, lineHeight: 18 },
   countBadge: {
     minWidth: 26,
@@ -190,6 +190,6 @@ const styles = StyleSheet.create({
   countText: { color: colors.primaryOn, fontSize: fontSize.xs, fontFamily: font.extrabold },
   empty: { fontSize: fontSize.sm, color: colors.textMuted, textAlign: "center" },
   batchRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
-  batchTitle: { fontSize: fontSize.md, fontFamily: font.bold, color: colors.text },
+  batchTitle: { ...type.bodyStrong, color: colors.text },
   batchMeta: { fontSize: fontSize.xs, color: colors.textMuted, marginTop: 2 },
 });

@@ -46,7 +46,8 @@ async function seed() {
     guardianName: "Guardian of " + name, guardianPhone: "9000000000",
     email: "x@example.com", course: "CSE", year: "2",
     address: "12, Main Road\nSecond line", idProof: "Aadhaar 1234",
-    photoFile: null, roomId: room, branchId: "", status: "active",
+    photoFile: null, idProofFile: null, idProofBackFile: null,
+    roomId: room, branchId: "", status: "active",
     monthlyRent: 6000, billingCycleDays: 30,
     joinedOn: "2026-01-15", leftOn: null, notes: "",
   });
@@ -58,8 +59,13 @@ async function seed() {
   // Two students carry photos.
   photos.writePhotoBase64("p1.jpg", Buffer.from("fake-jpeg-bytes-one").toString("base64"));
   photos.writePhotoBase64("p2.jpg", Buffer.from("fake-jpeg-bytes-two éñ").toString("base64"));
+  photos.writePhotoBase64("aadhaar-front.jpg", Buffer.from("aadhaar-front-bytes").toString("base64"));
+  photos.writePhotoBase64("aadhaar-back.jpg", Buffer.from("aadhaar-back-bytes").toString("base64"));
   const d = await db.getDb();
-  await d.runAsync("UPDATE students SET photoFile = ? WHERE id = ?;", "p1.jpg", s1);
+  await d.runAsync(
+    "UPDATE students SET photoFile = ?, idProofFile = ?, idProofBackFile = ? WHERE id = ?;",
+    "p1.jpg", "aadhaar-front.jpg", "aadhaar-back.jpg", s1
+  );
   await d.runAsync("UPDATE students SET photoFile = ? WHERE id = ?;", "p2.jpg", s2);
 
   const f1 = await fees.createFee({
@@ -114,20 +120,21 @@ async function run() {
   const ids = await seed();
   console.log("\n== a second branch, to prove the backup is not scoped ==");
   {
-    branches.setActiveBranchId("branch-kakkanad");
+    branches.setActiveBranchId("branch-Kalamassery");
     const kRoom = await rooms.createRoom({
       branchId: "", block: "K", roomNumber: "7", floor: "", capacity: 2,
       rent: 7000, deposit: 0, amenities: "", notes: "",
     });
     await inmates.createInmate({
-      admissionNo: "", fullName: "Kakkanad Person", phone: "9871234567",
+      admissionNo: "", fullName: "Kalamassery Person", phone: "9871234567",
       guardianName: "", guardianPhone: "", email: "", course: "", year: "",
-      address: "", idProof: "", photoFile: null, roomId: kRoom, branchId: "",
+      address: "", idProof: "", photoFile: null, idProofFile: null, idProofBackFile: null,
+      roomId: kRoom, branchId: "",
       status: "active", monthlyRent: 7000, billingCycleDays: 30,
       joinedOn: "2026-03-01", leftOn: null, notes: "",
     });
     const kOnly = await inmates.listInmates("", "all");
-    check("Kakkanad sees only its own inmate", kOnly.length === 1, "n=" + kOnly.length);
+    check("Kalamassery sees only its own inmate", kOnly.length === 1, "n=" + kOnly.length);
     // Export runs with a branch active; it must still capture everything.
     branches.setActiveBranchId("branch-thammanam");
   }
@@ -149,7 +156,7 @@ async function run() {
   check("export produced a file", exported.sizeBytes > 0, "size " + exported.sizeBytes);
   check("export reports encrypted", exported.encrypted === true);
   check("export counts every branch", exported.counts.students === 4, "n=" + exported.counts.students);
-  check("counts: 2 photos", exported.counts.photos === 2);
+  check("counts: profile photos plus both Aadhaar sides", exported.counts.photos === 4);
 
   const raw = h.files.get(exported.uri).toString("utf8");
   check("student name is not readable in ciphertext", !raw.includes("Rahul Sharma"));
@@ -208,7 +215,7 @@ async function run() {
 
   const result = await backup.restoreBackup(exported.uri, PASS);
   check("restore reported rows", result.rowsRestored > 0, "rows " + result.rowsRestored);
-  check("restore reported 2 photos", result.photosRestored === 2, "photos " + result.photosRestored);
+  check("restore reported all 4 photos", result.photosRestored === 4, "photos " + result.photosRestored);
 
   const after = await snapshot();
   console.log("\n== fidelity ==");
@@ -222,7 +229,9 @@ async function run() {
   check("students identical", norm(after.inmates) === norm(before.inmates));
   check("fee_records identical", norm(after.fee_records) === norm(before.fee_records));
   check("payments identical", norm(after.payments) === norm(before.payments));
-  check("settings identical", norm(after.settings) === norm(before.settings));
+  // Settings are per-phone config (active branch, admission counters, last-backup
+  // time) and are deliberately never imported from a backup -- see restoreBackup.
+  check("settings intentionally left empty on a wiped phone", after.settings.length === 0, "got " + after.settings.length);
   check("notices identical", norm(after.notices) === norm(before.notices));
   check("complaints identical", norm(after.complaints) === norm(before.complaints));
   const restoredComplaint = after.complaints[0];
@@ -237,12 +246,12 @@ async function run() {
     branches.setActiveBranchId("branch-thammanam");
     const t = await inmates.listInmates("", "all");
     check("Thammanam inmates came back", t.length === 3, "n=" + t.length);
-    check("and none of them belong to Kakkanad",
-      t.every((s) => s.fullName !== "Kakkanad Person"), t.map((s) => s.fullName).join(","));
+    check("and none of them belong to Kalamassery",
+      t.every((s) => s.fullName !== "Kalamassery Person"), t.map((s) => s.fullName).join(","));
 
-    branches.setActiveBranchId("branch-kakkanad");
+    branches.setActiveBranchId("branch-Kalamassery");
     const k = await inmates.listInmates("", "all");
-    check("Kakkanad inmate came back too", k.length === 1 && k[0].fullName === "Kakkanad Person",
+    check("Kalamassery inmate came back too", k.length === 1 && k[0].fullName === "Kalamassery Person",
       k.map((s) => s.fullName).join(","));
     check("its room came back as well", (await rooms.listRooms()).length === 1);
 
@@ -265,6 +274,10 @@ async function run() {
   const p2 = await photos.readPhotoBase64("p2.jpg");
   check("photo 1 bytes identical", p1 === Buffer.from("fake-jpeg-bytes-one").toString("base64"));
   check("photo 2 bytes identical", p2 === Buffer.from("fake-jpeg-bytes-two éñ").toString("base64"));
+  const aadhaarFront = await photos.readPhotoBase64("aadhaar-front.jpg");
+  const aadhaarBack = await photos.readPhotoBase64("aadhaar-back.jpg");
+  check("Aadhaar front bytes identical", aadhaarFront === Buffer.from("aadhaar-front-bytes").toString("base64"));
+  check("Aadhaar back bytes identical", aadhaarBack === Buffer.from("aadhaar-back-bytes").toString("base64"));
 
   console.log("\n== relationships still work after restore ==");
   const list = await inmates.listInmates("", "active");
@@ -291,7 +304,7 @@ async function run() {
   const autoResult = await backup.restoreBackup(auto.uri, null);
   const afterAuto = await snapshot();
   check("auto backup restores inmates", afterAuto.inmates.length === 4, "got " + afterAuto.inmates.length);
-  check("auto backup restores photos", autoResult.photosRestored === 2);
+  check("auto backup restores photos", autoResult.photosRestored === 4);
   check("auto backup fidelity", norm(afterAuto.inmates) === norm(before.inmates));
 
   console.log("\n== chunking: large dataset spans many chunks ==");
@@ -323,7 +336,7 @@ async function run() {
   const bigResult = await backup.restoreBackup(bigExport.uri, PASS);
   const bigAfter = await snapshot();
   check("all 64 inmates restored", bigAfter.inmates.length === 64, "got " + bigAfter.inmates.length);
-  check("all 62 photos restored", bigResult.photosRestored === 62, "got " + bigResult.photosRestored);
+  check("all 64 photos restored", bigResult.photosRestored === 64, "got " + bigResult.photosRestored);
   check("large dataset identical", norm(bigAfter.inmates) === norm(bigBefore.inmates));
   const bulkPhoto = await photos.readPhotoBase64("bulk7.jpg");
   check("bulk photo bytes identical", bulkPhoto === Buffer.alloc(20000, 7).toString("base64"));

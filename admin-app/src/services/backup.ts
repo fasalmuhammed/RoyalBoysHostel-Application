@@ -1,8 +1,8 @@
 import { Directory, File, Paths } from "expo-file-system";
 import CryptoJS from "crypto-js";
 
-import { closeDb, getDb, wipeAllData } from "@/db";
-import { BACKUP_TABLES, SCHEMA_VERSION } from "@/db/schema";
+import { closeDb, getDb } from "@/db";
+import { BACKUP_TABLES, BackupTable, SCHEMA_VERSION } from "@/db/schema";
 import {
   CHUNK_SIZE,
   KDF_ITERATIONS,
@@ -15,7 +15,7 @@ import {
   sealChunk,
   textToBytes,
 } from "./crypto";
-import { deleteAllPhotos, photosDirectory, readPhotoBase64, writePhotoBase64 } from "./photos";
+import { photosDirectory, readPhotoBase64, writePhotoBase64 } from "./photos";
 import { loadSettings, saveSettings } from "./settings";
 
 /**
@@ -63,7 +63,16 @@ export interface BackupHeader {
 }
 
 export interface BackupProgress {
-  phase: "reading" | "encrypting" | "writing" | "verifying" | "decrypting" | "restoring" | "done";
+  phase:
+    | "reading"
+    | "encrypting"
+    | "writing"
+    | "uploading"
+    | "downloading"
+    | "verifying"
+    | "decrypting"
+    | "restoring"
+    | "done";
   /** 0..1, or null when the total is not yet known. */
   fraction: number | null;
   detail: string;
@@ -166,8 +175,13 @@ async function collectCounts(): Promise<BackupCounts> {
     const row = await db.getFirstAsync<{ n: number }>(`SELECT COUNT(*) AS n FROM ${table};`);
     return row?.n ?? 0;
   };
+  // Counts photo *files*, not students -- a student can have both a profile
+  // photo and both sides of an ID proof, so this is a sum of three columns.
   const photos = await db.getFirstAsync<{ n: number }>(
-    "SELECT COUNT(*) AS n FROM students WHERE photoFile IS NOT NULL AND photoFile <> '';"
+    `SELECT
+       (SELECT COUNT(*) FROM students WHERE photoFile IS NOT NULL AND photoFile <> '') +
+       (SELECT COUNT(*) FROM students WHERE idProofFile IS NOT NULL AND idProofFile <> '') +
+       (SELECT COUNT(*) FROM students WHERE idProofBackFile IS NOT NULL AND idProofBackFile <> '') AS n;`
   );
   return {
     students: await one("students"),
@@ -254,16 +268,29 @@ export async function writeBackup(
     }
 
     // Photos last: they dominate the file, so progress stays meaningful.
-    const withPhotos = await db.getAllAsync<{ photoFile: string }>(
-      "SELECT photoFile FROM students WHERE photoFile IS NOT NULL AND photoFile <> '';"
+    // Every student can carry three image files -- their profile photo and
+    // both sides of their ID proof -- all stored the same way in the
+    // photos directory, so they are gathered into one flat list here.
+    const photoRows = await db.getAllAsync<{
+      photoFile: string | null;
+      idProofFile: string | null;
+      idProofBackFile: string | null;
+    }>(
+      `SELECT photoFile, idProofFile, idProofBackFile FROM students
+       WHERE (photoFile IS NOT NULL AND photoFile <> '')
+          OR (idProofFile IS NOT NULL AND idProofFile <> '')
+          OR (idProofBackFile IS NOT NULL AND idProofBackFile <> '');`
+    );
+    const photoFiles = photoRows.flatMap((row) =>
+      [row.photoFile, row.idProofFile, row.idProofBackFile].filter((f): f is string => Boolean(f))
     );
     let photoIndex = 0;
-    for (const { photoFile } of withPhotos) {
+    for (const photoFile of photoFiles) {
       photoIndex += 1;
       onProgress?.({
         phase: "encrypting",
         fraction: done / totalUnits,
-        detail: `Photo ${photoIndex} of ${withPhotos.length}`,
+        detail: `Photo ${photoIndex} of ${photoFiles.length}`,
       });
       const base64 = await readPhotoBase64(photoFile);
       // A missing file is recorded as absent rather than aborting the whole
@@ -437,18 +464,31 @@ export function readBackupHeader(fileUri: string): BackupHeader {
 
 export interface RestoreResult {
   counts: BackupCounts;
+  /** Rows actually added, keyed by table. Rows already present on this phone are not counted. */
+  inserted: Partial<Record<BackupTable, number>>;
+  /** Rows from the backup that were skipped because a matching row already existed. */
+  skipped: Partial<Record<BackupTable, number>>;
   rowsRestored: number;
   photosRestored: number;
+  photosSkipped: number;
   safetySnapshotUri: string | null;
 }
 
 /**
- * Replaces everything on this phone with the contents of `fileUri`.
+ * Adds the contents of `fileUri` to whatever is already on this phone.
+ *
+ * This is a merge, not a replace: existing rows are never touched, and a
+ * backup row that shares an id (or, for fee records, a studentId+period) with
+ * one already on the phone is skipped rather than overwriting it. That makes
+ * importing a backup from another phone -- or re-importing the same file --
+ * safe to run any number of times without losing local edits. `settings`
+ * (active branch, admission counters, last-backup time) is per-phone
+ * configuration and is deliberately never imported.
  *
  * Order of operations is deliberate:
  *   1. verify the MAC over the entire file,
  *   2. take a safety snapshot of current data,
- *   3. only then wipe and load.
+ *   3. only then merge.
  *
  * Verifying first means a truncated download or a wrong passphrase costs
  * nothing -- the existing data is still untouched when the error is raised.
@@ -519,11 +559,6 @@ export async function restoreBackup(
     safetySnapshotUri = null;
   }
 
-  onProgress?.({ phase: "restoring", fraction: 0, detail: "Clearing current data" });
-  await wipeAllData();
-  deleteAllPhotos();
-  photosDirectory();
-
   const db = await getDb();
   let rowsRestored = 0;
   let photosRestored = 0;
@@ -542,6 +577,9 @@ export async function restoreBackup(
       return; // Skip an unreadable line rather than abandoning the restore.
     }
     if (parsed.t === "row" && parsed.table && parsed.d) {
+      // Settings are per-phone configuration, not hostel records -- importing
+      // another phone's active branch or admission counter would be wrong.
+      if (parsed.table === "settings") return;
       pendingRows.push({ table: parsed.table, row: parsed.d });
     } else if (parsed.t === "photo" && parsed.f && parsed.b) {
       photoWrites.push({ file: parsed.f, base64: parsed.b });
@@ -580,7 +618,12 @@ export async function restoreBackup(
 
   // Insert with foreign keys off: rows arrive in table order, but a student can
   // reference a room that has not been re-inserted yet within the same pass.
-  onProgress?.({ phase: "restoring", fraction: 0.5, detail: "Restoring records" });
+  // OR IGNORE is what makes this a merge: a row whose primary key (or, for fee
+  // records, whose studentId+period) already exists is silently skipped,
+  // leaving the phone's own copy untouched rather than overwriting it.
+  onProgress?.({ phase: "restoring", fraction: 0.5, detail: "Merging records" });
+  const inserted: Partial<Record<BackupTable, number>> = {};
+  const skipped: Partial<Record<BackupTable, number>> = {};
   await db.execAsync("PRAGMA foreign_keys = OFF;");
   try {
     await db.withExclusiveTransactionAsync(async (txn) => {
@@ -589,20 +632,33 @@ export async function restoreBackup(
         if (columns.length === 0) continue;
         const placeholders = columns.map(() => "?").join(", ");
         const values = columns.map((key) => row[key] as string | number | null);
-        await txn.runAsync(
-          `INSERT OR REPLACE INTO ${table} (${columns.join(", ")}) VALUES (${placeholders});`,
+        const result = await txn.runAsync(
+          `INSERT OR IGNORE INTO ${table} (${columns.join(", ")}) VALUES (${placeholders});`,
           values
         );
-        rowsRestored += 1;
+        const key = table as BackupTable;
+        if (result.changes > 0) {
+          inserted[key] = (inserted[key] ?? 0) + 1;
+          rowsRestored += 1;
+        } else {
+          skipped[key] = (skipped[key] ?? 0) + 1;
+        }
       }
     });
   } finally {
     await db.execAsync("PRAGMA foreign_keys = ON;");
   }
 
-  onProgress?.({ phase: "restoring", fraction: 0.8, detail: "Restoring photos" });
+  onProgress?.({ phase: "restoring", fraction: 0.8, detail: "Adding photos" });
+  let photosSkipped = 0;
   for (const photo of photoWrites) {
     try {
+      // Photo filenames are freshly generated ids (see services/photos.ts), so a
+      // collision means this exact photo is already on the phone -- keep it.
+      if (new File(photosDirectory(), photo.file).exists) {
+        photosSkipped += 1;
+        continue;
+      }
       writePhotoBase64(photo.file, photo.base64);
       photosRestored += 1;
     } catch {
@@ -610,12 +666,15 @@ export async function restoreBackup(
     }
   }
 
-  onProgress?.({ phase: "done", fraction: 1, detail: "Restore complete" });
+  onProgress?.({ phase: "done", fraction: 1, detail: "Import complete" });
 
   return {
     counts: header.counts,
+    inserted,
+    skipped,
     rowsRestored,
     photosRestored,
+    photosSkipped,
     safetySnapshotUri,
   };
 }

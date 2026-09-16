@@ -7,7 +7,7 @@ import type { CompositeScreenProps } from "@react-navigation/native";
 import type { BottomTabScreenProps } from "@react-navigation/bottom-tabs";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 
-import { colors, font, fontSize, radius, spacing } from "@/constants/theme";
+import { colors, fontSize, radius, spacing, type } from "@/constants/theme";
 import { useApp } from "@/context/AppContext";
 import { formatDateTime } from "@/utils/format";
 import type { MainTabParamList, RootStackParamList } from "@/navigation/types";
@@ -46,6 +46,12 @@ export default function MoreScreen({ navigation }: Props) {
         </Pressable>
 
         <View style={styles.group}>
+          <Row
+            icon="alarm-outline"
+            label="Dues & collections"
+            sublabel="Who owes what, today and this week"
+            onPress={() => navigation.navigate("Dues")}
+          />
           <Row
             icon="search-outline"
             label="Search everything"
@@ -154,7 +160,7 @@ function Row({
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.background },
   content: { padding: spacing.lg, paddingBottom: spacing.xl * 2 },
-  title: { fontSize: fontSize.xxl, fontFamily: font.extrabold, color: colors.text, marginBottom: spacing.lg },
+  title: { ...type.title, color: colors.text, marginBottom: spacing.lg },
   branchCard: {
     flexDirection: "row",
     alignItems: "center",
@@ -172,9 +178,9 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  branchBadgeText: { color: colors.goldLight, fontSize: fontSize.lg, fontFamily: font.extrabold },
+  branchBadgeText: { color: colors.goldLight, ...type.section },
   branchLabel: { fontSize: fontSize.xs, color: colors.textMuted },
-  branchName: { fontSize: fontSize.md, fontFamily: font.bold, color: colors.text, marginTop: 1 },
+  branchName: { ...type.bodyStrong, color: colors.text, marginTop: 1 },
   switchPill: {
     flexDirection: "row",
     alignItems: "center",
@@ -184,7 +190,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.sm + 2,
     paddingVertical: 5,
   },
-  switchPillText: { fontSize: fontSize.xs, fontFamily: font.bold, color: colors.primary },
+  switchPillText: { ...type.label, color: colors.primary },
   group: {
     backgroundColor: colors.surface,
     borderRadius: radius.lg,
@@ -208,7 +214,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  rowLabel: { fontSize: fontSize.md, fontFamily: font.semibold, color: colors.text },
+  rowLabel: { ...type.bodyStrong, color: colors.text },
   rowSublabel: { fontSize: fontSize.xs, color: colors.textMuted, marginTop: 2 },
   footer: {
     fontSize: fontSize.xs,

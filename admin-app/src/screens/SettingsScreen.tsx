@@ -6,7 +6,7 @@ import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { Callout, CalloutText, Card, SectionTitle } from "@/components/Base";
 import Button from "@/components/Button";
 import Input from "@/components/Input";
-import { colors, font, fontSize, spacing } from "@/constants/theme";
+import { colors, fontSize, spacing, type } from "@/constants/theme";
 import { useApp } from "@/context/AppContext";
 import {
   BiometricSupport,
@@ -44,7 +44,7 @@ export default function SettingsScreen({ navigation }: Props) {
     setSaving(true);
     try {
       await updateSettings({
-        hostelName: hostelName.trim() || "My Hostel",
+        hostelName: hostelName.trim() || "Royal Boys Hostel",
         countryCode: countryCode.replace(/\D/g, "") || "91",
         currencySymbol: currencySymbol.trim() || "₹",
         backupReminderDays: safeDays,
@@ -168,6 +168,6 @@ const styles = StyleSheet.create({
   content: { padding: spacing.lg, paddingBottom: spacing.xl * 2 },
   pair: { flexDirection: "row", gap: spacing.md },
   switchRow: { flexDirection: "row", alignItems: "center", gap: spacing.md },
-  switchLabel: { fontSize: fontSize.md, fontFamily: font.semibold, color: colors.text },
+  switchLabel: { ...type.bodyStrong, color: colors.text },
   switchHint: { fontSize: fontSize.sm, color: colors.textMuted, marginTop: 2, lineHeight: 18 },
 });

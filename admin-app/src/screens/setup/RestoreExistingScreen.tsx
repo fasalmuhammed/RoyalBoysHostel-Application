@@ -8,7 +8,7 @@ import { Callout, CalloutText, Card, Screen } from "@/components/Base";
 import Button from "@/components/Button";
 import Input from "@/components/Input";
 import { ProgressOverlay } from "@/components/Controls";
-import { colors, font, fontSize, spacing } from "@/constants/theme";
+import { colors, font, fontSize, spacing, type } from "@/constants/theme";
 import { useApp } from "@/context/AppContext";
 import {
   BackupError,
@@ -162,7 +162,7 @@ export default function RestoreExistingScreen({ navigation }: Props) {
       <Button
         title="Skip — start fresh instead"
         variant="ghost"
-        onPress={() => navigation.navigate("HostelDetails")}
+        onPress={() => navigation.navigate("CreatePin")}
         style={{ marginTop: spacing.sm }}
       />
 
@@ -186,7 +186,7 @@ function Summary({ label, value }: { label: string; value: string }) {
 }
 
 const styles = StyleSheet.create({
-  title: { fontSize: fontSize.xxl, fontFamily: font.extrabold, color: colors.text },
+  title: { ...type.title, color: colors.text },
   subtitle: {
     fontSize: fontSize.md,
     color: colors.textMuted,
@@ -196,7 +196,7 @@ const styles = StyleSheet.create({
   },
   mono: { fontFamily: font.bold, color: colors.text },
   fileRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
-  fileName: { flex: 1, fontSize: fontSize.md, fontFamily: font.bold, color: colors.text },
+  fileName: { flex: 1, ...type.bodyStrong, color: colors.text },
   summary: {
     flexDirection: "row",
     flexWrap: "wrap",
@@ -204,6 +204,6 @@ const styles = StyleSheet.create({
     rowGap: spacing.md,
   },
   summaryItem: { width: "33%" },
-  summaryValue: { fontSize: fontSize.md, fontFamily: font.bold, color: colors.text },
+  summaryValue: { ...type.bodyStrong, color: colors.text },
   summaryLabel: { fontSize: fontSize.xs, color: colors.textMuted, marginTop: 1 },
 });

@@ -19,8 +19,8 @@ import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { Callout, CalloutText, SectionTitle } from "@/components/Base";
 import Button from "@/components/Button";
 import Input, { PickerField } from "@/components/Input";
-import { OptionPicker } from "@/components/Controls";
-import { colors, font, fontSize, radius, spacing } from "@/constants/theme";
+import { OptionPicker, SegmentedTabs } from "@/components/Controls";
+import { colors, font, fontSize, radius, spacing, type } from "@/constants/theme";
 import { useApp } from "@/context/AppContext";
 import { useAsyncData } from "@/utils/hooks";
 import {
@@ -35,9 +35,10 @@ import { listRooms } from "@/services/rooms";
 import { deletePhoto, photoUri, savePhoto } from "@/services/photos";
 import { formatMoney, initials, toIsoDate } from "@/utils/format";
 import { isValidEmail, isValidPhone, parseAmount } from "@/utils/validate";
-import { DEFAULT_CYCLE_DAYS } from "@/services/fees";
+import { createFee, DEFAULT_CYCLE_DAYS, DuplicateInvoiceError, stayDueDateFor } from "@/services/fees";
 import { formatInmateId } from "@/services/branches";
 import { successFeedback } from "@/utils/haptics";
+import { AdmissionType } from "@/types";
 import type { RootStackParamList } from "@/navigation/types";
 
 type Props = NativeStackScreenProps<RootStackParamList, "InmateForm">;
@@ -54,16 +55,25 @@ const EMPTY: InmateInput = {
   address: "",
   idProof: "",
   photoFile: null,
+  idProofFile: null,
+  idProofBackFile: null,
   roomId: null,
   // Left blank on purpose: createInmate stamps the active branch.
   branchId: "",
   status: "active",
   monthlyRent: 0,
   billingCycleDays: DEFAULT_CYCLE_DAYS,
+  admissionType: "monthly",
+  stayDays: null,
   joinedOn: toIsoDate(),
   leftOn: null,
   notes: "",
 };
+
+const BILLING_OPTIONS: { key: AdmissionType; label: string }[] = [
+  { key: "monthly", label: "Monthly" },
+  { key: "stay", label: "Fixed days" },
+];
 
 function roomLabelOf(room: { block: string; roomNumber: string }): string {
   return room.block ? `${room.block}-${room.roomNumber}` : room.roomNumber;
@@ -80,11 +90,13 @@ export default function InmateFormScreen({ navigation, route }: Props) {
   });
   // Kept as text so the field can be empty while typing; parsed on save.
   const [rentText, setRentText] = useState("");
-  const [cycleText, setCycleText] = useState(String(DEFAULT_CYCLE_DAYS));
+  const [stayDaysText, setStayDaysText] = useState("");
   const [rentTouched, setRentTouched] = useState(false);
   const [errors, setErrors] = useState<Partial<Record<keyof InmateInput, string>>>({});
   const [saving, setSaving] = useState(false);
   const [capturing, setCapturing] = useState(false);
+  const [capturingIdProof, setCapturingIdProof] = useState(false);
+  const [capturingIdProofBack, setCapturingIdProofBack] = useState(false);
   const [roomPickerOpen, setRoomPickerOpen] = useState(false);
   const [loaded, setLoaded] = useState(!isEditing);
 
@@ -98,8 +110,26 @@ export default function InmateFormScreen({ navigation, route }: Props) {
    */
   const pendingPhotoRef = useRef<string | null>(null);
   const originalPhotoRef = useRef<string | null>(null);
-  /** Set once the row owning the pending photo is written. */
+  const pendingIdProofRef = useRef<string | null>(null);
+  const originalIdProofRef = useRef<string | null>(null);
+  const pendingIdProofBackRef = useRef<string | null>(null);
+  const originalIdProofBackRef = useRef<string | null>(null);
+  /** Set once the row owning the pending photos is written. */
   const committedRef = useRef(false);
+
+  type PhotoKind = "photo" | "idProof" | "idProofBack";
+  const refsFor = (kind: PhotoKind) =>
+    kind === "photo"
+      ? { pending: pendingPhotoRef, original: originalPhotoRef }
+      : kind === "idProof"
+        ? { pending: pendingIdProofRef, original: originalIdProofRef }
+        : { pending: pendingIdProofBackRef, original: originalIdProofBackRef };
+
+  const fieldFor = (kind: PhotoKind): "photoFile" | "idProofFile" | "idProofBackFile" =>
+    kind === "photo" ? "photoFile" : kind === "idProof" ? "idProofFile" : "idProofBackFile";
+
+  const labelFor = (kind: PhotoKind): string =>
+    kind === "photo" ? "inmate photo" : kind === "idProof" ? "Aadhaar front photo" : "Aadhaar back photo";
 
   const { data: rooms } = useAsyncData(() => listRooms(), []);
   const { data: nextAdmissionNo } = useAsyncData(
@@ -124,20 +154,26 @@ export default function InmateFormScreen({ navigation, route }: Props) {
         address: inmate.address,
         idProof: inmate.idProof,
         photoFile: inmate.photoFile,
+        idProofFile: inmate.idProofFile,
+        idProofBackFile: inmate.idProofBackFile,
         roomId: inmate.roomId,
         branchId: inmate.branchId,
         status: inmate.status,
         monthlyRent: inmate.monthlyRent,
         billingCycleDays: inmate.billingCycleDays,
+        admissionType: inmate.admissionType,
+        stayDays: inmate.stayDays,
         joinedOn: inmate.joinedOn,
         leftOn: inmate.leftOn,
         notes: inmate.notes,
       });
       setRentText(inmate.monthlyRent > 0 ? String(inmate.monthlyRent) : "");
-      setCycleText(String(inmate.billingCycleDays || DEFAULT_CYCLE_DAYS));
+      setStayDaysText(inmate.stayDays ? String(inmate.stayDays) : "");
       // An existing inmate already has an agreed rent; never overwrite it.
       setRentTouched(true);
       originalPhotoRef.current = inmate.photoFile;
+      originalIdProofRef.current = inmate.idProofFile;
+      originalIdProofBackRef.current = inmate.idProofBackFile;
       setLoaded(true);
     })();
   }, [studentId]);
@@ -150,13 +186,15 @@ export default function InmateFormScreen({ navigation, route }: Props) {
    * Fills the rent from the allocated room.
    *
    * Only until the admin types their own figure -- `rentTouched` stops a later
-   * room change from silently overwriting a negotiated rate.
+   * room change from silently overwriting a negotiated rate. Only for monthly
+   * admissions -- a room's monthly rate is not a sane default for a fixed-days
+   * stay's flat total.
    */
   useEffect(() => {
-    if (rentTouched || !form.roomId || !rooms) return;
+    if (form.admissionType !== "monthly" || rentTouched || !form.roomId || !rooms) return;
     const room = rooms.find((r) => r.id === form.roomId);
     if (room && room.rent > 0) setRentText(String(room.rent));
-  }, [form.roomId, rooms, rentTouched]);
+  }, [form.roomId, form.admissionType, rooms, rentTouched]);
 
   const set = <K extends keyof InmateInput>(key: K, value: InmateInput[K]) => {
     setForm((current) => ({ ...current, [key]: value }));
@@ -166,12 +204,16 @@ export default function InmateFormScreen({ navigation, route }: Props) {
   /**
    * Captures or picks a photo, compresses it, and stores it immediately.
    *
-   * The file is written before the inmate row is saved, so `pendingPhoto`
-   * tracks it -- if the admin backs out without saving, cleanup removes the
-   * orphan rather than leaving it on disk forever.
+   * The file is written before the inmate row is saved, so the matching
+   * `pending*Ref` tracks it -- if the admin backs out without saving, cleanup
+   * removes the orphan rather than leaving it on disk forever. Shared between
+   * the profile photo and the ID proof photo -- both are stored the same way,
+   * just under a different field on the inmate.
    */
-  const choosePhoto = async (source: "camera" | "library") => {
-    setCapturing(true);
+  const choosePhoto = async (kind: PhotoKind, source: "camera" | "library") => {
+    const setCapturingFlag =
+      kind === "photo" ? setCapturing : kind === "idProof" ? setCapturingIdProof : setCapturingIdProofBack;
+    setCapturingFlag(true);
     try {
       const permission =
         source === "camera"
@@ -181,7 +223,7 @@ export default function InmateFormScreen({ navigation, route }: Props) {
       if (!permission.granted) {
         Alert.alert(
           source === "camera" ? "Camera access needed" : "Photo access needed",
-          "Allow access in your phone's settings to add a inmate photo."
+          `Allow access in your phone's settings to add the ${labelFor(kind)}.`
         );
         return;
       }
@@ -189,7 +231,8 @@ export default function InmateFormScreen({ navigation, route }: Props) {
       const options: ImagePicker.ImagePickerOptions = {
         mediaTypes: ["images"],
         allowsEditing: true,
-        aspect: [1, 1],
+        // The profile photo is a square headshot; ID cards are landscape.
+        aspect: kind === "photo" ? [1, 1] : [1.6, 1],
         quality: 1,
       };
 
@@ -201,32 +244,35 @@ export default function InmateFormScreen({ navigation, route }: Props) {
       if (result.canceled || !result.assets?.[0]) return;
 
       const stored = await savePhoto(result.assets[0].uri);
+      const { pending, original } = refsFor(kind);
       // Drop a photo taken earlier in this same session; it was never saved.
-      const superseded = pendingPhotoRef.current;
-      if (superseded && superseded !== originalPhotoRef.current) deletePhoto(superseded);
-      pendingPhotoRef.current = stored;
-      set("photoFile", stored);
+      const superseded = pending.current;
+      if (superseded && superseded !== original.current) deletePhoto(superseded);
+      pending.current = stored;
+      set(fieldFor(kind), stored);
     } catch {
       Alert.alert("Could not add photo", "Something went wrong while saving the image.");
     } finally {
-      setCapturing(false);
+      setCapturingFlag(false);
     }
   };
 
-  const promptPhoto = () => {
-    Alert.alert("Inmate photo", "Where should the photo come from?", [
-      { text: "Take photo", onPress: () => choosePhoto("camera") },
-      { text: "Choose from gallery", onPress: () => choosePhoto("library") },
-      ...(form.photoFile
+  const promptPhoto = (kind: PhotoKind) => {
+    const current = form[fieldFor(kind)];
+    const { pending, original } = refsFor(kind);
+    Alert.alert(kind === "photo" ? "Inmate photo" : kind === "idProof" ? "Aadhaar front" : "Aadhaar back", "Where should the photo come from?", [
+      { text: "Take photo", onPress: () => choosePhoto(kind, "camera") },
+      { text: "Choose from gallery", onPress: () => choosePhoto(kind, "library") },
+      ...(current
         ? [
             {
               text: "Remove photo",
               style: "destructive" as const,
               onPress: () => {
-                const dropped = pendingPhotoRef.current;
-                if (dropped && dropped !== originalPhotoRef.current) deletePhoto(dropped);
-                pendingPhotoRef.current = null;
-                set("photoFile", null);
+                const dropped = pending.current;
+                if (dropped && dropped !== original.current) deletePhoto(dropped);
+                pending.current = null;
+                set(fieldFor(kind), null);
               },
             },
           ]
@@ -243,12 +289,16 @@ export default function InmateFormScreen({ navigation, route }: Props) {
       next.guardianPhone = "That phone number looks wrong.";
     }
     if (!isValidEmail(form.email)) next.email = "That email address looks wrong.";
+    if (!form.idProofFile) next.idProofFile = "Add a clear photo of the Aadhaar front.";
+    if (!form.idProofBackFile) next.idProofBackFile = "Add a clear photo of the Aadhaar back.";
 
     if (parseAmount(rentText) < 0) next.monthlyRent = "Rent cannot be negative.";
 
-    const cycle = Number.parseInt(cycleText, 10);
-    if (!Number.isFinite(cycle) || cycle < 1 || cycle > 365) {
-      next.billingCycleDays = "Enter a cycle between 1 and 365 days.";
+    if (form.admissionType === "stay") {
+      const days = Number.parseInt(stayDaysText, 10);
+      if (!Number.isFinite(days) || days < 1 || days > 365) {
+        next.stayDays = "Enter a stay length between 1 and 365 days.";
+      }
     }
 
     setErrors(next);
@@ -260,17 +310,51 @@ export default function InmateFormScreen({ navigation, route }: Props) {
 
     setSaving(true);
     try {
+      const isNewStay = !studentId && form.admissionType === "stay";
+      const stayDays = form.admissionType === "stay" ? Number.parseInt(stayDaysText, 10) : null;
+
       const payload: InmateInput = {
         ...form,
         fullName: form.fullName.trim(),
         monthlyRent: parseAmount(rentText),
-        billingCycleDays: Number.parseInt(cycleText, 10) || DEFAULT_CYCLE_DAYS,
+        stayDays,
       };
+
+      let newId: string | null = null;
       if (studentId) {
         await updateInmate(studentId, payload);
       } else {
-        await createInmate(payload);
+        newId = await createInmate(payload);
       }
+
+      // Fixed-days stays are billed exactly once, immediately -- never on edit,
+      // so changing an existing stay's day count later can't rewrite a bill
+      // that may already have payments recorded against it.
+      if (isNewStay && newId && stayDays) {
+        try {
+          await createFee({
+            studentId: newId,
+            period: payload.joinedOn.slice(0, 7),
+            rent: payload.monthlyRent,
+            electricity: 0,
+            water: 0,
+            other: 0,
+            discount: 0,
+            dueDate: stayDueDateFor(payload.joinedOn, stayDays),
+            note: "",
+          });
+        } catch (feeError) {
+          // The inmate is already saved -- a billing hiccup must not look like
+          // the admission itself failed, or cost the admin the record.
+          Alert.alert(
+            "Inmate saved, but the bill could not be raised",
+            (feeError instanceof DuplicateInvoiceError || feeError instanceof Error
+              ? feeError.message
+              : "Please try again.") + " Raise it manually from this inmate's page."
+          );
+        }
+      }
+
       // Committed: the photo now belongs to a row, so it must not be cleaned up.
       successFeedback();
       committedRef.current = true;
@@ -295,15 +379,22 @@ export default function InmateFormScreen({ navigation, route }: Props) {
    */
   useEffect(
     () => () => {
-      const pending = pendingPhotoRef.current;
-      if (!committedRef.current && pending && pending !== originalPhotoRef.current) {
-        deletePhoto(pending);
+      if (committedRef.current) return;
+      const pendingPhoto = pendingPhotoRef.current;
+      if (pendingPhoto && pendingPhoto !== originalPhotoRef.current) deletePhoto(pendingPhoto);
+      const pendingIdProof = pendingIdProofRef.current;
+      if (pendingIdProof && pendingIdProof !== originalIdProofRef.current) deletePhoto(pendingIdProof);
+      const pendingIdProofBack = pendingIdProofBackRef.current;
+      if (pendingIdProofBack && pendingIdProofBack !== originalIdProofBackRef.current) {
+        deletePhoto(pendingIdProofBack);
       }
     },
     []
   );
 
   const previewUri = photoUri(form.photoFile);
+  const idProofPreviewUri = photoUri(form.idProofFile);
+  const idProofBackPreviewUri = photoUri(form.idProofBackFile);
   const selectedRoom = rooms?.find((room) => room.id === form.roomId);
 
   if (!loaded) {
@@ -326,7 +417,7 @@ export default function InmateFormScreen({ navigation, route }: Props) {
           showsVerticalScrollIndicator={false}
         >
           <View style={styles.photoBlock}>
-            <Pressable onPress={promptPhoto} disabled={capturing} style={styles.photoTarget}>
+            <Pressable onPress={() => promptPhoto("photo")} disabled={capturing} style={styles.photoTarget}>
               {previewUri ? (
                 <Image source={{ uri: previewUri }} style={styles.photo} />
               ) : (
@@ -436,37 +527,69 @@ export default function InmateFormScreen({ navigation, route }: Props) {
           />
 
           <SectionTitle title="Fees" />
-          <Input
-            label="Monthly rent"
-            value={rentText}
-            onChangeText={(t) => {
-              setRentText(t);
-              setRentTouched(true);
-              setErrors((current) => ({ ...current, monthlyRent: undefined }));
-            }}
-            placeholder="0"
-            keyboardType="numeric"
-            icon="cash-outline"
-            error={errors.monthlyRent}
-            hint={
-              selectedRoom && !rentTouched
-                ? `Filled in from room ${roomLabelOf(selectedRoom)}. Change it if this inmate pays something different.`
-                : "What this inmate pays per billing cycle."
-            }
-          />
-          <Input
-            label="Billing cycle (days)"
-            value={cycleText}
-            onChangeText={(t) => {
-              setCycleText(t.replace(/\D/g, "").slice(0, 3));
-              setErrors((current) => ({ ...current, billingCycleDays: undefined }));
-            }}
-            placeholder={String(DEFAULT_CYCLE_DAYS)}
-            keyboardType="number-pad"
-            icon="calendar-outline"
-            error={errors.billingCycleDays}
-            hint={`Bills fall due this many days into the period. ${DEFAULT_CYCLE_DAYS} days is a normal month.`}
-          />
+          <View style={{ marginBottom: spacing.md }}>
+            <Text style={styles.fieldLabel}>Billing</Text>
+            <SegmentedTabs
+              value={form.admissionType}
+              onChange={(key) => set("admissionType", key)}
+              options={BILLING_OPTIONS}
+            />
+          </View>
+
+          {form.admissionType === "monthly" ? (
+            <Input
+              label="Monthly rent"
+              value={rentText}
+              onChangeText={(t) => {
+                setRentText(t);
+                setRentTouched(true);
+                setErrors((current) => ({ ...current, monthlyRent: undefined }));
+              }}
+              placeholder="0"
+              keyboardType="numeric"
+              icon="cash-outline"
+              error={errors.monthlyRent}
+              hint={
+                selectedRoom && !rentTouched
+                  ? `Filled in from room ${roomLabelOf(selectedRoom)}. Change it if this inmate pays something different.`
+                  : "What this inmate pays each month. Bills fall due on the same day of the month as \"Joined on\", below."
+              }
+            />
+          ) : (
+            <>
+              <Input
+                label="Rent for the stay"
+                value={rentText}
+                onChangeText={(t) => {
+                  setRentText(t);
+                  setRentTouched(true);
+                  setErrors((current) => ({ ...current, monthlyRent: undefined }));
+                }}
+                placeholder="0"
+                keyboardType="numeric"
+                icon="cash-outline"
+                error={errors.monthlyRent}
+                hint="The flat total for the whole stay, not a monthly rate."
+              />
+              <Input
+                label="Number of days"
+                value={stayDaysText}
+                onChangeText={(t) => {
+                  setStayDaysText(t.replace(/\D/g, "").slice(0, 3));
+                  setErrors((current) => ({ ...current, stayDays: undefined }));
+                }}
+                placeholder="e.g. 10"
+                keyboardType="number-pad"
+                icon="calendar-outline"
+                error={errors.stayDays}
+                hint={
+                  isEditing
+                    ? "Changing this does not change any bill already raised for this inmate."
+                    : "One bill for this exact number of days is raised automatically when you save."
+                }
+              />
+            </>
+          )}
 
           <SectionTitle title="Guardian" />
           <Input
@@ -496,13 +619,59 @@ export default function InmateFormScreen({ navigation, route }: Props) {
             multiline
             icon="location-outline"
           />
-          <Input
-            label="ID proof"
-            value={form.idProof}
-            onChangeText={(t) => set("idProof", t)}
-            placeholder="e.g. Aadhaar last 4 digits"
-            icon="card-outline"
-          />
+          <Text style={styles.fieldLabel}>Aadhaar card</Text>
+          <Text style={styles.documentHint}>Both sides are required. Make sure all text is clear and readable.</Text>
+          <View style={styles.documentRow}>
+            <View style={styles.documentSide}>
+              <Text style={styles.documentSideLabel}>Front</Text>
+              <Pressable
+                onPress={() => promptPhoto("idProof")}
+                disabled={capturingIdProof}
+                style={styles.idProofTarget}
+              >
+                {idProofPreviewUri ? (
+                  <Image source={{ uri: idProofPreviewUri }} style={styles.idProofImage} />
+                ) : (
+                  <View style={[styles.idProofPlaceholder, errors.idProofFile ? styles.photoError : null]}>
+                    {capturingIdProof ? (
+                      <ActivityIndicator color={colors.primary} />
+                    ) : (
+                      <>
+                        <Ionicons name="card-outline" size={24} color={colors.primary} />
+                        <Text style={styles.idProofPlaceholderText}>Add front</Text>
+                      </>
+                    )}
+                  </View>
+                )}
+              </Pressable>
+              {errors.idProofFile ? <Text style={styles.errorText}>{errors.idProofFile}</Text> : null}
+            </View>
+
+            <View style={styles.documentSide}>
+              <Text style={styles.documentSideLabel}>Back</Text>
+              <Pressable
+                onPress={() => promptPhoto("idProofBack")}
+                disabled={capturingIdProofBack}
+                style={styles.idProofTarget}
+              >
+                {idProofBackPreviewUri ? (
+                  <Image source={{ uri: idProofBackPreviewUri }} style={styles.idProofImage} />
+                ) : (
+                  <View style={[styles.idProofPlaceholder, errors.idProofBackFile ? styles.photoError : null]}>
+                    {capturingIdProofBack ? (
+                      <ActivityIndicator color={colors.primary} />
+                    ) : (
+                      <>
+                        <Ionicons name="card-outline" size={24} color={colors.primary} />
+                        <Text style={styles.idProofPlaceholderText}>Add back</Text>
+                      </>
+                    )}
+                  </View>
+                )}
+              </Pressable>
+              {errors.idProofBackFile ? <Text style={styles.errorText}>{errors.idProofBackFile}</Text> : null}
+            </View>
+          </View>
           <Input
             label="Joined on"
             value={form.joinedOn}
@@ -520,8 +689,8 @@ export default function InmateFormScreen({ navigation, route }: Props) {
 
           <Callout tone="info" icon="phone-portrait-outline">
             <CalloutText>
-              This inmate is saved only on this phone. Export a backup from Settings so a lost
-              phone does not mean lost records.
+              The inmate is saved on this phone first. Use Cloud backup in Settings to keep an
+              encrypted recovery copy outside the phone.
             </CalloutText>
           </Callout>
 
@@ -601,7 +770,40 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.md - 2,
     marginBottom: spacing.md,
   },
-  admissionLabel: { fontSize: fontSize.sm, fontFamily: font.bold, color: colors.text },
+  admissionLabel: { ...type.bodyStrong, fontSize: fontSize.sm, color: colors.text },
   admissionHint: { fontSize: fontSize.xs, color: colors.textMuted, marginTop: 2 },
-  admissionValue: { fontSize: fontSize.xl, fontFamily: font.extrabold, color: colors.primary },
+  admissionValue: { ...type.title, color: colors.primary },
+  fieldLabel: {
+    fontSize: fontSize.sm,
+    color: colors.textMuted,
+    marginBottom: spacing.xs + 2,
+    fontFamily: font.semibold,
+  },
+  documentHint: { color: colors.textFaint, fontSize: fontSize.sm, marginBottom: spacing.sm },
+  documentRow: { flexDirection: "row", gap: spacing.md, marginBottom: spacing.md },
+  documentSide: { flex: 1 },
+  documentSideLabel: { ...type.bodyStrong, fontSize: fontSize.sm, color: colors.text, marginBottom: spacing.xs },
+  idProofTarget: { width: "100%", aspectRatio: 1.6 },
+  idProofImage: {
+    width: "100%",
+    height: "100%",
+    borderRadius: radius.md,
+    backgroundColor: colors.primaryLight,
+  },
+  idProofPlaceholder: {
+    width: "100%",
+    height: "100%",
+    borderRadius: radius.md,
+    backgroundColor: colors.primaryLight,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: spacing.xs,
+    borderWidth: 1.5,
+    borderColor: colors.border,
+    borderStyle: "dashed",
+  },
+  idProofPlaceholderText: { fontSize: fontSize.sm, color: colors.primary, fontFamily: font.semibold },
+  photoError: { borderColor: colors.danger },
+  errorText: { color: colors.danger, fontSize: fontSize.xs, marginTop: spacing.xs },
+  hint: { color: colors.textFaint, fontSize: fontSize.sm, marginTop: spacing.xs },
 });

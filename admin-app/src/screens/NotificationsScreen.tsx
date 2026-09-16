@@ -5,7 +5,7 @@ import { Ionicons } from "@expo/vector-icons";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 
 import { Loading } from "@/components/Base";
-import { colors, font, fontSize, radius, spacing, toneColor, Tone } from "@/constants/theme";
+import { Tone, colors, fontSize, radius, spacing, toneColor, type } from "@/constants/theme";
 import { useAsyncData } from "@/utils/hooks";
 import { Alert as FeedAlert, buildAlerts } from "@/services/overview";
 import type { RootStackParamList } from "@/navigation/types";
@@ -99,7 +99,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  title: { fontSize: fontSize.md, fontFamily: font.bold, color: colors.text },
+  title: { ...type.bodyStrong, color: colors.text },
   body: { fontSize: fontSize.sm, color: colors.textMuted, marginTop: 2, lineHeight: 18 },
   footer: {
     fontSize: fontSize.xs,

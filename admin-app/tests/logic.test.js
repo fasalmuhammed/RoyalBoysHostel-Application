@@ -31,6 +31,7 @@ const mk = (name, roomId, extra) =>
     {
       admissionNo: "", fullName: name, phone: "9876500000", guardianName: "", guardianPhone: "",
       email: "", course: "", year: "", address: "", idProof: "", photoFile: null,
+      idProofFile: null, idProofBackFile: null,
       roomId: roomId ?? null, branchId: "", status: "active", monthlyRent: 6000, billingCycleDays: 30,
       joinedOn: "2026-01-01", leftOn: null, notes: "",
     },
@@ -182,38 +183,169 @@ async function run() {
   check("no duplicate september bills", sept.length === activeNow, "bills=" + sept.length);
   const roomPriced = sept.find((f) => f.studentName === "Bulk A");
   check("priced from the student's own rent", roomPriced.rent === 6000, "rent=" + roomPriced.rent);
-  check("due 30 days into the period", roomPriced.dueDate === "2026-10-01", "due=" + roomPriced.dueDate);
+  check(
+    "due on the day-of-month the student joined (the 1st)",
+    roomPriced.dueDate === "2026-09-01",
+    "due=" + roomPriced.dueDate
+  );
 
-  console.log("\n== per-student rent and cycle drive the bill ==");
+  console.log("\n== per-student rent and join date drive the bill ==");
   const bespokeRoom = await rooms.createRoom({
     branchId: "", block: "D", roomNumber: "9", floor: "", capacity: 2,
     rent: 6000, deposit: 0, amenities: "", notes: "",
   });
   const bespoke = await inmates.createInmate(
-    mk("Bespoke Terms", bespokeRoom, { monthlyRent: 4500, billingCycleDays: 15 })
+    mk("Bespoke Terms", bespokeRoom, { monthlyRent: 4500, joinedOn: "2026-01-15" })
   );
   const bespokeRun = await fees.generateInvoices("2026-10");
   check("bespoke run created bills", bespokeRun.created > 0);
   const octBills = await fees.listFees("all", "2026-10", "");
   const bespokeBill = octBills.find((f) => f.studentName === "Bespoke Terms");
   check("uses the student's rent, not the room's", bespokeBill.rent === 4500, "rent=" + bespokeBill.rent);
-  check("uses the student's 15-day cycle", bespokeBill.dueDate === "2026-10-16", "due=" + bespokeBill.dueDate);
+  check(
+    "due on the 15th, the day they joined",
+    bespokeBill.dueDate === "2026-10-15",
+    "due=" + bespokeBill.dueDate
+  );
   const normalBill = octBills.find((f) => f.studentName === "Bulk A");
-  check("others keep their own 30-day cycle", normalBill.dueDate === "2026-10-31", "due=" + normalBill.dueDate);
+  check(
+    "others keep their own join-day deadline",
+    normalBill.dueDate === "2026-10-01",
+    "due=" + normalBill.dueDate
+  );
 
-  console.log("\n== dueDateFor ==");
-  check("30 days from 1 Sep", fees.dueDateFor("2026-09") === "2026-10-01", fees.dueDateFor("2026-09"));
-  check("defaults to 30 days", fees.DEFAULT_CYCLE_DAYS === 30);
-  check("15-day cycle", fees.dueDateFor("2026-09", 15) === "2026-09-16", fees.dueDateFor("2026-09", 15));
-  check("60-day cycle crosses two months", fees.dueDateFor("2026-09", 60) === "2026-10-31", fees.dueDateFor("2026-09", 60));
-  check("bad cycle falls back to 30", fees.dueDateFor("2026-09", 0) === "2026-10-01", fees.dueDateFor("2026-09", 0));
-  check("leap-year February", fees.dueDateFor("2028-02") === "2028-03-02", fees.dueDateFor("2028-02"));
+  console.log("\n== dueDateFor / anchorDayFor ==");
+  check("day 1 of September", fees.dueDateFor("2026-09", 1) === "2026-09-01", fees.dueDateFor("2026-09", 1));
+  check("day 15 of September", fees.dueDateFor("2026-09", 15) === "2026-09-15", fees.dueDateFor("2026-09", 15));
+  check("no day given defaults to the 1st", fees.dueDateFor("2026-09") === "2026-09-01", fees.dueDateFor("2026-09"));
+  check(
+    "day 31 clamps to September's 30 days",
+    fees.dueDateFor("2026-09", 31) === "2026-09-30",
+    fees.dueDateFor("2026-09", 31)
+  );
+  check(
+    "day 31 clamps to February's 28 days in a normal year",
+    fees.dueDateFor("2026-02", 31) === "2026-02-28",
+    fees.dueDateFor("2026-02", 31)
+  );
+  check(
+    "day 31 clamps to February's 29 days in a leap year",
+    fees.dueDateFor("2028-02", 31) === "2028-02-29",
+    fees.dueDateFor("2028-02", 31)
+  );
+  check("day 0 falls back to the 1st", fees.dueDateFor("2026-09", 0) === "2026-09-01", fees.dueDateFor("2026-09", 0));
+  check("anchorDayFor reads the join date's day-of-month", fees.anchorDayFor("2026-09-15") === 15);
+  check("anchorDayFor reads a single-digit day", fees.anchorDayFor("2026-09-05") === 5);
+
+  console.log("\n== stayDueDateFor ==");
+  check("5 days from 1 Sep", fees.stayDueDateFor("2026-09-01", 5) === "2026-09-06", fees.stayDueDateFor("2026-09-01", 5));
+  check(
+    "crosses a month boundary",
+    fees.stayDueDateFor("2026-09-28", 5) === "2026-10-03",
+    fees.stayDueDateFor("2026-09-28", 5)
+  );
+  check(
+    "bad day count falls back to 1",
+    fees.stayDueDateFor("2026-09-01", 0) === "2026-09-02",
+    fees.stayDueDateFor("2026-09-01", 0)
+  );
+
+  console.log("\n== fixed-days admissions are excluded from the monthly batch ==");
+  const guestRoom = await rooms.createRoom({
+    branchId: "", block: "G", roomNumber: "1", floor: "", capacity: 2,
+    rent: 6000, deposit: 0, amenities: "", notes: "",
+  });
+  const guest = await inmates.createInmate(
+    mk("Short Stay Guest", guestRoom, {
+      admissionType: "stay", stayDays: 5, monthlyRent: 1000, joinedOn: "2026-11-01",
+    })
+  );
+  // Mirrors what InmateFormScreen does automatically at admission time for a
+  // fixed-days stay: exactly one bill, priced flat, due after the stay length.
+  await fees.createFee({
+    studentId: guest, period: "2026-11", rent: 1000, electricity: 0, water: 0, other: 0,
+    discount: 0, dueDate: fees.stayDueDateFor("2026-11-01", 5), note: "",
+  });
+  const novBills = await fees.listFees("all", "2026-11", "");
+  const guestBill = novBills.find((f) => f.studentName === "Short Stay Guest");
+  check("stay bill was raised", Boolean(guestBill));
+  check(
+    "due date matches the stay length",
+    guestBill && guestBill.dueDate === "2026-11-06",
+    guestBill && guestBill.dueDate
+  );
+  check(
+    "bill is tagged with the student's admission type",
+    guestBill && guestBill.admissionType === "stay",
+    guestBill && guestBill.admissionType
+  );
+
+  await fees.generateInvoices("2026-12");
+  const decBills = await fees.listFees("all", "2026-12", "");
+  check(
+    "stay guest is not swept into the following month's batch",
+    !decBills.some((f) => f.studentName === "Short Stay Guest")
+  );
+
+  console.log("\n== 'due' filter combines unpaid and partial ==");
+  const dueList = await fees.listFees("due", "2026-11", "");
+  check("due filter includes the unpaid stay bill", dueList.some((f) => f.id === guestBill.id));
+  const novTotals = await fees.feeTotals("2026-11");
+  check(
+    "due filter's rows equal unpaid+partial count",
+    dueList.length === novTotals.unpaidCount + novTotals.partialCount,
+    "list=" + dueList.length + " unpaid+partial=" + (novTotals.unpaidCount + novTotals.partialCount)
+  );
 
   console.log("\n== due-for-reminder list ==");
   const due = await fees.listDueForReminder("2026-09-30");
   check("overdue list is non-empty", due.length > 0, "n=" + due.length);
   check("every entry has a balance", due.every((f) => f.balance > 0));
   check("excludes students who left", due.every((f) => f.studentName !== "First Inmate"));
+
+  console.log("\n== dues: every unsettled bill, forward as well as overdue ==");
+  const allDues = await fees.listAllDues();
+  check("all-dues list is non-empty", allDues.length > 0, "n=" + allDues.length);
+  check("every entry still owes something", allDues.every((f) => f.balance > 0.01));
+  check(
+    "includes bills not yet due, unlike the reminder list",
+    allDues.length >= due.length,
+    "all=" + allDues.length + " reminder=" + due.length
+  );
+  check("excludes inmates who have left", allDues.every((f) => f.studentName !== "First Inmate"));
+
+  console.log("\n== dues grouping ==");
+  const iso = (offsetDays) => {
+    const d = new Date();
+    d.setDate(d.getDate() + offsetDays);
+    return format.toIsoDate(d);
+  };
+  const fake = (id, dueDate, balance) => ({ id, dueDate, balance });
+  const grouped = fees.groupDues([
+    fake("late", iso(-3), 100),
+    fake("today", iso(0), 200),
+    fake("tomorrow", iso(1), 300),
+    fake("thisweek", iso(5), 400),
+    fake("later", iso(20), 500),
+    fake("nodate", "", 600),
+  ]);
+  const byKey = Object.fromEntries(grouped.map((g) => [g.key, g]));
+  check("overdue bucket", byKey.overdue && byKey.overdue.fees[0].id === "late");
+  check("today bucket", byKey.today && byKey.today.fees[0].id === "today");
+  check("tomorrow bucket", byKey.tomorrow && byKey.tomorrow.fees[0].id === "tomorrow");
+  check("within-a-week bucket", byKey.week && byKey.week.fees[0].id === "thisweek");
+  check(
+    "beyond a week, and undated bills, fall to later",
+    byKey.later && byKey.later.fees.length === 2,
+    byKey.later && byKey.later.fees.map((f) => f.id).join(",")
+  );
+  check("each group totals its balances", byKey.overdue.total === 100 && byKey.later.total === 1100);
+  check(
+    "buckets are ordered soonest-first",
+    grouped.map((g) => g.key).join(",") === "overdue,today,tomorrow,week,later",
+    grouped.map((g) => g.key).join(",")
+  );
+  check("empty buckets are dropped", fees.groupDues([]).length === 0);
 
   console.log("\n== money formatting (Indian grouping) ==");
   check("1234 -> 1,234", format.formatMoney(1234, "₹") === "₹1,234", format.formatMoney(1234, "₹"));
@@ -348,6 +480,8 @@ async function run() {
     const cols = legacy.prepare("PRAGMA table_info(students);").all().map((c) => c.name);
     check("monthlyRent column added", cols.includes("monthlyRent"), cols.join(","));
     check("billingCycleDays column added", cols.includes("billingCycleDays"));
+    check("Aadhaar front column retained", cols.includes("idProofFile"));
+    check("Aadhaar back column added", cols.includes("idProofBackFile"));
 
     const upgraded = legacy.prepare("SELECT monthlyRent, billingCycleDays FROM students WHERE id = ?;").all("legacy-1")[0];
     check("billing cycle defaults to 30 days", upgraded.billingCycleDays === 30, "cycle=" + upgraded.billingCycleDays);
@@ -668,7 +802,11 @@ async function run() {
 
     for (const v of [1, 2, 3, 4]) legacy.exec(schema.MIGRATIONS[v]);
     // Recreate the original V5 exactly as it was first written, misspelling included.
-    legacy.exec(schema.MIGRATIONS[5].replace(/kakkanad/g, "kannanad").replace(/Kakkanad/g, "Kannanad"));
+    legacy.exec(
+      schema.MIGRATIONS[5]
+        .replace(/Kalamassery/g, "Kannanad")
+        .replace(/branch-Kannanad/g, "branch-kannanad")
+    );
     legacy.exec("PRAGMA user_version = 5;");
 
     legacy.prepare(
@@ -691,25 +829,25 @@ async function run() {
     legacy.exec(schema.MIGRATIONS[6]);
 
     const branch = legacy.prepare("SELECT id, name, shortName, code FROM branches WHERE code = 'K';").all()[0];
-    check("branch id corrected", branch.id === "branch-kakkanad", branch.id);
-    check("branch name corrected", branch.name === "Kakkanad - Royal Boys Hostel", branch.name);
-    check("short name corrected", branch.shortName === "Kakkanad", branch.shortName);
+    check("branch id corrected", branch.id === "branch-Kalamassery", branch.id);
+    check("branch name corrected", branch.name === "Kalamassery - Royal Boys Hostel", branch.name);
+    check("short name corrected", branch.shortName === "Kalamassery", branch.shortName);
     check("no misspelled branch remains",
       legacy.prepare("SELECT COUNT(*) AS n FROM branches WHERE id = 'branch-kannanad';").all()[0].n === 0);
 
     // The point of the repair: records must follow the branch, not be orphaned.
     const inmate = legacy.prepare("SELECT branchId FROM students WHERE id = ?;").all("s-k")[0];
-    check("inmate follows the renamed branch", inmate.branchId === "branch-kakkanad", inmate.branchId);
+    check("inmate follows the renamed branch", inmate.branchId === "branch-Kalamassery", inmate.branchId);
     const room = legacy.prepare("SELECT branchId FROM rooms WHERE id = ?;").all("r-k")[0];
-    check("room follows the renamed branch", room.branchId === "branch-kakkanad", room.branchId);
+    check("room follows the renamed branch", room.branchId === "branch-Kalamassery", room.branchId);
     const notice = legacy.prepare("SELECT branchId FROM notices WHERE id = ?;").all("n-k")[0];
-    check("notice follows the renamed branch", notice.branchId === "branch-kakkanad", notice.branchId);
+    check("notice follows the renamed branch", notice.branchId === "branch-Kalamassery", notice.branchId);
 
     const counter = legacy.prepare("SELECT value FROM settings WHERE key = ?;")
-      .all("admissionCounter:branch-kakkanad")[0];
+      .all("admissionCounter:branch-Kalamassery")[0];
     check("the id sequence carries over", counter && counter.value === "7", JSON.stringify(counter));
     const active = legacy.prepare("SELECT value FROM settings WHERE key = 'activeBranchId';").all()[0];
-    check("last-used branch points at the new id", active.value === '"branch-kakkanad"', active.value);
+    check("last-used branch points at the new id", active.value === '"branch-Kalamassery"', active.value);
 
     check("Thammanam untouched",
       legacy.prepare("SELECT COUNT(*) AS n FROM branches WHERE id = 'branch-thammanam';").all()[0].n === 1);
@@ -727,9 +865,9 @@ async function run() {
     const all = await branches.listBranches();
     check("both branches exist", all.length === 2, all.map((b) => b.name).join(" | "));
     const tham = all.find((b) => b.id === "branch-thammanam");
-    const kann = all.find((b) => b.id === "branch-kakkanad");
+    const kann = all.find((b) => b.id === "branch-Kalamassery");
     check("Thammanam named in full", tham.name === "Thammanam - Royal Boys Hostel", tham.name);
-    check("Kakkanad named in full", kann.name === "Kakkanad - Royal Boys Hostel", kann.name);
+    check("Kalamassery named in full", kann.name === "Kalamassery - Royal Boys Hostel", kann.name);
     check("letters are T and K", tham.code === "T" && kann.code === "K", tham.code + "/" + kann.code);
 
     console.log("\n== inmate ids are prefixed with the branch letter ==");
@@ -748,50 +886,50 @@ async function run() {
     });
     const tOne = await inmates.createInmate(mk("Thammanam Resident", tRoom, { admissionNo: "" }));
 
-    branches.setActiveBranchId("branch-kakkanad");
+    branches.setActiveBranchId("branch-Kalamassery");
     const kRoom = await rooms.createRoom({
       branchId: "", block: "K", roomNumber: "1", floor: "", capacity: 4,
       rent: 6000, deposit: 0, amenities: "", notes: "",
     });
-    const kOne = await inmates.createInmate(mk("Kakkanad Resident", kRoom, { admissionNo: "" }));
+    const kOne = await inmates.createInmate(mk("Kalamassery Resident", kRoom, { admissionNo: "" }));
 
     const kList = await inmates.listInmates("", "all");
-    check("Kakkanad list excludes Thammanam inmates",
+    check("Kalamassery list excludes Thammanam inmates",
       kList.every((s) => s.fullName !== "Thammanam Resident"),
       kList.map((s) => s.fullName).join(","));
-    check("Kakkanad list includes its own", kList.some((s) => s.fullName === "Kakkanad Resident"));
+    check("Kalamassery list includes its own", kList.some((s) => s.fullName === "Kalamassery Resident"));
 
     const kRooms = await rooms.listRooms();
-    check("Kakkanad rooms exclude Thammanam rooms",
+    check("Kalamassery rooms exclude Thammanam rooms",
       kRooms.every((r) => r.block !== "T"), kRooms.map((r) => r.block + r.roomNumber).join(","));
 
     branches.setActiveBranchId("branch-thammanam");
     const tList = await inmates.listInmates("", "all");
-    check("Thammanam list excludes Kakkanad inmates",
-      tList.every((s) => s.fullName !== "Kakkanad Resident"),
+    check("Thammanam list excludes Kalamassery inmates",
+      tList.every((s) => s.fullName !== "Kalamassery Resident"),
       tList.map((s) => s.fullName).join(","));
 
     console.log("\n== numbering restarts in each branch ==");
     const t = await inmates.getInmate(tOne);
     const k = await inmates.getInmate(kOne);
     check("Thammanam inmate carries the T code", t.branchCode === "T", String(t.branchCode));
-    check("Kakkanad inmate carries the K code", k.branchCode === "K", String(k.branchCode));
+    check("Kalamassery inmate carries the K code", k.branchCode === "K", String(k.branchCode));
     check("both branches issued number 1", k.admissionNo === "1", "K number was " + k.admissionNo);
     check("ids only differ by branch letter",
       branches.formatInmateId(t.branchCode, t.admissionNo) !== branches.formatInmateId(k.branchCode, k.admissionNo),
       branches.formatInmateId(t.branchCode, t.admissionNo) + " vs " + branches.formatInmateId(k.branchCode, k.admissionNo));
 
-    branches.setActiveBranchId("branch-kakkanad");
-    const kSecond = await inmates.createInmate(mk("Kakkanad Second", null, { admissionNo: "" }));
-    check("Kakkanad continues its own sequence",
+    branches.setActiveBranchId("branch-Kalamassery");
+    const kSecond = await inmates.createInmate(mk("Kalamassery Second", null, { admissionNo: "" }));
+    check("Kalamassery continues its own sequence",
       (await inmates.getInmate(kSecond)).admissionNo === "2",
       (await inmates.getInmate(kSecond)).admissionNo);
 
     console.log("\n== occupancy and counts are per branch ==");
     const kOcc = await rooms.occupancyTotals();
-    check("Kakkanad counts only its beds", kOcc.beds === 4, "beds=" + kOcc.beds);
+    check("Kalamassery counts only its beds", kOcc.beds === 4, "beds=" + kOcc.beds);
     const kCounts = await inmates.inmateCounts();
-    check("Kakkanad counts only its inmates", kCounts.total === 2, "total=" + kCounts.total);
+    check("Kalamassery counts only its inmates", kCounts.total === 2, "total=" + kCounts.total);
 
     console.log("\n== fees are scoped through the inmate ==");
     await fees.createFee({
@@ -799,11 +937,11 @@ async function run() {
       other: 0, discount: 0, dueDate: "2027-01-31", note: "",
     });
     const kFees = await fees.listFees("all", "2027-01", "");
-    check("Kakkanad sees its own bill", kFees.length === 1 && kFees[0].studentName === "Kakkanad Resident");
+    check("Kalamassery sees its own bill", kFees.length === 1 && kFees[0].studentName === "Kalamassery Resident");
 
     branches.setActiveBranchId("branch-thammanam");
     const tFees = await fees.listFees("all", "2027-01", "");
-    check("Thammanam does not see Kakkanad's bill", tFees.length === 0, "n=" + tFees.length);
+    check("Thammanam does not see Kalamassery's bill", tFees.length === 0, "n=" + tFees.length);
     const tTotals = await fees.feeTotals("2027-01");
     check("totals exclude the other branch", tTotals.billed === 0, "billed=" + tTotals.billed);
 
@@ -811,20 +949,20 @@ async function run() {
     const raised = await fees.generateInvoices("2027-02");
     const tFeb = await fees.listFees("all", "2027-02", "");
     check("bills raised for Thammanam only",
-      tFeb.every((f) => f.studentName !== "Kakkanad Resident"),
+      tFeb.every((f) => f.studentName !== "Kalamassery Resident"),
       tFeb.map((f) => f.studentName).join(","));
     check("something was raised", raised.created > 0, "created=" + raised.created);
-    branches.setActiveBranchId("branch-kakkanad");
+    branches.setActiveBranchId("branch-Kalamassery");
     const kFeb = await fees.listFees("all", "2027-02", "");
-    check("Kakkanad got no February bills", kFeb.length === 0, "n=" + kFeb.length);
+    check("Kalamassery got no February bills", kFeb.length === 0, "n=" + kFeb.length);
 
     console.log("\n== moving an inmate between branches ==");
     branches.setActiveBranchId("branch-thammanam");
     const movedId = (await inmates.getInmate(tOne)).admissionNo;
-    await inmates.moveToBranch(tOne, "branch-kakkanad");
+    await inmates.moveToBranch(tOne, "branch-Kalamassery");
     const afterT = await inmates.listInmates("", "all");
     check("gone from the old branch", afterT.every((s) => s.id !== tOne));
-    branches.setActiveBranchId("branch-kakkanad");
+    branches.setActiveBranchId("branch-Kalamassery");
     const afterK = await inmates.getInmate(tOne);
     check("now in the new branch", afterK !== null && afterK.branchCode === "K", String(afterK && afterK.branchCode));
     check("keeps the id it was issued", afterK.admissionNo === movedId, afterK.admissionNo);
@@ -849,12 +987,12 @@ async function run() {
     check("Thammanam sees its own notice", tBoard.some((n) => n.title === "Thammanam only"));
     check("Thammanam sees the shared notice", tBoard.some((n) => n.title === "Both branches"));
 
-    branches.setActiveBranchId("branch-kakkanad");
+    branches.setActiveBranchId("branch-Kalamassery");
     const kBoard = await notices.listNotices("all");
-    check("Kakkanad does NOT see the other branch's notice",
+    check("Kalamassery does NOT see the other branch's notice",
       kBoard.every((n) => n.title !== "Thammanam only"),
       kBoard.map((n) => n.title).join(","));
-    check("Kakkanad does see the shared notice", kBoard.some((n) => n.title === "Both branches"));
+    check("Kalamassery does see the shared notice", kBoard.some((n) => n.title === "Both branches"));
 
     const kCounts = await notices.noticeCounts();
     const kTitles = kBoard.map((n) => n.title);
@@ -904,7 +1042,7 @@ async function run() {
     check("no match returns zero", (await overview.globalSearch("zzzznotathing")).total === 0);
 
     console.log("\n== search does not cross branches ==");
-    branches.setActiveBranchId("branch-kakkanad");
+    branches.setActiveBranchId("branch-Kalamassery");
     const other = await overview.globalSearch("searchable");
     check("other branch finds no inmate", other.inmates.length === 0, JSON.stringify(other.inmates));
     check("other branch finds no room", other.rooms.length === 0);
@@ -1008,7 +1146,7 @@ async function run() {
     check("search matches the description", searchedBody.length === 1 && searchedBody[0].id === c2);
 
     console.log("\n== complaints are scoped to their branch ==");
-    branches.setActiveBranchId("branch-kakkanad");
+    branches.setActiveBranchId("branch-Kalamassery");
     const otherBranch = await complaints.listComplaints("all");
     check("other branch sees none of them", otherBranch.length === 0, "n=" + otherBranch.length);
     check("counts are branch scoped", (await complaints.complaintCounts()).all === 0);
@@ -1040,6 +1178,68 @@ async function run() {
   check("unassigned filter", unassigned.every((s) => s.roomId === null && s.status === "active"));
   const left = await inmates.listInmates("", "left");
   check("left filter", left.length === 1 && left[0].fullName === "First Inmate", JSON.stringify(left.map((s) => s.fullName)));
+
+  console.log("\n== app lock: PIN verification ==");
+  {
+    const security = h.load("services/security");
+    const crypto = h.load("services/crypto");
+
+    h.secureStore.clear();
+    check("no PIN on a fresh install", (await security.hasPin()) === false);
+
+    await security.setPin("4321");
+    check("PIN is set", (await security.hasPin()) === true);
+    check("the PIN itself is never stored", ![...h.secureStore.values()].includes("4321"));
+    check(
+      "the round count is recorded alongside the hash",
+      h.secureStore.get("lock.pinIterations") === String(crypto.PIN_ITERATIONS)
+    );
+
+    check("correct PIN verifies", (await security.verifyPin("4321")).ok === true);
+    const wrong = await security.verifyPin("0000");
+    check("wrong PIN is rejected", wrong.ok === false);
+    check("and reports tries remaining", wrong.attemptsLeft === 4, "left=" + wrong.attemptsLeft);
+    check("a later correct PIN clears the failures", (await security.verifyPin("4321")).ok === true);
+
+    console.log("\n== app lock: a PIN set by the old build still opens the app ==");
+    // Exactly what an existing install carries: a hash made with the old
+    // expensive count, and no record of what that count was. Getting this
+    // wrong locks every existing admin out of their own hostel.
+    h.secureStore.clear();
+    const legacySalt = crypto.newSaltBase64();
+    h.secureStore.set("lock.pinSalt", legacySalt);
+    h.secureStore.set(
+      "lock.pinHash",
+      crypto.hashPin("1234", legacySalt, crypto.LEGACY_PIN_ITERATIONS)
+    );
+    check("no round count recorded, as before", !h.secureStore.has("lock.pinIterations"));
+
+    const legacyOk = await security.verifyPin("1234");
+    check("the old PIN still verifies", legacyOk.ok === true);
+    check(
+      "and is migrated to the faster count",
+      h.secureStore.get("lock.pinIterations") === String(crypto.PIN_ITERATIONS)
+    );
+    check(
+      "the stored hash was rewritten",
+      h.secureStore.get("lock.pinHash") !==
+        crypto.hashPin("1234", legacySalt, crypto.LEGACY_PIN_ITERATIONS)
+    );
+    check("the same PIN still works after migrating", (await security.verifyPin("1234")).ok === true);
+    check("a wrong PIN is still wrong after migrating", (await security.verifyPin("9999")).ok === false);
+
+    console.log("\n== app lock: lock-out after repeated failures ==");
+    h.secureStore.clear();
+    await security.setPin("2468");
+    let last = null;
+    for (let i = 0; i < 5; i += 1) last = await security.verifyPin("1111");
+    check("locks out after five wrong tries", last.lockedUntil !== null);
+    check("and reports no tries left", last.attemptsLeft === 0);
+    const duringLockout = await security.verifyPin("2468");
+    check("even the correct PIN is refused while locked out", duringLockout.ok === false);
+
+    h.secureStore.clear();
+  }
 
   console.log("\n" + pass + " passed, " + fail + " failed");
   process.exit(fail ? 1 : 0);

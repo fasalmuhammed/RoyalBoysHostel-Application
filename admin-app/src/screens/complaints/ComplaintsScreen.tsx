@@ -1,14 +1,14 @@
 import React, { useState } from "react";
-import { Alert, FlatList, Pressable, StyleSheet, Text, View } from "react-native";
+import { Alert, FlatList, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 
-import { Badge, Card, EmptyState, Loading } from "@/components/Base";
+import { Badge, Card, EmptyState } from "@/components/Base";
 import { Fab, SearchBar, SegmentedTabs } from "@/components/Controls";
 import Button from "@/components/Button";
-import { colors, font, fontSize, radius, spacing, Tone } from "@/constants/theme";
-import { FadeIn, SkeletonList } from "@/components/Motion";
+import { HIT_TARGET, colors, radius, spacing, type } from "@/constants/theme";
+import { FadeIn, PressableScale, SkeletonList } from "@/components/Motion";
 import { useApp } from "@/context/AppContext";
 import { useAsyncData, useDebounced } from "@/utils/hooks";
 import {
@@ -21,8 +21,9 @@ import {
   setStatus,
   STATUS_LABELS,
 } from "@/services/complaints";
-import { ComplaintStatus } from "@/types";
-import { formatDate, relativeDays } from "@/utils/format";
+import type { ComplaintStatus, ComplaintWithContext } from "@/types";
+import { Tone } from "@/constants/theme";
+import { formatDateTime, relativeDays } from "@/utils/format";
 import type { RootStackParamList } from "@/navigation/types";
 
 type Props = NativeStackScreenProps<RootStackParamList, "Complaints">;
@@ -33,11 +34,24 @@ const STATUS_TONE: Record<ComplaintStatus, Tone> = {
   resolved: "success",
 };
 
+/** The stripe down the edge of each card, so status reads before any text does. */
+const STATUS_COLOR: Record<ComplaintStatus, string> = {
+  open: colors.danger,
+  in_progress: colors.warning,
+  resolved: colors.success,
+};
+
 /** The next sensible state, so one tap moves a complaint along. */
 const NEXT: Record<ComplaintStatus, ComplaintStatus> = {
   open: "in_progress",
   in_progress: "resolved",
   resolved: "open",
+};
+
+const ADVANCE_LABEL: Record<ComplaintStatus, string> = {
+  open: "Start work",
+  in_progress: "Mark resolved",
+  resolved: "Reopen",
 };
 
 export default function ComplaintsScreen({ navigation }: Props) {
@@ -47,10 +61,11 @@ export default function ComplaintsScreen({ navigation }: Props) {
   const debounced = useDebounced(search);
 
   const { data: counts } = useAsyncData(() => complaintCounts(), []);
-  const { data: complaints, loading, reload } = useAsyncData(
-    () => listComplaints(filter, debounced),
-    [filter, debounced]
-  );
+  const {
+    data: complaints,
+    loading,
+    reload,
+  } = useAsyncData(() => listComplaints(filter, debounced), [filter, debounced]);
 
   const advance = async (id: string, current: ComplaintStatus) => {
     await setStatus(id, NEXT[current]);
@@ -83,7 +98,7 @@ export default function ComplaintsScreen({ navigation }: Props) {
           options={[
             { key: "all", label: "All", count: counts?.all },
             { key: "open", label: "Open", count: counts?.open },
-            { key: "in_progress", label: "In Progress", count: counts?.in_progress },
+            { key: "in_progress", label: "In progress", count: counts?.in_progress },
             { key: "resolved", label: "Resolved", count: counts?.resolved },
           ]}
         />
@@ -97,9 +112,12 @@ export default function ComplaintsScreen({ navigation }: Props) {
           keyExtractor={(item) => item.id}
           contentContainerStyle={styles.list}
           keyboardShouldPersistTaps="handled"
+          removeClippedSubviews
+          initialNumToRender={10}
+          windowSize={9}
           ListEmptyComponent={
             <EmptyState
-              icon="construct-outline"
+              icon={search ? "search-outline" : "construct-outline"}
               title={search ? "No matching complaints" : "Nothing reported"}
               message={
                 search
@@ -119,73 +137,12 @@ export default function ComplaintsScreen({ navigation }: Props) {
           }
           renderItem={({ item, index }) => (
             <FadeIn index={index}>
-            <Card style={styles.card}>
-              <Pressable
-                onPress={() => navigation.navigate("ComplaintForm", { complaintId: item.id })}
-              >
-                <View style={styles.head}>
-                  <View style={styles.icon}>
-                    <Ionicons
-                      name={CATEGORY_ICONS[item.category] as keyof typeof Ionicons.glyphMap}
-                      size={18}
-                      color={colors.primary}
-                    />
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.title} numberOfLines={2}>
-                      {item.title}
-                    </Text>
-                    <Text style={styles.meta} numberOfLines={1}>
-                      {[
-                        item.roomLabel ? `Room ${item.roomLabel}` : null,
-                        CATEGORY_LABELS[item.category],
-                        item.raisedOn ? relativeDays(item.raisedOn) : null,
-                      ]
-                        .filter(Boolean)
-                        .join(" · ")}
-                    </Text>
-                  </View>
-                  <Badge
-                    label={STATUS_LABELS[item.status].toUpperCase()}
-                    tone={STATUS_TONE[item.status]}
-                  />
-                </View>
-
-                {item.description ? (
-                  <Text style={styles.description} numberOfLines={2}>
-                    {item.description}
-                  </Text>
-                ) : null}
-
-                {item.status === "resolved" && item.resolvedAt ? (
-                  <Text style={styles.resolved}>
-                    Resolved {formatDate(item.raisedOn)}
-                    {item.resolution ? ` · ${item.resolution}` : ""}
-                  </Text>
-                ) : null}
-              </Pressable>
-
-              <View style={styles.actions}>
-                <Pressable style={styles.action} onPress={() => advance(item.id, item.status)}>
-                  <Ionicons
-                    name={item.status === "resolved" ? "refresh-outline" : "arrow-forward-circle-outline"}
-                    size={16}
-                    color={colors.primary}
-                  />
-                  <Text style={styles.actionText}>
-                    {item.status === "open"
-                      ? "Start work"
-                      : item.status === "in_progress"
-                        ? "Mark resolved"
-                        : "Reopen"}
-                  </Text>
-                </Pressable>
-
-                <Pressable style={styles.action} onPress={() => onDelete(item.id, item.title)}>
-                  <Ionicons name="trash-outline" size={16} color={colors.danger} />
-                </Pressable>
-              </View>
-            </Card>
+              <ComplaintCard
+                complaint={item}
+                onOpen={() => navigation.navigate("ComplaintForm", { complaintId: item.id })}
+                onAdvance={() => advance(item.id, item.status)}
+                onDelete={() => onDelete(item.id, item.title)}
+              />
             </FadeIn>
           )}
         />
@@ -196,12 +153,106 @@ export default function ComplaintsScreen({ navigation }: Props) {
   );
 }
 
+function ComplaintCard({
+  complaint,
+  onOpen,
+  onAdvance,
+  onDelete,
+}: {
+  complaint: ComplaintWithContext;
+  onOpen: () => void;
+  onAdvance: () => void;
+  onDelete: () => void;
+}) {
+  return (
+    <Card style={styles.card}>
+      {/* Status stripe: colour plus the badge below, never colour alone. */}
+      <View style={[styles.stripe, { backgroundColor: STATUS_COLOR[complaint.status] }]} />
+
+      <View style={styles.cardInner}>
+        <PressableScale onPress={onOpen} scaleTo={0.99} style={styles.cardBody}>
+          <View style={styles.head}>
+            <View style={styles.icon}>
+              <Ionicons
+                name={CATEGORY_ICONS[complaint.category] as keyof typeof Ionicons.glyphMap}
+                size={18}
+                color={colors.primary}
+              />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.title} numberOfLines={2}>
+                {complaint.title}
+              </Text>
+              <Text style={styles.meta} numberOfLines={1}>
+                {[
+                  complaint.roomLabel ? `Room ${complaint.roomLabel}` : null,
+                  CATEGORY_LABELS[complaint.category],
+                  complaint.raisedOn ? relativeDays(complaint.raisedOn) : null,
+                ]
+                  .filter(Boolean)
+                  .join(" · ")}
+              </Text>
+            </View>
+            <Badge
+              label={STATUS_LABELS[complaint.status].toUpperCase()}
+              tone={STATUS_TONE[complaint.status]}
+            />
+          </View>
+
+          {complaint.description ? (
+            <Text style={styles.description} numberOfLines={2}>
+              {complaint.description}
+            </Text>
+          ) : null}
+
+          {complaint.status === "resolved" && complaint.resolvedAt ? (
+            <Text style={styles.resolved} numberOfLines={2}>
+              Resolved {formatDateTime(complaint.resolvedAt)}
+              {complaint.resolution ? ` · ${complaint.resolution}` : ""}
+            </Text>
+          ) : null}
+        </PressableScale>
+
+        <View style={styles.actions}>
+          <PressableScale onPress={onAdvance} scaleTo={0.96} style={styles.advance}>
+            <Ionicons
+              name={
+                complaint.status === "resolved" ? "refresh-outline" : "arrow-forward-circle-outline"
+              }
+              size={16}
+              color={colors.primary}
+            />
+            <Text style={styles.actionText}>{ADVANCE_LABEL[complaint.status]}</Text>
+          </PressableScale>
+
+          <PressableScale
+            onPress={onDelete}
+            scaleTo={0.9}
+            haptic={false}
+            style={styles.deleteAction}
+            accessibilityRole="button"
+            accessibilityLabel="Delete complaint"
+          >
+            <Ionicons name="trash-outline" size={17} color={colors.danger} />
+          </PressableScale>
+        </View>
+      </View>
+    </Card>
+  );
+}
+
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.background },
   controls: { paddingHorizontal: spacing.lg, paddingTop: spacing.md, gap: spacing.sm },
   list: { padding: spacing.lg, paddingBottom: 110 },
-  card: { padding: spacing.md },
-  head: { flexDirection: "row", gap: spacing.md, alignItems: "flex-start" },
+
+  // Padding moves inside so the stripe can run the full height of the card.
+  card: { padding: 0, overflow: "hidden", flexDirection: "row" },
+  stripe: { width: 4 },
+  cardInner: { flex: 1, padding: spacing.md },
+  cardBody: { gap: spacing.xs },
+
+  head: { flexDirection: "row", gap: spacing.sm + 4, alignItems: "flex-start" },
   icon: {
     width: 38,
     height: 38,
@@ -210,24 +261,37 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  title: { fontSize: fontSize.md, fontFamily: font.bold, color: colors.text },
-  meta: { fontSize: fontSize.xs, color: colors.textMuted, marginTop: 2 },
-  description: {
-    fontSize: fontSize.sm,
-    color: colors.textMuted,
-    lineHeight: 19,
-    marginTop: spacing.sm,
+  title: { ...type.bodyStrong, color: colors.text },
+  meta: { ...type.caption, color: colors.textMuted, marginTop: 2 },
+  description: { ...type.support, color: colors.textMuted, marginTop: spacing.xs },
+  resolved: {
+    ...type.caption,
+    fontFamily: type.bodyStrong.fontFamily,
+    color: colors.success,
+    marginTop: spacing.xs,
   },
-  resolved: { fontSize: fontSize.xs, color: colors.success, marginTop: spacing.sm, fontFamily: font.semibold },
+
   actions: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    marginTop: spacing.md,
-    paddingTop: spacing.sm,
+    marginTop: spacing.sm,
+    paddingTop: spacing.xs,
     borderTopWidth: 1,
     borderTopColor: colors.border,
   },
-  action: { flexDirection: "row", alignItems: "center", gap: spacing.xs },
-  actionText: { fontSize: fontSize.sm, fontFamily: font.bold, color: colors.primary },
+  advance: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.xs,
+    minHeight: HIT_TARGET - 8,
+    paddingRight: spacing.md,
+  },
+  actionText: { ...type.bodyStrong, color: colors.primary },
+  deleteAction: {
+    width: HIT_TARGET - 6,
+    height: HIT_TARGET - 8,
+    alignItems: "flex-end",
+    justifyContent: "center",
+  },
 });

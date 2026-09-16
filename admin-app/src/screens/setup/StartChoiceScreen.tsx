@@ -4,7 +4,7 @@ import { Ionicons } from "@expo/vector-icons";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 
 import { Screen } from "@/components/Base";
-import { colors, font, fontSize, radius, shadow, spacing } from "@/constants/theme";
+import { colors, fontSize, radius, shadow, spacing, type } from "@/constants/theme";
 import type { SetupStackParamList } from "@/navigation/types";
 
 type Props = NativeStackScreenProps<SetupStackParamList, "StartChoice">;
@@ -31,7 +31,7 @@ export default function StartChoiceScreen({ navigation }: Props) {
         icon="sparkles-outline"
         title="Start fresh"
         description="Begin with an empty register and add rooms and inmates yourself."
-        onPress={() => navigation.navigate("HostelDetails")}
+        onPress={() => navigation.navigate("CreatePin")}
       />
 
       <ChoiceCard
@@ -91,7 +91,7 @@ const styles = StyleSheet.create({
     marginBottom: spacing.md,
     ...shadow.raised,
   },
-  title: { fontSize: fontSize.xxl, fontFamily: font.extrabold, color: colors.text },
+  title: { ...type.title, color: colors.text },
   subtitle: {
     fontSize: fontSize.md,
     color: colors.textMuted,
@@ -117,7 +117,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  choiceTitle: { fontSize: fontSize.md, fontFamily: font.bold, color: colors.text },
+  choiceTitle: { ...type.bodyStrong, color: colors.text },
   choiceDescription: {
     fontSize: fontSize.sm,
     color: colors.textMuted,

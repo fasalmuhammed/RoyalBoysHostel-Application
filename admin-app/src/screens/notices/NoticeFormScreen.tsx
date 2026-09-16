@@ -7,7 +7,7 @@ import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { Callout, CalloutText, SectionTitle } from "@/components/Base";
 import Button from "@/components/Button";
 import Input from "@/components/Input";
-import { colors, font, fontSize, radius, spacing } from "@/constants/theme";
+import { colors, font, fontSize, radius, spacing, type } from "@/constants/theme";
 import { useApp } from "@/context/AppContext";
 import { getActiveBranchId } from "@/services/branches";
 import {
@@ -263,7 +263,7 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
   },
   chipActive: { backgroundColor: colors.primary, borderColor: colors.primary },
-  chipText: { fontSize: fontSize.sm, fontFamily: font.semibold, color: colors.textMuted },
+  chipText: { ...type.bodyStrong, fontSize: fontSize.sm, color: colors.textMuted },
   chipTextActive: { color: colors.primaryOn },
   switchRow: {
     flexDirection: "row",
@@ -272,7 +272,7 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.sm,
     marginBottom: spacing.md,
   },
-  switchLabel: { fontSize: fontSize.md, fontFamily: font.semibold, color: colors.text },
+  switchLabel: { ...type.bodyStrong, color: colors.text },
   switchHint: { fontSize: fontSize.sm, color: colors.textMuted, marginTop: 2 },
   preview: {
     backgroundColor: "#E7FFDB",

@@ -34,6 +34,7 @@ import FeeDetailScreen from "@/screens/fees/FeeDetailScreen";
 import FeeFormScreen from "@/screens/fees/FeeFormScreen";
 import CollectFeeScreen from "@/screens/fees/CollectFeeScreen";
 import GenerateInvoicesScreen from "@/screens/fees/GenerateInvoicesScreen";
+import DuesScreen from "@/screens/fees/DuesScreen";
 
 import MessagesScreen from "@/screens/messages/MessagesScreen";
 import ComposeScreen from "@/screens/messages/ComposeScreen";
@@ -47,7 +48,6 @@ import NoticeFormScreen from "@/screens/notices/NoticeFormScreen";
 
 import StartChoiceScreen from "@/screens/setup/StartChoiceScreen";
 import RestoreExistingScreen from "@/screens/setup/RestoreExistingScreen";
-import HostelDetailsScreen from "@/screens/setup/HostelDetailsScreen";
 import CreatePinScreen from "@/screens/setup/CreatePinScreen";
 
 import type { MainTabParamList, RootStackParamList, SetupStackParamList } from "./types";
@@ -76,6 +76,19 @@ const TAB_ICONS: Record<keyof MainTabParamList, keyof typeof Ionicons.glyphMap> 
   More: "ellipsis-horizontal",
 };
 
+/**
+ * The active tab is marked by a filled icon as well as colour, so the current
+ * position is still readable to someone who cannot separate the violet from
+ * the grey.
+ */
+const TAB_ICONS_ACTIVE: Record<keyof MainTabParamList, keyof typeof Ionicons.glyphMap> = {
+  Dashboard: "grid",
+  Inmates: "people",
+  Rooms: "bed",
+  Fees: "wallet",
+  More: "ellipsis-horizontal",
+};
+
 function MainTabs() {
   return (
     <Tab.Navigator
@@ -86,13 +99,19 @@ function MainTabs() {
         tabBarStyle: {
           backgroundColor: colors.surface,
           borderTopColor: colors.border,
-          height: 62,
-          paddingBottom: 8,
-          paddingTop: 6,
+          borderTopWidth: StyleSheet.hairlineWidth,
+          // Height comes from the safe-area-aware default; only the breathing
+          // room around the icons is set here, so a gesture-bar phone and a
+          // button-navigation phone both sit correctly.
+          paddingTop: 8,
         },
-        tabBarLabelStyle: { fontSize: 11, fontFamily: font.semibold },
-        tabBarIcon: ({ color, size }) => (
-          <Ionicons name={TAB_ICONS[route.name]} size={size - 2} color={color} />
+        tabBarLabelStyle: { fontSize: fontSize.xs, fontFamily: font.semibold },
+        tabBarIcon: ({ color, size, focused }) => (
+          <Ionicons
+            name={focused ? TAB_ICONS_ACTIVE[route.name] : TAB_ICONS[route.name]}
+            size={size - 2}
+            color={color}
+          />
         ),
       })}
     >
@@ -155,6 +174,11 @@ function MainStack() {
         name="GenerateInvoices"
         component={GenerateInvoicesScreen}
         options={{ ...detailOptions, title: "Raise bills" }}
+      />
+      <Stack.Screen
+        name="Dues"
+        component={DuesScreen}
+        options={{ ...detailOptions, title: "Dues" }}
       />
 
       <Stack.Screen
@@ -227,11 +251,6 @@ function SetupFlow() {
         name="RestoreExisting"
         component={RestoreExistingScreen}
         options={{ headerShown: true, title: "Restore" }}
-      />
-      <SetupStack.Screen
-        name="HostelDetails"
-        component={HostelDetailsScreen}
-        options={{ headerShown: true, title: "Hostel details" }}
       />
       <SetupStack.Screen
         name="CreatePin"
