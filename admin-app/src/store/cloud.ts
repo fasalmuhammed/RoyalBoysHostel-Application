@@ -116,7 +116,7 @@ export function storeVersion(): number {
 
 /** A message for the person when live updates have stopped, else null. */
 export function storeProblem(): string | null {
-  return connectionProblem;
+  return lateFailure ?? connectionProblem;
 }
 
 // --- opening ----------------------------------------------------------------
@@ -217,6 +217,8 @@ export function closeStore(): void {
   writable = null;
   scopeBranch = null;
   connectionProblem = null;
+  pendingWrites = 0;
+  lateFailure = null;
   changed();
 }
 
@@ -323,6 +325,54 @@ function enqueue<T>(path: string, task: () => Promise<T>): Promise<T> {
   return next;
 }
 
+/** How long a save waits for the server's answer before carrying on. */
+const ACK_WAIT_MS = 4000;
+/** Saves the server has not confirmed yet (the phone is offline or slow). */
+let pendingWrites = 0;
+/** Set when a save made offline was refused once the connection returned. */
+let lateFailure: string | null = null;
+
+/** How many changes are waiting to reach the server. */
+export function storePending(): number {
+  return pendingWrites;
+}
+
+/**
+ * Waits for the server to confirm a save -- but not for ever. With no
+ * connection the save is kept by the app and sent when the connection
+ * returns, so the screen carries on instead of spinning. (It is only kept
+ * while the app stays open.)
+ */
+async function confirmed(write: Promise<void>): Promise<void> {
+  const waiting = Symbol("waiting");
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const outcome = await Promise.race([
+    write.then(() => null),
+    new Promise<symbol>((resolve) => {
+      timer = setTimeout(() => resolve(waiting), ACK_WAIT_MS);
+    }),
+  ]);
+  if (timer) clearTimeout(timer);
+  if (outcome !== waiting) return;
+
+  const mine = generation;
+  pendingWrites += 1;
+  changed();
+  write.then(
+    () => {
+      if (mine !== generation) return;
+      pendingWrites = Math.max(0, pendingWrites - 1);
+      changed();
+    },
+    (error) => {
+      if (mine !== generation) return;
+      pendingWrites = Math.max(0, pendingWrites - 1);
+      lateFailure = `A change made while offline was not saved: ${describeError(error)}`;
+      changed();
+    }
+  );
+}
+
 function writeError(error: unknown): Error {
   if (
     writable === false ||
@@ -368,7 +418,7 @@ export function put(name: CollectionName, id: string, data: DocData): Promise<vo
   const body = stripUndefined(data);
   return enqueue(`${name}/${id}`, async () => {
     try {
-      await requireDb().collection(name).doc(id).set(body);
+      await confirmed(requireDb().collection(name).doc(id).set(body));
     } catch (error) {
       throw writeError(error);
     }
@@ -385,7 +435,7 @@ export function patch(name: CollectionName, id: string, data: DocData): Promise<
   const body = stripUndefined(data);
   return enqueue(`${name}/${id}`, async () => {
     try {
-      await requireDb().collection(name).doc(id).update(body);
+      await confirmed(requireDb().collection(name).doc(id).update(body));
     } catch (error) {
       throw writeError(error);
     }
@@ -398,7 +448,7 @@ export function patch(name: CollectionName, id: string, data: DocData): Promise<
 export function remove(name: CollectionName, id: string): Promise<void> {
   return enqueue(`${name}/${id}`, async () => {
     try {
-      await requireDb().collection(name).doc(id).delete();
+      await confirmed(requireDb().collection(name).doc(id).delete());
     } catch (error) {
       throw writeError(error);
     }
@@ -426,8 +476,16 @@ export async function withLock<T>(name: CollectionName, id: string, task: () => 
   for (let attempt = 0; attempt < LOCK_ATTEMPTS; attempt += 1) {
     let acquired = false;
     try {
-      acquired = (await ref.acquire({ holder: sessionId, ttlMs: LOCK_TTL_MS })).acquired;
+      // Offline there is nobody to take turns with, and no way to ask: the
+      // change goes ahead and is sent when the connection returns.
+      const lease = await Promise.race([
+        ref.acquire({ holder: sessionId, ttlMs: LOCK_TTL_MS }),
+        sleep(ACK_WAIT_MS).then(() => null),
+      ]);
+      if (lease === null) return task();
+      acquired = lease.acquired;
     } catch (error) {
+      if ((error as { code?: string } | null)?.code === "unavailable") return task();
       throw writeError(error);
     }
     if (acquired) return task();

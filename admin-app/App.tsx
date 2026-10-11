@@ -17,6 +17,7 @@ import { colors } from "@/constants/theme";
 import { AppProvider } from "@/context/AppContext";
 import RootNavigator from "@/navigation/RootNavigator";
 import DialogHost from "@/web/DialogHost";
+import SyncBanner from "@/components/SyncBanner";
 import { useFrameWidth } from "@/web/frame";
 
 /**
@@ -62,6 +63,7 @@ export default function App() {
         <StatusBar style="dark" />
         <AppFrame>
           <RootNavigator />
+          <SyncBanner />
         </AppFrame>
         <DialogHost />
       </AppProvider>

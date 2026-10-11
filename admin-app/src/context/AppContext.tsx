@@ -15,7 +15,7 @@ import { DEFAULT_SETTINGS, loadSettings, saveSettings } from "@/services/setting
 import { seedTemplates } from "@/services/messaging";
 import { hasPin as hasPinStored } from "@/services/security";
 import { getBranch, listBranches, seedBranches, setActiveBranchId } from "@/services/branches";
-import { closeStore, openStore, storeProblem, subscribeStore } from "@/store/cloud";
+import { closeStore, openStore, storePending, storeProblem, subscribeStore } from "@/store/cloud";
 import { currentPeriod, raiseDueBills } from "@/services/fees";
 import { startBackend } from "@/backend";
 import type { FirebaseBackend, Session } from "@/backend/firebase";
@@ -81,6 +81,8 @@ interface AppContextValue {
   access: Access;
   /** Set while live updates from the server have stopped. */
   syncProblem: string | null;
+  /** Changes made without a connection that are still waiting to be sent. */
+  pendingSync: number;
 
   updateSettings: (patch: Partial<AppSettings>) => Promise<void>;
   refreshSettings: () => Promise<void>;
@@ -109,6 +111,7 @@ export function AppProvider({ children }: PropsWithChildren) {
   const [dataVersion, setDataVersion] = useState(0);
   const [access, setAccess] = useState<Access>(NO_ACCESS);
   const [syncProblem, setSyncProblem] = useState<string | null>(null);
+  const [pendingSync, setPendingSync] = useState(0);
 
   const backendRef = useRef<FirebaseBackend | null>(null);
   const backgroundedAt = useRef<number | null>(null);
@@ -141,6 +144,7 @@ export function AppProvider({ children }: PropsWithChildren) {
     setUser(null);
     setAccess(NO_ACCESS);
     setSyncProblem(null);
+    setPendingSync(0);
     setDataVersion((v) => v + 1);
   }, []);
 
@@ -245,6 +249,7 @@ export function AppProvider({ children }: PropsWithChildren) {
     return subscribeStore(() => {
       setDataVersion((v) => v + 1);
       setSyncProblem(storeProblem());
+      setPendingSync(storePending());
       loadSettings().then(setSettings).catch(() => undefined);
       listBranches()
         .then((next) => {
@@ -342,6 +347,7 @@ export function AppProvider({ children }: PropsWithChildren) {
       invalidate,
       access,
       syncProblem,
+      pendingSync,
       updateSettings,
       refreshSettings,
       refreshPinState,
@@ -350,7 +356,7 @@ export function AppProvider({ children }: PropsWithChildren) {
     }),
     [
       ready, startupError, user, opening, signIn, signOut, settings, hasPin, locked, branches,
-      activeBranch, chooseBranch, clearBranch, dataVersion, invalidate, access, syncProblem,
+      activeBranch, chooseBranch, clearBranch, dataVersion, invalidate, access, syncProblem, pendingSync,
       updateSettings, refreshSettings, refreshPinState, unlock, lock,
     ]
   );
