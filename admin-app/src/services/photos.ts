@@ -39,6 +39,9 @@ function photoFolder(branchId: string | null | undefined): string {
 const urls = new Map<string, string | null>();
 const waiting = new Map<string, Promise<string | null>>();
 const listeners = new Set<() => void>();
+/** When a lookup last failed, so it is tried again later rather than never. */
+const failedAt = new Map<string, number>();
+const RETRY_AFTER_MS = 15_000;
 
 /** Looks up (once) the address an image can be shown from. */
 function resolveUrl(fileName: string): Promise<string | null> {
@@ -49,8 +52,12 @@ function resolveUrl(fileName: string): Promise<string | null> {
       try {
         const assets = await capability("assets");
         url = assets?.url ? await assets.url(fileName) : `/_blob/${fileName}`;
+        failedAt.delete(fileName);
       } catch {
-        // Missing, or not this login's branch: shown as "no photo".
+        // Missing, refused, or no connection: shown as "no photo" and tried
+        // again later.
+        failedAt.set(fileName, Date.now());
+        waiting.delete(fileName);
       }
       urls.set(fileName, url);
       listeners.forEach((listener) => listener());
@@ -68,8 +75,16 @@ function resolveUrl(fileName: string): Promise<string | null> {
  */
 export function photoUri(fileName: string | null | undefined): string | null {
   if (!fileName) return null;
-  if (!urls.has(fileName)) void resolveUrl(fileName);
+  const failed = failedAt.get(fileName);
+  if (!urls.has(fileName) || (failed !== undefined && Date.now() - failed > RETRY_AFTER_MS)) {
+    void resolveUrl(fileName);
+  }
   return urls.get(fileName) ?? null;
+}
+
+/** True when the photo exists on the record but could not be fetched. */
+export function photoFailed(fileName: string | null | undefined): boolean {
+  return !!fileName && failedAt.has(fileName);
 }
 
 /** The same address, awaited. For code that reads the photo's bytes. */

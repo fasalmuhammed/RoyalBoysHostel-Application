@@ -13,7 +13,7 @@ import { useApp } from "@/context/AppContext";
 import { useAsyncData } from "@/utils/hooks";
 import { approveApplication, getApplication, rejectApplication } from "@/services/admissions";
 import { formatRoomLabel, listRooms } from "@/services/rooms";
-import { usePhotoUri } from "@/services/photos";
+import { photoFailed, usePhotoUri } from "@/services/photos";
 import { formatDateTime } from "@/utils/format";
 import type { RootStackParamList } from "@/navigation/types";
 
@@ -190,7 +190,9 @@ function DocumentImage({ label, file }: { label: string; file: string | null }) 
         <Image source={{ uri }} style={styles.documentImage} resizeMode="contain" accessibilityLabel={`Aadhaar ${label}`} />
       ) : (
         <View style={[styles.documentImage, styles.documentMissing]}>
-          <Text style={styles.documentMissingText}>{file ? "Loading…" : "Not sent"}</Text>
+          <Text style={styles.documentMissingText}>
+            {!file ? "Not sent" : photoFailed(file) ? "Could not load this photo. Check the internet and reopen." : "Loading…"}
+          </Text>
         </View>
       )}
       <Text style={styles.documentLabel}>{label}</Text>
@@ -215,7 +217,7 @@ const styles = StyleSheet.create({
   },
   // Full width and tall enough to read the card's small print.
   documentImage: { width: "100%", aspectRatio: 1.58, borderRadius: radius.md, backgroundColor: colors.surfaceAlt },
-  documentMissing: { alignItems: "center", justifyContent: "center" },
-  documentMissingText: { ...type.support, color: colors.textFaint },
+  documentMissing: { alignItems: "center", justifyContent: "center", padding: spacing.md },
+  documentMissingText: { ...type.support, color: colors.textFaint, textAlign: "center" },
   documentLabel: { ...type.label, color: colors.textMuted, textAlign: "center" },
 });
