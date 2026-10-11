@@ -1,332 +1,90 @@
-# Royal Boys Hostel — admin app (Claude storage)
+# Royal Boys Hostel — management app
 
-The hostel register, hosted as a claude.ai Artifact. Records live in the
-artifact's Claude storage database, photos (profile, both Aadhaar sides,
-complaints) in its file store, and every change appears live on every device
-signed in to the hostel. Screens, features and design are the same as the
-phone app; only where the data lives has changed.
+One app for the admin and the branch managers of the two hostels (Thammanam
+and Kalamassery). It runs on Android phones and in a browser, and keeps every
+record online in Firebase, so a change on one device shows on the others at once.
 
-## How it works
+## What is where
 
-| Piece | Where |
+| Thing | Where it lives |
 | --- | --- |
-| Records | `src/store/cloud.ts` — one live subscription per collection, an in-memory copy the services read, queued writes, short locks for money and beds |
-| Joins, totals, ordering | `src/store/views.ts` (what SQL used to do) |
-| Services | `src/services/*` — same function names and behaviour the screens always called |
-| Phone-only modules | `src/web/shims/*` — file system, share sheet, camera/gallery, print-to-PDF, secure store, dialogs and links, swapped in by `metro.config.js` for the web build only |
-| Admin panel | `src/screens/AdminPanelScreen.tsx` — every record across both hostels plus a live activity feed; owner and Editors only |
+| Records (rooms, inmates, bills, notices…) | Firestore, Mumbai (`asia-south1`) |
+| Photos (profile, Aadhaar, complaints) | Firebase Storage, `photos/<branch>/` |
+| Logins | Firebase Authentication; who-may-do-what in `staff/<uid>` |
+| Server code | `functions/` (Cloud Functions, Node 22, Mumbai) |
+| Web address | Firebase Hosting: the app at `/`, the student form at `/join` |
 
-Data layout: `branches`, `rooms`, `inmates`, `notices`, `complaints`,
-`templates` (one document each); `fees/<inmateId>_<year>` (that year's bills,
-each holding its payments); `messages/<batchId>-<n>` (WhatsApp batches, 100
-recipients per document); `config/settings`; `counters/admission-<branch>`;
-`snapshots`; `activity/<day>`.
+Projects: `royal-hostel-staging` (testing). A production project is still to
+be created with the same setup.
 
-Rules that used SQLite transactions — a bed not overfilled, an admission
-number not reused, no payment beyond the balance, one bill per inmate per
-month — run under a short lease on the document and re-read the server copy.
+## Who can do what
 
-Access is claude.ai sharing: the owner and Editors see the admin panel;
-Contributors use the app; Viewers can read but not change records. The PIN
-lock is per device (browser storage); a forgotten PIN is cleared by clearing
-the browser's data for the app — the records are untouched.
+- **Admin** (user ID `admin`): both hostels, the admin panel, the Logins screen
+  (create a manager, reset a password, switch a login off, remove it), settings.
+- **Manager**: one hostel only. Held to it by `firestore.rules` and
+  `storage.rules` on the server, not just by what the app shows.
+- **Students**: no login. They scan a hostel's QR code and fill in the form at
+  `/join?b=<branch>`. The `join` function checks and stores it; nothing reaches
+  the records until staff approve it under **Admissions**.
 
-Moving from the phone app: export a backup on the phone (Backup & restore),
-then on first open choose **Restore from a backup file**, or later use
-**Backup & restore → Import**. Import is a merge and safe to repeat.
-
-What a browser cannot do: fingerprint/face unlock, scheduled phone
-notifications, printing (receipts download as PDF), and offline use.
-
-## Building and testing
-
-```bash
-npm install
-npm test                 # service tests against an in-memory Claude storage stand-in
-npm run build:artifact   # build/artifact/hostel.html, published as the artifact
-```
-
----
-
-# Original phone app notes
-
-The sections below describe the offline phone version this was converted from.
-
-## Royal Boys Hostel — offline-first admin app
-
-A single-admin hostel register that keeps working from a local database without
-internet. The manager adds inmates, captures both sides of their Aadhaar card,
-allocates rooms, raises and collects fees, and sends WhatsApp reminders. An
-optional authenticated Firebase account keeps encrypted recovery backups away
-from the phone; Firebase is never required for day-to-day work.
-
-It covers two branches, **Thammanam** and **Kalamassery**, which share one
-database and one backup file.
-
-Built with Expo (React Native) + TypeScript + SQLite.
-
----
-
-## Why it is built this way
-
-| Decision | Reason |
-| --- | --- |
-| **SQLite**, not AsyncStorage | AsyncStorage on Android caps out around 6 MB and has no queries. Hundreds of students with fee history need real indexes and joins. |
-| **Photos on the filesystem**, paths in the DB | Keeps the database small and fast. The DB stores a bare filename, never an absolute URI — sandbox paths change between installs, so absolute URIs would all dangle after a restore. |
-| **One `.hostelbak` file**, not CSV | The data is relational and includes photos. A CSV cannot carry either. CSV is still offered, as a *report* format — see below. |
-| **Encrypt-then-MAC backups** | The file leaves the phone (WhatsApp, email, Drive) carrying student photos, phone numbers and fee records. |
-| **Streaming chunks** | A backup is written and read in 256 KB pieces, so a hostel with 500 photos never has to fit the whole dataset in memory at once. |
-| **Derived fee status** | `paid` / `partial` / `unpaid` is computed in SQL from `total` vs `amountPaid`, so it can never drift from the payments actually recorded. |
-| **Rent lives on the student** | Rent follows the bed a student is given and is often negotiated per person, so a single hostel-wide default was the wrong home for it. It is captured when adding a student, pre-filled from their room. |
-| **Per-student billing cycle** | A bill falls due a set number of days into its period — 30 by default — rather than on one hostel-wide day of the month, so a student on different terms is not forced onto everyone else's deadline. |
-| **Admission numbers are issued, not typed** | The number is the student's id, so it is generated as a sequence (1, 2, 3...) from a stored counter combined with the highest number in use. A departed student's number is never reissued — two people sharing an id would make old receipts and exports ambiguous. |
-| **Branches are a filter, not separate stores** | Both hostels share one database and one backup file, so a single export covers the organisation and moving an inmate between branches is an edit rather than a migration. |
-| **"Inmate" in the UI, `students` in SQL** | The vocabulary changed; the table name did not. Existing `.hostelbak` files carry `students` rows, and renaming the table would break restoring a backup taken before the change. The seam is confined to the service layer. |
-| **Complaints clear rather than cascade** | A complaint names a room and optionally the inmate who raised it, but outlives both. Most are about a fitting, not a person, so the references null out when an inmate leaves or a room is reorganised. |
-| **The notification feed is derived, not stored** | With no server to keep a notifications table in step, alerts are computed from the data each time. An item disappears the moment its cause is fixed, and there is no read/unread state to drift. |
-| **Derived room occupancy** | Counted from `students.roomId` rather than stored on the room, so it cannot go stale when a student is deleted or a backup is restored. |
-
----
-
-## The backup file
-
-One file — `MyHostel_2026-08-29_1430.hostelbak` — holds **everything**: students,
-rooms, invoices, payments, notices, message templates and history, settings,
-and every student photo.
-
-```
-line 1      header JSON        ← plaintext, so the file is always identifiable
-lines 2..N  base64 chunks      ← AES-256-CBC, one random IV each
-last line   trailer JSON       ← HMAC-SHA256 over the header + every chunk
-```
-
-- **Key derivation** — PBKDF2-SHA256, 30 000 rounds, 16-byte random salt,
-  producing 64 bytes: 32 for AES, 32 for the MAC. The two keys are independent.
-- **Authentication** — the MAC is verified over the *entire* file before a
-  single chunk is decrypted, and before any existing data is touched. A wrong
-  passphrase, a truncated transfer or a tampered file all fail with the current
-  data still intact.
-- **Iteration count lives in the header**, so it can be raised later without
-  invalidating files written today.
-
-### Restoring
-
-Restore is **replace**, not merge, and it happens in this order:
-
-1. Verify the MAC over the whole file.
-2. Write a safety snapshot of the data currently on the phone.
-3. Only then wipe and load.
-
-So picking the wrong file costs nothing — the snapshot is listed on the Backup
-screen and can be restored straight back.
-
----
-
-## What the app deliberately does *not* do
-
-Being straight about the limits is part of the design.
-
-**It is not multi-device.** One phone is the source of truth. Two phones both
-editing and swapping files would silently lose whichever edits were made on the
-copy restored second. If you ever need two people editing at once, that needs
-real sync, not file swapping.
-
-**Uninstalling the app deletes everything.** So do a factory reset, a lost
-phone, and a broken screen. The in-app snapshots live inside the app sandbox and
-die with it — they protect against *mistakes*, not against losing the phone.
-Only an exported file or encrypted cloud backup protects against that. The
-dashboard nags when the last export is over a week old, and a repeating
-notification does the same.
-
-**A forgotten PIN cannot be reset.** There is no account and no email recovery.
-The same is true of a lost backup passphrase — the file becomes unreadable.
-
-**CSV export will not restore your app.** It cannot carry photos or the links
-between records. It is for printing a register, totalling a month's collection,
-and handing a list to management.
-
-### WhatsApp: what "automation" can honestly mean
-
-WhatsApp gives no third-party app a way to send a message silently from your own
-number. Unattended sending exists only through the **WhatsApp Business Cloud
-API** — a paid, internet-hosted service with pre-approved message templates,
-which is the opposite of this app's offline design. The unofficial libraries
-that appear to work drive a logged-in web session and are a well-documented way
-to get a number banned.
-
-So the app automates everything up to the send:
-
-- picks the recipients (everyone, or exactly the students whose fees are overdue),
-- merges each student's name, room, balance, month and due date into the template,
-- opens WhatsApp with that student's chat and message already filled in,
-- tracks who has been contacted and who is still pending.
-
-You tap send. For a 40-student fee run that is 40 taps instead of 40 messages
-typed by hand — and no ban risk.
-
-### The notice board
-
-Notices are records first, messages second. You post one to the board — heading,
-category (general / event / maintenance / urgent), and optionally pinned — and it
-stays there as the hostel's record of what was announced and when.
-
-"Send on WhatsApp" hands that notice to the same composer everything else uses,
-with the text already formatted (`*heading*`, then the body). `{{name}}` and
-`{{hostel}}` are deliberately left unresolved at that point so each student still
-gets their own greeting. Once a batch is prepared the notice is stamped with the
-time it went out, so the board shows at a glance what has been circulated.
-
-Posting and sending are separate on purpose: plenty of notices belong on the
-board without going to every student's phone.
-
----
-
-## Screens
-
-**Setup (first run)** — Start fresh · Restore from a backup · Hostel details · Create PIN
-**Branch picker** — choose Thammanam or Kalamassery, asked on every launch
-**Main** — Dashboard · Inmates · Rooms · Fees · More
-**Inmates** — list & search · add/edit with profile and Aadhaar front/back capture, rent and billing cycle · detail with fee history
-**Rooms** — list with occupancy · add/edit · detail with bed map, move-in/move-out, and moving an existing inmate in from another room
-**Fees** — list by month & status · bill detail · collect payment · bulk-raise monthly bills · PDF receipt
-**Complaints** — register by status (open / in progress / resolved), category, photo, room link
-**Notices** — notice board by category, pinning, and one-tap send to inmates
-**Search** — one box across inmates, rooms, bills and notices
-**Notifications** — what needs attention, derived live from the data
-**WhatsApp** — announcements · fee reminders · templates · send queue
-**Other** — Local/cloud backup & restore · CSV reports · Settings · Change PIN · Lock screen
-
-### Firebase cloud backups
-
-Cloud backup uploads the existing `.hostelbak` format, encrypted on the phone
-before any bytes leave it. Firebase Authentication protects each administrator's
-folder and `storage.rules` prevents one account from reading another account's
-files. This is disaster recovery, not multi-device live editing.
-
-The checked-in client configuration points at the Firebase project already used
-by this repository. To use a different production project, copy `.env.example`
-to `.env` and fill in the `EXPO_PUBLIC_FIREBASE_*` values.
-
-Before cloud backup can be used:
-
-1. Enable Email/Password in Firebase Authentication.
-2. Enable Firebase Storage and attach the required Blaze billing account.
-3. From `admin-app`, run `firebase deploy --only storage` to deploy the private
-   rules in `storage.rules`.
-4. Build a new APK; cloud dependencies are native/runtime dependencies and are
-   not part of older installed builds.
-
-The administrator can then create or sign in to a cloud account from **Backup &
-restore**, upload an encrypted backup, download one into the existing verified
-restore flow, or permanently delete an old cloud copy.
-
----
+Nobody can sign themselves up: accounts are created only by the admin
+(`scripts/lock-signup.mjs` turns self sign-up off for a project).
 
 ## Running it
 
-```bash
-cd admin-app
+```
 npm install
-
-npm start          # Expo dev server
-npm run android    # build & run on a connected device
-npm test           # 343 tests, no device needed
-npm run typecheck  # tsc --noEmit
+copy .env.example .env      # then fill in the Firebase project's values
+npx expo start --web        # browser, http://localhost:8081
+npx expo start              # phone, with Expo Go or a development build
 ```
 
-### Building an installable APK
-
-```bash
-npm install -g eas-cli
-eas login
-eas build --profile preview --platform android
-```
-
-`preview` produces a plain APK you can sideload. Expo Go is fine for trying the
-UI, but **build a real APK before using it for actual hostel data** — Expo Go
-sandboxes storage and its database can be cleared when the Expo Go app updates.
-
----
+The first admin login for a new project is made from the command line
+(`node scripts/create-login.mjs --username admin --name Admin --role admin --project <id>`).
+Managers are then created inside the app.
 
 ## Tests
 
-`npm test` runs 343 assertions against the real service code, using an
-in-memory filesystem and a real SQLite engine (`node:sqlite`). No device or
-emulator needed.
+```
+npm test                 # 65 checks of the app's logic, no network
+npm run test:firebase    # 44 checks against local Firebase emulators, with the real rules
+```
 
-**`tests/backup.test.js` (80)** — the parts where a bug means data loss:
-encrypted round trip, ciphertext contains no plaintext names or phone numbers,
-wrong passphrase rejected, tampered chunk caught by the MAC, truncated file
-rejected, data left untouched after every failed restore, exact row-for-row
-fidelity, Unicode and multi-line fields preserved, photo bytes identical,
-relationships still resolve afterwards, and a 63-student dataset spanning many
-chunks, and a backup claiming a newer schema refused outright.
+The emulators need Java (Android Studio's bundled one works: add
+`C:\Program Files\Android\Android Studio\jbr\bin` to `PATH`).
 
-**`tests/logic.test.js` (263)** — every migration applied to an existing install
-(including the v3 rent backfill from the occupied room), room capacity enforced on create/edit/assign,
-beds freed on move-out, deleting a room detaches students instead of deleting
-them, payment arithmetic, overpayment rejected rather than clamped, reversal
-restores the exact balance, duplicate invoices blocked, bulk invoice generation
-safe to re-run, Indian-format money, phone normalisation for `wa.me`, and CSV
-escaping including formula-injection guards, notice filtering, pinning and
-placeholder rendering, per-student rent and billing-cycle handling, the
-admission-number sequence, the photo lifecycle from capture through replacement
-to deletion, and branch isolation — neither branch can see the other's inmates,
-rooms, bills or notices, while an export taken inside one still restores both.
+## Putting a change live
 
----
+```
+npm run deploy:staging   # builds the site, then deploys rules, functions and hosting
+```
+
+Always clear Metro's cache when switching between projects (`expo export --clear`,
+`expo start --clear`): the project's settings are baked in when the app is built.
+
+A phone build is made with EAS (`eas build -p android --profile preview`); the
+`preview` profile in `eas.json` carries the staging project's settings. After
+that, everyday changes reach installed phones as over-the-air updates
+(`eas update --channel preview`) the next time the app is opened.
 
 ## Layout
 
 ```
-admin-app/
-  App.tsx
-  src/
-    db/            schema + migrations (user_version), connection
-    services/      students, rooms, fees, messaging, photos,
-                   backup, crypto, security, csv, reminders, settings
-    screens/       setup/ · students/ · rooms/ · fees/ · messages/ · top level
-    components/    Base, Button, Input, Avatar, Controls
-    context/       AppContext — settings, lock state, refresh signal
-    utils/         format, validate, receipt, hooks, id
-    navigation/    RootNavigator + route types
-  tests/           harness + two suites
+src/backend/     Firebase: sign-in, database, files, server calls
+src/store/       live in-memory copy of the records, queued saves, offline handling
+src/services/    the hostel's rules: rooms, inmates, fees, admissions, staff…
+src/screens/     one file per screen
+src/components/  shared buttons, inputs, cards
+src/constants/   colours, spacing and type (theme.ts)
+functions/       server code: staff (logins) and join (student form)
+hosting/         the student registration page
 ```
 
-### Branches
+## Good to know
 
-Inmates, rooms and notices carry a `branchId`; bills and payments inherit the
-branch of the inmate they belong to rather than storing their own, so the two
-can never disagree. Every list, total and report follows the active branch —
-backup and restore deliberately do not, so one file still carries both hostels.
-
-Numbering restarts per branch, so both have an inmate 1. Ids are shown and
-exported as `T-1` / `K-1`, since the number alone is ambiguous once two hostels
-share a spreadsheet. Notices default to the branch they were posted in, with an
-"applies to both branches" switch that stores a null branch and shows on both
-boards.
-
-The branch is asked on every launch rather than remembered silently: both
-hostels look identical from inside, and admitting an inmate against the wrong
-one is expensive to unpick.
-
-### Fees
-
-There is no hostel-wide rent or due day. Each student carries a `monthlyRent`
-and a `billingCycleDays` (default 30), captured on the Add Student form and
-pre-filled from whichever room they are allocated — editable, because two
-students in the same room can be on different terms. Raising monthly bills
-prices each one from its own student and sets its due date to the period start
-plus that student's cycle.
-
-Setup therefore asks only for the hostel name, country code and currency
-symbol.
-
----
-
-Adding a schema change: bump `SCHEMA_VERSION` in `src/db/schema.ts`, add the
-matching entry to `MIGRATIONS`, and add the table to `BACKUP_TABLES` and to
-`wipeAllData` in `src/db/index.ts`. Never edit an existing migration in place —
-existing installs and old backup files would diverge from new ones. The notices
-table (`V2`) is the worked example; a test applies `V1`, seeds a row, then
-migrates and checks the data survived.
+- **Monthly bills raise themselves** when the app is opened in a new month.
+  There is no "raise bills" button.
+- **Without internet** the app shows what it last loaded. A save is kept and
+  sent when the connection returns, as long as the app stays open.
+- **Photos are shrunk before upload** (profile about 640px, documents about
+  1400px) so they stay readable without filling the storage.
