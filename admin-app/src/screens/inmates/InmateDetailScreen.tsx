@@ -15,6 +15,7 @@ import { deleteInmate, getInmate, markLeft, reinstate } from "@/services/inmates
 import { listFeesForStudent } from "@/services/fees";
 import { savePhotoToDevice, usePhotoUri } from "@/services/photos";
 import PhotoViewer, { ViewedPhoto } from "@/components/PhotoViewer";
+import { ReportKind, shareInmateReport } from "@/services/inmateReport";
 import { formatInmateId } from "@/services/branches";
 import { formatDate, formatMoney, formatPeriod, relativeDays } from "@/utils/format";
 import type { RootStackParamList } from "@/navigation/types";
@@ -23,13 +24,15 @@ type Props = NativeStackScreenProps<RootStackParamList, "InmateDetail">;
 
 export default function InmateDetailScreen({ navigation, route }: Props) {
   const { studentId } = route.params;
-  const { settings, invalidate } = useApp();
+  const { settings, invalidate, access, user } = useApp();
 
   const { data, loading, reload } = useAsyncData(async () => {
     const [inmate, fees] = await Promise.all([getInmate(studentId), listFeesForStudent(studentId)]);
     return { inmate, fees };
   }, [studentId]);
 
+  // The report being prepared, if any (it can take a few seconds with photos).
+  const [reporting, setReporting] = useState<ReportKind | null>(null);
   // Which photo is open full screen, if any.
   const [viewing, setViewing] = useState<ViewedPhoto | null>(null);
 
@@ -91,6 +94,16 @@ export default function InmateDetailScreen({ navigation, route }: Props) {
       await savePhotoToDevice(fileName, saveName(label));
     } catch (error) {
       Alert.alert("Could not download", error instanceof Error ? error.message : "Try again.");
+    }
+  };
+  const downloadReport = async (kind: ReportKind) => {
+    setReporting(kind);
+    try {
+      await shareInmateReport(studentId, kind, user?.name || user?.username || "");
+    } catch (error) {
+      Alert.alert("Could not create the report", error instanceof Error ? error.message : "Please try again.");
+    } finally {
+      setReporting(null);
     }
   };
   const openImage = (fileName: string | null, label: string) => {
@@ -296,6 +309,33 @@ export default function InmateDetailScreen({ navigation, route }: Props) {
           />
         </Card>
 
+        <SectionTitle title="Reports" />
+        <Card>
+          <Text style={styles.reportHint}>
+            {access.isOwner
+              ? "Standard has the inmate's details and what they owe. Master adds the Aadhaar photos, every bill and every payment."
+              : "A PDF with the inmate's details and what they owe."}
+          </Text>
+          <Button
+            title="Download standard report (PDF)"
+            icon="document-text-outline"
+            variant="secondary"
+            onPress={() => downloadReport("standard")}
+            loading={reporting === "standard"}
+            disabled={reporting !== null}
+          />
+          {access.isOwner ? (
+            <Button
+              title="Download master report (PDF)"
+              icon="shield-checkmark-outline"
+              onPress={() => downloadReport("master")}
+              loading={reporting === "master"}
+              disabled={reporting !== null}
+              style={{ marginTop: spacing.sm }}
+            />
+          ) : null}
+        </Card>
+
         <SectionTitle
           title={`Bills (${fees.length})`}
           action={
@@ -429,6 +469,7 @@ function ActionButton({
 }
 
 const styles = StyleSheet.create({
+  reportHint: { ...type.support, color: colors.textMuted, marginBottom: spacing.md },
   screen: { flex: 1, backgroundColor: colors.background },
   content: { padding: spacing.lg, paddingBottom: spacing.xl * 2 },
 
