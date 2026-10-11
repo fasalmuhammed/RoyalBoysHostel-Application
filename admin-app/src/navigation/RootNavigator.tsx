@@ -19,6 +19,9 @@ import ReportsScreen from "@/screens/ReportsScreen";
 import NotificationsScreen from "@/screens/NotificationsScreen";
 import AdminPanelScreen from "@/screens/AdminPanelScreen";
 import StaffScreen from "@/screens/StaffScreen";
+import AdmissionsScreen from "@/screens/admissions/AdmissionsScreen";
+import AdmissionReviewScreen from "@/screens/admissions/AdmissionReviewScreen";
+import JoinQrScreen from "@/screens/admissions/JoinQrScreen";
 import SearchScreen from "@/screens/SearchScreen";
 import ChangePinScreen from "@/screens/ChangePinScreen";
 
@@ -223,6 +226,21 @@ function MainStack() {
         name="AdminPanel"
         component={AdminPanelScreen}
         options={{ ...detailOptions, title: "Admin panel" }}
+      />
+      <Stack.Screen
+        name="Admissions"
+        component={AdmissionsScreen}
+        options={{ ...detailOptions, title: "Admissions" }}
+      />
+      <Stack.Screen
+        name="AdmissionReview"
+        component={AdmissionReviewScreen}
+        options={{ ...detailOptions, title: "Review form" }}
+      />
+      <Stack.Screen
+        name="JoinQr"
+        component={JoinQrScreen}
+        options={{ ...detailOptions, title: "Registration QR code" }}
       />
       <Stack.Screen
         name="Staff"

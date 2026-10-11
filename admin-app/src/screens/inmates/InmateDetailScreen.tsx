@@ -211,6 +211,12 @@ export default function InmateDetailScreen({ navigation, route }: Props) {
           <Divider />
           <DetailRow label="Guardian mobile" value={inmate.guardianPhone} />
           <Divider />
+          <DetailRow label="Emergency contact" value={inmate.emergencyPhone} />
+          <Divider />
+          <DetailRow label="College / company" value={inmate.institution} />
+          <Divider />
+          <DetailRow label="Blood group" value={inmate.bloodGroup} />
+          <Divider />
           <DetailRow label="Address" value={inmate.address} />
         </Card>
 

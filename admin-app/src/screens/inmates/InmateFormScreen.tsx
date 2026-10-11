@@ -53,6 +53,9 @@ const EMPTY: InmateInput = {
   course: "",
   year: "",
   address: "",
+  emergencyPhone: "",
+  bloodGroup: "",
+  institution: "",
   idProof: "",
   photoFile: null,
   idProofFile: null,
@@ -152,6 +155,9 @@ export default function InmateFormScreen({ navigation, route }: Props) {
         course: inmate.course,
         year: inmate.year,
         address: inmate.address,
+        emergencyPhone: inmate.emergencyPhone ?? "",
+        bloodGroup: inmate.bloodGroup ?? "",
+        institution: inmate.institution ?? "",
         idProof: inmate.idProof,
         photoFile: inmate.photoFile,
         idProofFile: inmate.idProofFile,
@@ -288,6 +294,9 @@ export default function InmateFormScreen({ navigation, route }: Props) {
     if (form.phone.trim() && !isValidPhone(form.phone)) next.phone = "That phone number looks wrong.";
     if (form.guardianPhone.trim() && !isValidPhone(form.guardianPhone)) {
       next.guardianPhone = "That phone number looks wrong.";
+    }
+    if (form.emergencyPhone?.trim() && !isValidPhone(form.emergencyPhone)) {
+      next.emergencyPhone = "That phone number looks wrong.";
     }
     if (!isValidEmail(form.email)) next.email = "That email address looks wrong.";
     if (!form.idProofFile) next.idProofFile = "Add a clear photo of the Aadhaar front.";
@@ -610,8 +619,33 @@ export default function InmateFormScreen({ navigation, route }: Props) {
             error={errors.guardianPhone}
             icon="call-outline"
           />
+          <Input
+            label="Emergency contact number"
+            value={form.emergencyPhone ?? ""}
+            onChangeText={(t) => set("emergencyPhone", t)}
+            placeholder="Who to call in an emergency"
+            keyboardType="phone-pad"
+            error={errors.emergencyPhone}
+            icon="medkit-outline"
+          />
 
           <SectionTitle title="Other details" />
+          <Input
+            label="College / company"
+            value={form.institution ?? ""}
+            onChangeText={(t) => set("institution", t)}
+            placeholder="Optional"
+            icon="school-outline"
+            autoCapitalize="words"
+          />
+          <Input
+            label="Blood group"
+            value={form.bloodGroup ?? ""}
+            onChangeText={(t) => set("bloodGroup", t.toUpperCase().slice(0, 4))}
+            placeholder="Optional, e.g. O+"
+            icon="water-outline"
+            autoCapitalize="characters"
+          />
           <Input
             label="Address"
             value={form.address}

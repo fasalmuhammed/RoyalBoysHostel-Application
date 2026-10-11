@@ -44,6 +44,12 @@ export interface Inmate {
   course: string;
   year: string;
   address: string;
+  /** Who to ring in an emergency, when it is not the guardian. Blank on older records. */
+  emergencyPhone?: string;
+  /** e.g. "O+". Optional. */
+  bloodGroup?: string;
+  /** College or company. Optional. */
+  institution?: string;
   /** Legacy free-text field (e.g. "Aadhaar last 4 digits"). Kept for old records; no longer editable. */
   idProof: string;
   /** Filename (not a full URI) inside the app's photos directory. */

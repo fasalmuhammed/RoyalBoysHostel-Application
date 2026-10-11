@@ -28,7 +28,8 @@ export type CollectionName =
   | "config"
   | "counters"
   | "snapshots"
-  | "activity";
+  | "activity"
+  | "applications";
 
 export type DocData = Record<string, unknown>;
 
@@ -44,6 +45,7 @@ const SUBSCRIBED: CollectionName[] = [
   "config",
   "counters",
   "snapshots",
+  "applications",
 ];
 
 /** How many days of the activity feed the admin panel keeps live. */
@@ -66,7 +68,16 @@ let writable: boolean | null = null;
 let scopeBranch: string | null = null;
 
 /** Collections whose records belong to a branch (`branchId` on each). */
-const BRANCH_SCOPED: CollectionName[] = ["rooms", "inmates", "fees", "messages", "complaints", "counters", "activity"];
+const BRANCH_SCOPED: CollectionName[] = [
+  "rooms",
+  "inmates",
+  "fees",
+  "messages",
+  "complaints",
+  "counters",
+  "activity",
+  "applications",
+];
 /** Admin-only collections a manager never subscribes to. */
 const ADMIN_ONLY: CollectionName[] = ["snapshots"];
 let connectionProblem: string | null = null;

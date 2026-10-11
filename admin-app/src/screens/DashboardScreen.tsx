@@ -27,6 +27,7 @@ import { inmateCounts } from "@/services/inmates";
 import { occupancyTotals } from "@/services/rooms";
 import { currentPeriod, feeTotals, listDueForReminder } from "@/services/fees";
 import { formatMoney, formatPeriod, relativeDays, toIsoDate } from "@/utils/format";
+import { countApplications } from "@/services/admissions";
 import type { MainTabParamList, RootStackParamList } from "@/navigation/types";
 
 type Props = CompositeScreenProps<
@@ -50,7 +51,7 @@ export default function DashboardScreen({ navigation }: Props) {
       feeTotals(period),
       listDueForReminder(toIsoDate()),
     ]);
-    return { inmates, occupancy, fees, due };
+    return { inmates, occupancy, fees, due, waiting: countApplications() };
   }, [period]);
 
   const symbol = settings.currencySymbol;
@@ -139,6 +140,18 @@ export default function DashboardScreen({ navigation }: Props) {
               </FadeIn>
             ) : null}
 
+            {data && data.waiting > 0 ? (
+              <FadeIn index={1}>
+                <AlertRow
+                  tone="warning"
+                  icon="person-add-outline"
+                  title={`${data.waiting} ${data.waiting === 1 ? "student is" : "students are"} waiting for approval`}
+                  body="Check the form and Aadhaar photos, then admit."
+                  onPress={() => navigation.navigate("Admissions")}
+                />
+              </FadeIn>
+            ) : null}
+
             <FadeIn index={2}>
               <View style={styles.quickCard}>
                 <QuickActionTile label="Add inmate" icon="person-add" tint={colors.primary} bg={colors.primaryLight} onPress={() => navigation.navigate("InmateForm")} />
@@ -146,7 +159,7 @@ export default function DashboardScreen({ navigation }: Props) {
                 <QuickActionTile label="Dues" icon="alarm" tint={colors.danger} bg={colors.dangerBg} onPress={() => navigation.navigate("Dues")} />
                 <QuickActionTile label="WhatsApp" icon="logo-whatsapp" tint={colors.success} bg={colors.successBg} onPress={() => navigation.navigate("Messages")} />
                 <QuickActionTile label="Complaints" icon="construct" tint={colors.warning} bg={colors.warningBg} onPress={() => navigation.navigate("Complaints")} />
-                <QuickActionTile label="Notice" icon="megaphone" tint={colors.gold} bg={colors.goldBg} onPress={() => navigation.navigate("NoticeForm")} />
+                <QuickActionTile label="Admissions" icon="qr-code" tint={colors.gold} bg={colors.goldBg} onPress={() => navigation.navigate("Admissions")} />
                 <QuickActionTile label="Reports" icon="bar-chart" tint={colors.info} bg={colors.infoBg} onPress={() => navigation.navigate("Reports")} />
                 {access.isOwner ? (
                   <QuickActionTile label="Admin panel" icon="speedometer" tint={colors.primary} bg={colors.primaryLight} onPress={() => navigation.navigate("AdminPanel")} />

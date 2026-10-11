@@ -147,3 +147,6 @@ exports.staff = onCall(async (request) => {
   if (!action) throw new HttpsError("invalid-argument", "Unknown request.");
   return action(data);
 });
+
+// Student registration (the QR form) lives in its own file.
+exports.join = require("./join").join;

@@ -50,6 +50,10 @@ export type RootStackParamList = {
 
   AdminPanel: undefined;
   Staff: undefined;
+
+  Admissions: undefined;
+  AdmissionReview: { applicationId: string };
+  JoinQr: undefined;
   Reports: undefined;
   Settings: undefined;
   ChangePin: undefined;

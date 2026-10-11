@@ -54,7 +54,7 @@ service cloud.firestore {
     // and be told so, rather than refused.
     match /{collection}/{id} {
       function branchScoped() {
-        return collection in ['rooms', 'inmates', 'fees', 'messages', 'complaints', 'counters', 'activity'];
+        return collection in ['rooms', 'inmates', 'fees', 'messages', 'complaints', 'counters', 'activity', 'applications'];
       }
       allow get: if branchScoped() && active() && (resource == null || inBranch(resource.data.branchId));
       allow list: if branchScoped() && inBranch(resource.data.branchId);

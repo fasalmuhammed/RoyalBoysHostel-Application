@@ -10,6 +10,7 @@ import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { Tone, colors, fontSize, radius, shadow, spacing, toneColor, type } from "@/constants/theme";
 import { useApp } from "@/context/AppContext";
 import { initials } from "@/utils/format";
+import { countApplications } from "@/services/admissions";
 import type { MainTabParamList, RootStackParamList } from "@/navigation/types";
 
 type Props = CompositeScreenProps<
@@ -28,6 +29,8 @@ export default function MoreScreen({ navigation }: Props) {
     if (next) void chooseBranch(next.id);
   };
   const displayName = user?.name || user?.username || "";
+  // Recounted on every live refresh (the context re-renders this screen).
+  const waiting = countApplications();
 
   return (
     <SafeAreaView style={styles.screen} edges={["top", "left", "right"]}>
@@ -83,6 +86,28 @@ export default function MoreScreen({ navigation }: Props) {
             />
           </View>
         ) : null}
+
+        <Text style={styles.groupLabel}>ADMISSIONS</Text>
+        <View style={styles.group}>
+          <Row
+            icon="person-add-outline"
+            label="Admissions"
+            sublabel={
+              waiting > 0
+                ? `${waiting} ${waiting === 1 ? "form is" : "forms are"} waiting for approval`
+                : "Forms students sent with the QR code"
+            }
+            tone={waiting > 0 ? "warning" : undefined}
+            onPress={() => navigation.navigate("Admissions")}
+          />
+          <Row
+            icon="qr-code-outline"
+            label="Registration QR code"
+            sublabel="Students scan it and fill in their own details"
+            onPress={() => navigation.navigate("JoinQr")}
+            last
+          />
+        </View>
 
         <Text style={styles.groupLabel}>DAY TO DAY</Text>
         <View style={styles.group}>

@@ -19,6 +19,9 @@
     },
     "functions": {
       "port": 5001
+    },
+    "hosting": {
+      "port": 5000
     }
   },
   "storage": {
@@ -34,5 +37,38 @@
         "*.log"
       ]
     }
-  ]
+  ],
+  "hosting": {
+    "public": "build/site",
+    "ignore": [
+      "firebase.json",
+      "**/.*",
+      "**/node_modules/**"
+    ],
+    "cleanUrls": true,
+    "rewrites": [
+      {
+        "source": "/api/join",
+        "function": {
+          "functionId": "join",
+          "region": "asia-south1"
+        }
+      },
+      {
+        "source": "**",
+        "destination": "/index.html"
+      }
+    ],
+    "headers": [
+      {
+        "source": "/join",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "no-cache"
+          }
+        ]
+      }
+    ]
+  }
 }
