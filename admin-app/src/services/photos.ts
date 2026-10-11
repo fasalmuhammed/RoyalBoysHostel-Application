@@ -259,3 +259,35 @@ export async function measurePhotoUsage(): Promise<number> {
 export function photosDiskUsage(): number {
   return storageBytes;
 }
+
+// --- saving to the device ----------------------------------------------------
+
+/**
+ * Saves a stored photo to the device: a browser downloads it; a phone fetches
+ * it and opens the share sheet (save to gallery, WhatsApp, print...).
+ */
+export async function savePhotoToDevice(fileName: string, saveAs: string): Promise<void> {
+  const url = await photoUrl(fileName);
+  if (!url) throw new Error("This photo could not be opened. Check the internet connection.");
+  const name = `${saveAs.replace(/[^\w.-]+/g, "-").replace(/^-+|-+$/g, "") || "photo"}.jpg`;
+
+  if (Platform.OS === "web") {
+    const response = await fetch(url);
+    if (!response.ok) throw new Error("This photo could not be downloaded. Try again.");
+    const downloads = await capability("downloads");
+    if (!downloads) throw new Error("Saving files is not available here.");
+    await downloads.save({ filename: name, data: await response.blob() });
+    return;
+  }
+
+  // Loaded only on a phone; the browser build has its own stand-ins.
+  /* eslint-disable @typescript-eslint/no-require-imports */
+  const { File, Paths } = require("expo-file-system");
+  const Sharing = require("expo-sharing");
+  /* eslint-enable @typescript-eslint/no-require-imports */
+  const target = new File(Paths.cache, name);
+  if (target.exists) target.delete();
+  const saved = await File.downloadFileAsync(url, target);
+  if (!(await Sharing.isAvailableAsync())) throw new Error("This phone cannot share files.");
+  await Sharing.shareAsync(saved.uri, { mimeType: "image/jpeg", dialogTitle: `Save ${saveAs}` });
+}

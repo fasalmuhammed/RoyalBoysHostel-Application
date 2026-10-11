@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { Alert, Image, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Alert, Image, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 
@@ -8,6 +8,7 @@ import Button from "@/components/Button";
 import Input, { PickerField } from "@/components/Input";
 import { OptionPicker } from "@/components/Controls";
 import Avatar from "@/components/Avatar";
+import PhotoViewer, { ViewedPhoto } from "@/components/PhotoViewer";
 import { colors, radius, spacing, type } from "@/constants/theme";
 import { useApp } from "@/context/AppContext";
 import { useAsyncData } from "@/utils/hooks";
@@ -33,6 +34,7 @@ export default function AdmissionReviewScreen({ navigation, route }: Props) {
   const [picking, setPicking] = useState(false);
   const [busy, setBusy] = useState<"approve" | "reject" | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [viewing, setViewing] = useState<ViewedPhoto | null>(null);
 
   const room = rooms?.find((r) => r.id === roomId) ?? null;
 
@@ -95,7 +97,17 @@ export default function AdmissionReviewScreen({ navigation, route }: Props) {
     <SafeAreaView style={styles.screen} edges={["left", "right", "bottom"]}>
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
         <View style={styles.head}>
-          <Avatar name={application.fullName} photoFile={application.photoFile} size={76} />
+          <Pressable
+            disabled={!application.photoFile}
+            onPress={() =>
+              application.photoFile &&
+              setViewing({ file: application.photoFile, label: "Photo", saveAs: `${application.fullName} photo` })
+            }
+            accessibilityRole="imagebutton"
+            accessibilityLabel="Open photo"
+          >
+            <Avatar name={application.fullName} photoFile={application.photoFile} size={84} />
+          </Pressable>
           <Text style={styles.name}>{application.fullName}</Text>
           <Text style={styles.sent}>Sent {formatDateTime(application.createdAt)}</Text>
         </View>
@@ -126,8 +138,16 @@ export default function AdmissionReviewScreen({ navigation, route }: Props) {
 
         <SectionTitle title="Aadhaar card" />
         <View style={styles.documents}>
-          <DocumentImage label="Front" file={application.idProofFile} />
-          <DocumentImage label="Back" file={application.idProofBackFile} />
+          <DocumentImage
+            label="Front"
+            file={application.idProofFile}
+            onOpen={(file) => setViewing({ file, label: "Aadhaar front", saveAs: `${application.fullName} Aadhaar front` })}
+          />
+          <DocumentImage
+            label="Back"
+            file={application.idProofBackFile}
+            onOpen={(file) => setViewing({ file, label: "Aadhaar back", saveAs: `${application.fullName} Aadhaar back` })}
+          />
         </View>
 
         <SectionTitle title="Admit to" />
@@ -178,14 +198,29 @@ export default function AdmissionReviewScreen({ navigation, route }: Props) {
         onSelect={(key) => setRoomId(key || null)}
         onClose={() => setPicking(false)}
       />
+      <PhotoViewer photo={viewing} onClose={() => setViewing(null)} />
     </SafeAreaView>
   );
 }
 
-function DocumentImage({ label, file }: { label: string; file: string | null }) {
+function DocumentImage({
+  label,
+  file,
+  onOpen,
+}: {
+  label: string;
+  file: string | null;
+  onOpen: (file: string) => void;
+}) {
   const uri = usePhotoUri(file);
   return (
-    <View style={styles.document}>
+    <Pressable
+      style={styles.document}
+      disabled={!uri || !file}
+      onPress={() => file && onOpen(file)}
+      accessibilityRole="imagebutton"
+      accessibilityLabel={`Open Aadhaar ${label}`}
+    >
       {uri ? (
         <Image source={{ uri }} style={styles.documentImage} resizeMode="contain" accessibilityLabel={`Aadhaar ${label}`} />
       ) : (
@@ -195,8 +230,8 @@ function DocumentImage({ label, file }: { label: string; file: string | null }) 
           </Text>
         </View>
       )}
-      <Text style={styles.documentLabel}>{label}</Text>
-    </View>
+      <Text style={styles.documentLabel}>{label}{uri ? " · tap to open or download" : ""}</Text>
+    </Pressable>
   );
 }
 

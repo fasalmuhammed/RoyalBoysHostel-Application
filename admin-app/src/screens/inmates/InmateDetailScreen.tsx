@@ -1,7 +1,6 @@
-import React from "react";
-import { Alert, Image, Linking, ScrollView, StyleSheet, Text, View } from "react-native";
+import React, { useState } from "react";
+import { Alert, Image, Linking, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import * as Sharing from "expo-sharing";
 import { Ionicons } from "@expo/vector-icons";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 
@@ -14,7 +13,8 @@ import { useApp } from "@/context/AppContext";
 import { useAsyncData } from "@/utils/hooks";
 import { deleteInmate, getInmate, markLeft, reinstate } from "@/services/inmates";
 import { listFeesForStudent } from "@/services/fees";
-import { photoUrl, usePhotoUri } from "@/services/photos";
+import { savePhotoToDevice, usePhotoUri } from "@/services/photos";
+import PhotoViewer, { ViewedPhoto } from "@/components/PhotoViewer";
 import { formatInmateId } from "@/services/branches";
 import { formatDate, formatMoney, formatPeriod, relativeDays } from "@/utils/format";
 import type { RootStackParamList } from "@/navigation/types";
@@ -29,6 +29,9 @@ export default function InmateDetailScreen({ navigation, route }: Props) {
     const [inmate, fees] = await Promise.all([getInmate(studentId), listFeesForStudent(studentId)]);
     return { inmate, fees };
   }, [studentId]);
+
+  // Which photo is open full screen, if any.
+  const [viewing, setViewing] = useState<ViewedPhoto | null>(null);
 
   if (loading && !data) return <Loading />;
 
@@ -80,18 +83,18 @@ export default function InmateDetailScreen({ navigation, route }: Props) {
     );
   };
 
+  const saveName = (label: string) => `${inmate?.fullName ?? "inmate"} ${label}`;
+
   const downloadImage = async (fileName: string | null, label: string) => {
-    const uri = await photoUrl(fileName);
-    if (!uri) return;
+    if (!fileName) return;
     try {
-      if (await Sharing.isAvailableAsync()) {
-        await Sharing.shareAsync(uri, { mimeType: "image/jpeg", dialogTitle: `Save ${label}` });
-      } else {
-        Alert.alert("Sharing not available", "This device cannot share files.");
-      }
-    } catch {
-      Alert.alert("Could not share", "Something went wrong while sharing the image.");
+      await savePhotoToDevice(fileName, saveName(label));
+    } catch (error) {
+      Alert.alert("Could not download", error instanceof Error ? error.message : "Try again.");
     }
+  };
+  const openImage = (fileName: string | null, label: string) => {
+    if (fileName) setViewing({ file: fileName, label, saveAs: saveName(label) });
   };
 
   const onDelete = () => {
@@ -275,18 +278,21 @@ export default function InmateDetailScreen({ navigation, route }: Props) {
             label="Profile photo"
             fileName={inmate.photoFile}
             onDownload={() => downloadImage(inmate.photoFile, "profile photo")}
+            onOpen={() => openImage(inmate.photoFile, "Profile photo")}
           />
           <Divider />
           <DocumentRow
             label="Aadhaar front"
             fileName={inmate.idProofFile}
             onDownload={() => downloadImage(inmate.idProofFile, "Aadhaar front")}
+            onOpen={() => openImage(inmate.idProofFile, "Aadhaar front")}
           />
           <Divider />
           <DocumentRow
             label="Aadhaar back"
             fileName={inmate.idProofBackFile}
             onDownload={() => downloadImage(inmate.idProofBackFile, "Aadhaar back")}
+            onOpen={() => openImage(inmate.idProofBackFile, "Aadhaar back")}
           />
         </Card>
 
@@ -356,6 +362,7 @@ export default function InmateDetailScreen({ navigation, route }: Props) {
           style={{ marginTop: spacing.sm }}
         />
       </ScrollView>
+      <PhotoViewer photo={viewing} onClose={() => setViewing(null)} />
     </SafeAreaView>
   );
 }
@@ -364,14 +371,16 @@ function DocumentRow({
   label,
   fileName,
   onDownload,
+  onOpen,
 }: {
   label: string;
   fileName: string | null;
   onDownload: () => void;
+  onOpen: () => void;
 }) {
   const uri = usePhotoUri(fileName);
   return (
-    <View style={styles.documentRow}>
+    <Pressable style={styles.documentRow} onPress={onOpen} disabled={!uri} accessibilityRole="button">
       {uri ? (
         <Image source={{ uri }} style={styles.documentThumb} />
       ) : (
@@ -381,14 +390,14 @@ function DocumentRow({
       )}
       <View style={{ flex: 1 }}>
         <Text style={styles.documentLabel}>{label}</Text>
-        <Text style={styles.documentMeta}>{uri ? "Tap to download or share" : "Not added"}</Text>
+        <Text style={styles.documentMeta}>{uri ? "Tap to open" : "Not added"}</Text>
       </View>
       {uri ? (
         <PressableScale onPress={onDownload} scaleTo={0.9} style={styles.documentAction}>
           <Ionicons name="download-outline" size={20} color={colors.primary} />
         </PressableScale>
       ) : null}
-    </View>
+    </Pressable>
   );
 }
 
