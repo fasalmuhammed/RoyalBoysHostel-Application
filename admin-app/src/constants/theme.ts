@@ -1,4 +1,4 @@
-import { Dimensions, PixelRatio } from "react-native";
+import { Dimensions, PixelRatio, Platform } from "react-native";
 
 /**
  * Design tokens. Palette follows the approved mockup: a violet primary on a
@@ -16,10 +16,20 @@ import { Dimensions, PixelRatio } from "react-native";
  * and a static token table keeps every StyleSheet cheap to create.
  */
 const BASELINE_WIDTH = 390;
-const { width: screenWidth, height: screenHeight } = Dimensions.get("window");
+const windowSize = Dimensions.get("window");
+
+/**
+ * In a browser the app sits in a phone-width column (see App.tsx), so it is
+ * measured against that column rather than the whole monitor, and scaled no
+ * further than a large phone -- the layout reads as designed on a laptop too.
+ */
+export const WEB_FRAME_WIDTH = 560;
+const isWeb = Platform.OS === "web";
+const screenWidth = isWeb ? Math.min(windowSize.width, WEB_FRAME_WIDTH) : windowSize.width;
+const screenHeight = windowSize.height;
 
 /** Shortest edge, so a tablet in portrait is still measured by its width. */
-const shortEdge = Math.min(screenWidth, screenHeight);
+const shortEdge = isWeb ? Math.min(screenWidth, 430) : Math.min(screenWidth, screenHeight);
 
 export const layout = {
   width: screenWidth,

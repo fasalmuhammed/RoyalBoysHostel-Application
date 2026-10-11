@@ -98,7 +98,7 @@ export default function DashboardScreen({ navigation }: Props) {
                       ? "No backup yet"
                       : `Last backup ${backupAgeDays} days ago`
                   }
-                  body="This phone is the only copy of your records."
+                  body="Download a backup file so a copy exists outside Claude storage."
                   onPress={() => navigation.navigate("Backup")}
                 />
               </FadeIn>

@@ -124,7 +124,7 @@ export default function SettingsScreen({ navigation }: Props) {
             </View>
           ) : (
             <Text style={styles.switchHint}>
-              No fingerprint or face unlock is set up on this phone.
+              Fingerprint and face unlock are not available in the browser.
             </Text>
           )}
           <Button
@@ -147,8 +147,8 @@ export default function SettingsScreen({ navigation }: Props) {
 
         <Callout tone="info" icon="phone-portrait-outline">
           <CalloutText>
-            This app keeps everything on this phone alone. Uninstalling it, or losing the phone,
-            deletes the data permanently. Export a backup regularly and keep it elsewhere.
+            Records are kept in Claude storage, shared by everyone with access to this hostel.
+            Download a backup file regularly and keep it somewhere safe as well.
           </CalloutText>
         </Callout>
 

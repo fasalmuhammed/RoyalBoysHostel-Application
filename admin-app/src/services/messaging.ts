@@ -1,6 +1,5 @@
 import { Linking } from "react-native";
 
-import { getDb } from "@/db";
 import {
   MessageBatchSummary,
   MessageKind,
@@ -10,6 +9,8 @@ import {
 import { newBatchId, newId } from "@/utils/id";
 import { formatMoney, formatDate, formatPeriod } from "@/utils/format";
 import { toWhatsAppNumber } from "@/utils/validate";
+import { entries, find, list, logActivity, patch, put, remove } from "@/store/cloud";
+import { compareRaw, compareText } from "@/store/views";
 
 /**
  * WhatsApp messaging.
@@ -119,40 +120,41 @@ const BUILT_IN: { name: string; kind: MessageKind; body: string }[] = [
   },
 ];
 
-/** Seeds the built-in templates once, on first run. */
+
+/**
+ * Seeds the built-in templates once, on first run.
+ *
+ * Their ids are fixed, so two people opening a brand-new store at the same
+ * moment write the same five templates rather than ten.
+ */
 export async function seedTemplates(): Promise<void> {
-  const db = await getDb();
-  const existing = await db.getFirstAsync<{ n: number }>(
-    "SELECT COUNT(*) AS n FROM message_templates WHERE isBuiltIn = 1;"
-  );
-  if ((existing?.n ?? 0) > 0) return;
+  if (list<MessageTemplate>("templates").some((template) => Boolean(template.isBuiltIn))) return;
 
   const now = Date.now();
-  await db.withExclusiveTransactionAsync(async (txn) => {
-    for (const template of BUILT_IN) {
-      await txn.runAsync(
-        `INSERT INTO message_templates (id, name, kind, body, isBuiltIn, createdAt, updatedAt)
-         VALUES (?, ?, ?, ?, 1, ?, ?);`,
-        newId(), template.name, template.kind, template.body, now, now
-      );
-    }
-  });
+  for (const [index, template] of BUILT_IN.entries()) {
+    const id = `builtin-${index + 1}`;
+    await put("templates", id, {
+      id,
+      name: template.name,
+      kind: template.kind,
+      body: template.body,
+      isBuiltIn: true,
+      createdAt: now,
+      updatedAt: now,
+    });
+  }
 }
 
-/** SQLite has no boolean type, so `isBuiltIn` arrives as 0/1. */
-type TemplateRow = Omit<MessageTemplate, "isBuiltIn"> & { isBuiltIn: number };
+/** Older records (and restored phone backups) may carry `isBuiltIn` as 0/1. */
+function hydrateTemplate(template: MessageTemplate): MessageTemplate {
+  return { ...template, isBuiltIn: Boolean(template.isBuiltIn) };
+}
 
 export async function listTemplates(kind?: MessageKind): Promise<MessageTemplate[]> {
-  const db = await getDb();
-  const rows = kind
-    ? await db.getAllAsync<TemplateRow>(
-        "SELECT * FROM message_templates WHERE kind = ? ORDER BY isBuiltIn DESC, name;",
-        kind
-      )
-    : await db.getAllAsync<TemplateRow>(
-        "SELECT * FROM message_templates ORDER BY isBuiltIn DESC, name;"
-      );
-  return rows.map((row) => ({ ...row, isBuiltIn: Boolean(row.isBuiltIn) }));
+  return list<MessageTemplate>("templates")
+    .map(hydrateTemplate)
+    .filter((template) => !kind || template.kind === kind)
+    .sort((a, b) => Number(b.isBuiltIn) - Number(a.isBuiltIn) || compareRaw(a.name, b.name));
 }
 
 export async function saveTemplate(
@@ -161,28 +163,57 @@ export async function saveTemplate(
   kind: MessageKind,
   body: string
 ): Promise<void> {
-  const db = await getDb();
   const now = Date.now();
   if (id) {
-    await db.runAsync(
-      "UPDATE message_templates SET name = ?, kind = ?, body = ?, updatedAt = ? WHERE id = ?;",
-      name, kind, body, now, id
-    );
+    if (!find("templates", id)) return;
+    await patch("templates", id, { name, kind, body, updatedAt: now });
+    logActivity({ action: "updated", entity: "template", entityId: id, label: name, branchId: null });
   } else {
-    await db.runAsync(
-      `INSERT INTO message_templates (id, name, kind, body, isBuiltIn, createdAt, updatedAt)
-       VALUES (?, ?, ?, ?, 0, ?, ?);`,
-      newId(), name, kind, body, now, now
-    );
+    const newTemplateId = newId();
+    await put("templates", newTemplateId, {
+      id: newTemplateId,
+      name,
+      kind,
+      body,
+      isBuiltIn: false,
+      createdAt: now,
+      updatedAt: now,
+    });
+    logActivity({ action: "created", entity: "template", entityId: newTemplateId, label: name, branchId: null });
   }
 }
 
 export async function deleteTemplate(id: string): Promise<void> {
-  const db = await getDb();
-  await db.runAsync("DELETE FROM message_templates WHERE id = ? AND isBuiltIn = 0;", id);
+  const template = find<MessageTemplate>("templates", id);
+  // Built-in templates are part of the app and cannot be deleted.
+  if (!template || template.isBuiltIn) return;
+  await remove("templates", id);
+  logActivity({ action: "deleted", entity: "template", entityId: id, label: template.name, branchId: null });
 }
 
 // --- send queue -------------------------------------------------------------
+
+/**
+ * A batch is stored in chunks of up to `CHUNK` recipients, one document each
+ * (`messages/<batchId>-<n>`), with the entries kept as a map by id. A whole
+ * hostel's fee run fits comfortably inside the store's per-document limit,
+ * and marking one message sent touches only its own entry.
+ */
+const CHUNK = 100;
+
+type EntryDoc = Omit<MessageLogEntry, "batchId">;
+
+interface BatchChunkDoc {
+  batchId: string;
+  chunk: number;
+  kind: MessageKind;
+  createdAt: number;
+  entries?: Record<string, EntryDoc>;
+}
+
+function chunksOf(batchId: string): [string, BatchChunkDoc][] {
+  return entries<BatchChunkDoc>("messages").filter(([, doc]) => doc.batchId === batchId);
+}
 
 export interface QueueRecipient {
   studentId: string | null;
@@ -193,60 +224,91 @@ export interface QueueRecipient {
 
 /** Creates a batch of queued messages and returns its id. */
 export async function queueBatch(kind: MessageKind, recipients: QueueRecipient[]): Promise<string> {
-  const db = await getDb();
   const batchId = newBatchId();
   const now = Date.now();
 
-  await db.withExclusiveTransactionAsync(async (txn) => {
-    for (const recipient of recipients) {
-      await txn.runAsync(
-        `INSERT INTO message_log (id, batchId, studentId, recipientName, phone, kind, body, status, createdAt, sentAt)
-         VALUES (?, ?, ?, ?, ?, ?, ?, 'queued', ?, NULL);`,
-        newId(), batchId, recipient.studentId, recipient.name, recipient.phone, kind, recipient.body, now
-      );
+  for (let start = 0, chunk = 0; start < recipients.length; start += CHUNK, chunk += 1) {
+    const part: Record<string, EntryDoc> = {};
+    for (const recipient of recipients.slice(start, start + CHUNK)) {
+      const id = newId();
+      part[id] = {
+        id,
+        studentId: recipient.studentId,
+        recipientName: recipient.name,
+        phone: recipient.phone,
+        kind,
+        body: recipient.body,
+        status: "queued",
+        createdAt: now,
+        sentAt: null,
+      };
     }
-  });
+    await put("messages", `${batchId}-${chunk}`, { batchId, chunk, kind, createdAt: now, entries: part });
+  }
 
+  logActivity({
+    action: "created",
+    entity: "message",
+    entityId: batchId,
+    label: `${recipients.length} WhatsApp message${recipients.length === 1 ? "" : "s"} queued`,
+    branchId: null,
+  });
   return batchId;
 }
 
 export async function listBatchEntries(batchId: string): Promise<MessageLogEntry[]> {
-  const db = await getDb();
-  return db.getAllAsync<MessageLogEntry>(
-    "SELECT * FROM message_log WHERE batchId = ? ORDER BY createdAt, recipientName COLLATE NOCASE;",
-    batchId
-  );
+  return chunksOf(batchId)
+    .flatMap(([, doc]) => Object.values(doc.entries ?? {}).map((entry) => ({ ...entry, batchId })))
+    .sort((a, b) => a.createdAt - b.createdAt || compareText(a.recipientName, b.recipientName));
 }
 
 export async function markMessage(id: string, status: MessageLogEntry["status"]): Promise<void> {
-  const db = await getDb();
-  await db.runAsync(
-    "UPDATE message_log SET status = ?, sentAt = ? WHERE id = ?;",
-    status, status === "sent" ? Date.now() : null, id
-  );
+  const holder = entries<BatchChunkDoc>("messages").find(([, doc]) => doc.entries?.[id]);
+  if (!holder) return;
+  await patch("messages", holder[0], {
+    entries: { [id]: { status, sentAt: status === "sent" ? Date.now() : null } },
+  });
 }
 
 export async function listBatches(limit = 30): Promise<MessageBatchSummary[]> {
-  const db = await getDb();
-  return db.getAllAsync<MessageBatchSummary>(
-    `SELECT batchId,
-            MIN(kind) AS kind,
-            MIN(createdAt) AS createdAt,
-            COUNT(*) AS total,
-            COALESCE(SUM(status = 'sent'), 0) AS sent,
-            COALESCE(SUM(status = 'queued'), 0) AS pending,
-            MIN(body) AS preview
-     FROM message_log
-     GROUP BY batchId
-     ORDER BY createdAt DESC
-     LIMIT ?;`,
-    limit
-  );
+  const batches = new Map<string, MessageBatchSummary>();
+  for (const [, doc] of entries<BatchChunkDoc>("messages")) {
+    for (const entry of Object.values(doc.entries ?? {})) {
+      const summary = batches.get(doc.batchId);
+      if (!summary) {
+        batches.set(doc.batchId, {
+          batchId: doc.batchId,
+          kind: entry.kind,
+          createdAt: entry.createdAt,
+          total: 1,
+          sent: entry.status === "sent" ? 1 : 0,
+          pending: entry.status === "queued" ? 1 : 0,
+          preview: entry.body,
+        });
+        continue;
+      }
+      // Matches the old MIN() aggregates, so the list reads exactly as before.
+      if (compareRaw(entry.kind, summary.kind) < 0) summary.kind = entry.kind;
+      if (entry.createdAt < summary.createdAt) summary.createdAt = entry.createdAt;
+      if (compareRaw(entry.body, summary.preview) < 0) summary.preview = entry.body;
+      summary.total += 1;
+      if (entry.status === "sent") summary.sent += 1;
+      if (entry.status === "queued") summary.pending += 1;
+    }
+  }
+  return [...batches.values()].sort((a, b) => b.createdAt - a.createdAt).slice(0, limit);
 }
 
 export async function deleteBatch(batchId: string): Promise<void> {
-  const db = await getDb();
-  await db.runAsync("DELETE FROM message_log WHERE batchId = ?;", batchId);
+  for (const [docId] of chunksOf(batchId)) await remove("messages", docId);
+}
+
+/** Every message still waiting to be sent, across all batches. */
+export function pendingMessageCount(): number {
+  return list<BatchChunkDoc>("messages").reduce(
+    (sum, doc) => sum + Object.values(doc.entries ?? {}).filter((entry) => entry.status === "queued").length,
+    0
+  );
 }
 
 // --- opening WhatsApp -------------------------------------------------------

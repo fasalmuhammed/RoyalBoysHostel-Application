@@ -1,4 +1,58 @@
-# Royal Boys Hostel — offline-first admin app
+# Royal Boys Hostel — admin app (Claude storage)
+
+The hostel register, hosted as a claude.ai Artifact. Records live in the
+artifact's Claude storage database, photos (profile, both Aadhaar sides,
+complaints) in its file store, and every change appears live on every device
+signed in to the hostel. Screens, features and design are the same as the
+phone app; only where the data lives has changed.
+
+## How it works
+
+| Piece | Where |
+| --- | --- |
+| Records | `src/store/cloud.ts` — one live subscription per collection, an in-memory copy the services read, queued writes, short locks for money and beds |
+| Joins, totals, ordering | `src/store/views.ts` (what SQL used to do) |
+| Services | `src/services/*` — same function names and behaviour the screens always called |
+| Phone-only modules | `src/web/shims/*` — file system, share sheet, camera/gallery, print-to-PDF, secure store, dialogs and links, swapped in by `metro.config.js` for the web build only |
+| Admin panel | `src/screens/AdminPanelScreen.tsx` — every record across both hostels plus a live activity feed; owner and Editors only |
+
+Data layout: `branches`, `rooms`, `inmates`, `notices`, `complaints`,
+`templates` (one document each); `fees/<inmateId>_<year>` (that year's bills,
+each holding its payments); `messages/<batchId>-<n>` (WhatsApp batches, 100
+recipients per document); `config/settings`; `counters/admission-<branch>`;
+`snapshots`; `activity/<day>`.
+
+Rules that used SQLite transactions — a bed not overfilled, an admission
+number not reused, no payment beyond the balance, one bill per inmate per
+month — run under a short lease on the document and re-read the server copy.
+
+Access is claude.ai sharing: the owner and Editors see the admin panel;
+Contributors use the app; Viewers can read but not change records. The PIN
+lock is per device (browser storage); a forgotten PIN is cleared by clearing
+the browser's data for the app — the records are untouched.
+
+Moving from the phone app: export a backup on the phone (Backup & restore),
+then on first open choose **Restore from a backup file**, or later use
+**Backup & restore → Import**. Import is a merge and safe to repeat.
+
+What a browser cannot do: fingerprint/face unlock, scheduled phone
+notifications, printing (receipts download as PDF), and offline use.
+
+## Building and testing
+
+```bash
+npm install
+npm test                 # service tests against an in-memory Claude storage stand-in
+npm run build:artifact   # build/artifact/hostel.html, published as the artifact
+```
+
+---
+
+# Original phone app notes
+
+The sections below describe the offline phone version this was converted from.
+
+## Royal Boys Hostel — offline-first admin app
 
 A single-admin hostel register that keeps working from a local database without
 internet. The manager adds inmates, captures both sides of their Aadhaar card,

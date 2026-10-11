@@ -8,11 +8,13 @@
     "android": "expo start --android",
     "ios": "expo start --ios",
     "lint": "tsc --noEmit",
-    "test": "tsc -p tests/tsconfig.build.json && node tests/backup.test.js && node tests/logic.test.js",
-    "typecheck": "tsc --noEmit"
+    "test": "tsc -p tests/tsconfig.build.json && node tests/cloud.test.js",
+    "typecheck": "tsc --noEmit",
+    "build:artifact": "expo export -p web --output-dir build/web && node scripts/build-artifact.mjs build/web build/artifact/hostel.html \"Royal Boys Hostel\""
   },
   "dependencies": {
     "@expo-google-fonts/inter": "^0.4.2",
+    "@expo/metro-runtime": "~6.1.2",
     "@expo/vector-icons": "^15.0.3",
     "@react-native-async-storage/async-storage": "^2.2.0",
     "@react-navigation/bottom-tabs": "^7.18.18",
@@ -39,10 +41,14 @@
     "expo-status-bar": "~3.0.9",
     "expo-updates": "~29.0.20",
     "firebase": "^12.19.0",
+    "html2canvas": "^1.4.1",
+    "jspdf": "^4.2.1",
     "react": "19.1.0",
+    "react-dom": "19.1.0",
     "react-native": "0.81.5",
     "react-native-safe-area-context": "~5.6.0",
-    "react-native-screens": "~4.16.0"
+    "react-native-screens": "~4.16.0",
+    "react-native-web": "^0.21.0"
   },
   "devDependencies": {
     "@babel/core": "^7.24.0",

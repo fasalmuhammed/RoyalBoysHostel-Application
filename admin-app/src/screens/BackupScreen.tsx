@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useState } from "react";
 import { Alert, Modal, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import * as DocumentPicker from "expo-document-picker";
@@ -26,19 +26,6 @@ import {
 import { photosDiskUsage } from "@/services/photos";
 import { inmateCounts } from "@/services/inmates";
 import { formatDateTime } from "@/utils/format";
-import {
-  CloudBackup,
-  CloudUser,
-  createCloudAccount,
-  deleteCloudBackup,
-  downloadCloudBackup,
-  listCloudBackups,
-  resetCloudPassword,
-  signInToCloud,
-  signOutOfCloud,
-  subscribeCloudUser,
-  uploadCloudBackup,
-} from "@/services/cloudBackup";
 import type { RootStackParamList } from "@/navigation/types";
 
 type Props = NativeStackScreenProps<RootStackParamList, "Backup">;
@@ -65,16 +52,6 @@ export default function BackupScreen({}: Props) {
   const [restorePassphrase, setRestorePassphrase] = useState("");
   const [restoreError, setRestoreError] = useState<string | null>(null);
 
-  const [cloudUser, setCloudUser] = useState<CloudUser | null>(null);
-  const [cloudReady, setCloudReady] = useState(false);
-  const [cloudEmail, setCloudEmail] = useState("");
-  const [cloudPassword, setCloudPassword] = useState("");
-  const [cloudPassphrase, setCloudPassphrase] = useState("");
-  const [cloudPassphraseConfirm, setCloudPassphraseConfirm] = useState("");
-  const [cloudBackups, setCloudBackups] = useState<CloudBackup[]>([]);
-  const [cloudBusy, setCloudBusy] = useState(false);
-  const [cloudError, setCloudError] = useState<string | null>(null);
-
   const { data, reload } = useAsyncData(async () => {
     const [counts, locals] = await Promise.all([inmateCounts(), Promise.resolve(listLocalBackups())]);
     return { counts, locals, photoBytes: photosDiskUsage() };
@@ -83,131 +60,6 @@ export default function BackupScreen({}: Props) {
   const lastBackup = settings.lastBackupAt;
   const ageDays = lastBackup ? Math.floor((Date.now() - lastBackup) / 86_400_000) : null;
   const overdue = ageDays === null || ageDays >= settings.backupReminderDays;
-
-  const reloadCloud = async () => {
-    if (!cloudUser) {
-      setCloudBackups([]);
-      return;
-    }
-    try {
-      setCloudBackups(await listCloudBackups());
-      setCloudError(null);
-    } catch (error) {
-      setCloudError(error instanceof Error ? error.message : "Could not load cloud backups.");
-    }
-  };
-
-  useEffect(() => {
-    return subscribeCloudUser((user) => {
-      setCloudUser(user);
-      setCloudReady(true);
-      if (user) {
-        listCloudBackups()
-          .then(setCloudBackups)
-          .catch((error) => setCloudError(error instanceof Error ? error.message : "Could not load cloud backups."));
-      } else {
-        setCloudBackups([]);
-      }
-    });
-  }, []);
-
-  const runCloudAuth = async (mode: "signin" | "create") => {
-    if (!cloudEmail.trim() || cloudPassword.length < 6) {
-      setCloudError("Enter your email and a password of at least 6 characters.");
-      return;
-    }
-    setCloudBusy(true);
-    setCloudError(null);
-    try {
-      if (mode === "signin") await signInToCloud(cloudEmail, cloudPassword);
-      else await createCloudAccount(cloudEmail, cloudPassword);
-      setCloudPassword("");
-    } catch (error) {
-      setCloudError(error instanceof Error ? error.message : "Cloud sign-in failed.");
-    } finally {
-      setCloudBusy(false);
-    }
-  };
-
-  const runPasswordReset = async () => {
-    if (!cloudEmail.trim()) {
-      setCloudError("Enter your cloud account email first.");
-      return;
-    }
-    try {
-      await resetCloudPassword(cloudEmail);
-      Alert.alert("Reset email sent", "Check your inbox for the password reset link.");
-    } catch (error) {
-      setCloudError(error instanceof Error ? error.message : "Could not send the reset email.");
-    }
-  };
-
-  const runCloudUpload = async () => {
-    if (cloudPassphrase.length < MIN_PASSPHRASE) {
-      setCloudError(`Use a backup passphrase of at least ${MIN_PASSPHRASE} characters.`);
-      return;
-    }
-    if (cloudPassphrase !== cloudPassphraseConfirm) {
-      setCloudError("The two backup passphrases do not match.");
-      return;
-    }
-    setCloudBusy(true);
-    setCloudError(null);
-    setProgress({ phase: "reading", fraction: 0, detail: "Preparing encrypted backup" });
-    try {
-      await uploadCloudBackup(cloudPassphrase, setProgress);
-      await refreshSettings();
-      await reloadCloud();
-      setCloudPassphrase("");
-      setCloudPassphraseConfirm("");
-      Alert.alert("Cloud backup complete", "The encrypted backup is safely stored in your cloud account.");
-    } catch (error) {
-      setCloudError(error instanceof Error ? error.message : "Cloud backup failed.");
-    } finally {
-      setCloudBusy(false);
-      setProgress(null);
-    }
-  };
-
-  const selectCloudRestore = async (backup: CloudBackup) => {
-    setCloudBusy(true);
-    setCloudError(null);
-    setProgress({ phase: "downloading", fraction: null, detail: "Downloading encrypted backup" });
-    try {
-      const file = await downloadCloudBackup(backup, setProgress);
-      const header = readBackupHeader(file.uri);
-      setRestoreFile(file);
-      setRestoreHeader(header);
-      setRestorePassphrase("");
-      Alert.alert("Backup downloaded", "Enter its passphrase in the Import section below to restore it.");
-    } catch (error) {
-      setCloudError(error instanceof Error ? error.message : "Could not download that backup.");
-    } finally {
-      setCloudBusy(false);
-      setProgress(null);
-    }
-  };
-
-  const confirmCloudDelete = (backup: CloudBackup) => {
-    Alert.alert("Delete cloud backup?", `${backup.name} will be permanently removed from cloud storage.`, [
-      { text: "Cancel", style: "cancel" },
-      {
-        text: "Delete",
-        style: "destructive",
-        onPress: async () => {
-          setCloudBusy(true);
-          try {
-            await deleteCloudBackup(backup.fullPath);
-            await reloadCloud();
-          } catch (error) {
-            setCloudError(error instanceof Error ? error.message : "Could not delete that backup.");
-          } finally {
-            setCloudBusy(false);
-          }
-        },
-      },
-    ]);
-  };
 
   // --- export ---------------------------------------------------------------
 
@@ -264,8 +116,8 @@ export default function BackupScreen({}: Props) {
       reload();
       Alert.alert(
         "Snapshot saved",
-        "A copy was saved inside the app. Remember this still lives on this phone only — " +
-          "export and share a backup to keep it somewhere safe."
+        "A snapshot was saved in Claude storage. Download a backup file too, so a copy " +
+          "exists outside it."
       );
     } catch (e) {
       Alert.alert("Could not save", e instanceof Error ? e.message : "Please try again.");
@@ -306,7 +158,7 @@ export default function BackupScreen({}: Props) {
     Alert.alert(
       "Add data from this backup?",
       `Up to ${restoreHeader.counts.students} inmates from this backup will be added to the ` +
-        `${data?.counts.total ?? 0} already on this phone. Anything already here is kept as-is — ` +
+        `${data?.counts.total ?? 0} already stored. Anything already here is kept as-is — ` +
         "nothing is deleted or overwritten. A safety copy of your current data is saved first.",
       [
         { text: "Cancel", style: "cancel" },
@@ -345,7 +197,7 @@ export default function BackupScreen({}: Props) {
           (studentsSkipped > 0
             ? ` ${studentsSkipped} inmate${studentsSkipped === 1 ? "" : "s"} from the backup ${
                 studentsSkipped === 1 ? "was" : "were"
-              } already on this phone and ${studentsSkipped === 1 ? "was" : "were"} left unchanged.`
+              } already stored and ${studentsSkipped === 1 ? "was" : "were"} left unchanged.`
             : "")
       );
     } catch (e) {
@@ -367,127 +219,27 @@ export default function BackupScreen({}: Props) {
           </CalloutText>
           <CalloutText style={{ marginTop: 3 }}>
             {overdue
-              ? "This phone is the only copy of your hostel's records. If it is lost, stolen or broken, everything goes with it."
-              : "Keep exporting regularly, and store the file somewhere other than this phone."}
+              ? "Your records live in Claude storage. Download a backup file now and then, so a copy also exists outside it."
+              : "Keep downloading a backup regularly, and store the file somewhere safe."}
           </CalloutText>
         </Callout>
 
-        <SectionTitle title="What is on this phone" />
+        <SectionTitle title="What is stored" />
         <Card>
           <DetailRow label="Inmates" value={data?.counts.total ?? 0} />
           <Divider />
-          <DetailRow label="Photos on disk" value={formatBytes(data?.photoBytes ?? 0)} />
+          <DetailRow label="Photos stored" value={formatBytes(data?.photoBytes ?? 0)} />
           <Divider />
           <DetailRow label="Snapshots kept in app" value={data?.locals.length ?? 0} />
         </Card>
 
-        <SectionTitle title="Encrypted cloud backup" />
+        <SectionTitle title="Claude storage" />
         <Card>
-          {!cloudReady ? (
-            <Text style={styles.paragraph}>Checking your cloud account…</Text>
-          ) : !cloudUser ? (
-            <>
-              <Text style={styles.paragraph}>
-                Sign in with an administrator email. Backups are encrypted on this phone before
-                upload, and this account is the only one allowed to access its cloud folder.
-              </Text>
-              <Input
-                label="Cloud account email"
-                value={cloudEmail}
-                onChangeText={setCloudEmail}
-                keyboardType="email-address"
-                autoCapitalize="none"
-                placeholder="admin@example.com"
-                icon="mail-outline"
-              />
-              <Input
-                label="Cloud account password"
-                value={cloudPassword}
-                onChangeText={setCloudPassword}
-                secureTextEntry
-                autoCapitalize="none"
-                placeholder="At least 6 characters"
-                icon="lock-closed-outline"
-              />
-              <Button title="Sign in" icon="cloud-outline" onPress={() => runCloudAuth("signin")} loading={cloudBusy} />
-              <Button
-                title="Create cloud account"
-                variant="secondary"
-                onPress={() => runCloudAuth("create")}
-                disabled={cloudBusy}
-                style={{ marginTop: spacing.sm }}
-              />
-              <Button title="Forgot password" variant="ghost" onPress={runPasswordReset} disabled={cloudBusy} />
-            </>
-          ) : (
-            <>
-              <View style={styles.cloudAccountRow}>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.localName}>Cloud account</Text>
-                  <Text style={styles.localMeta}>{cloudUser.email ?? "Signed in"}</Text>
-                </View>
-                <Button title="Sign out" variant="ghost" compact onPress={() => signOutOfCloud()} />
-              </View>
-
-              <Input
-                label="Backup passphrase"
-                value={cloudPassphrase}
-                onChangeText={setCloudPassphrase}
-                secureTextEntry
-                autoCapitalize="none"
-                placeholder={`At least ${MIN_PASSPHRASE} characters`}
-                icon="key-outline"
-              />
-              <Input
-                label="Confirm backup passphrase"
-                value={cloudPassphraseConfirm}
-                onChangeText={setCloudPassphraseConfirm}
-                secureTextEntry
-                autoCapitalize="none"
-                placeholder="Enter it again"
-              />
-              <Button
-                title="Upload encrypted cloud backup"
-                icon="cloud-upload-outline"
-                onPress={runCloudUpload}
-                loading={cloudBusy}
-              />
-              <View style={{ marginTop: spacing.md }}>
-                <Callout tone="warning" icon="key-outline">
-                  <CalloutText>
-                    Your account password can be reset; the backup passphrase cannot. Keep it in a
-                    password manager because every cloud backup needs it for recovery.
-                  </CalloutText>
-                </Callout>
-              </View>
-            </>
-          )}
-
-          {cloudError ? <Text style={styles.error}>{cloudError}</Text> : null}
+          <Text style={styles.paragraph}>
+            Every inmate, room, bill, payment and photo is saved in Claude storage as you work, and
+            appears straight away on every device signed in to this hostel. Nothing needs uploading.
+          </Text>
         </Card>
-
-        {cloudUser && cloudBackups.length > 0 ? (
-          <>
-            <SectionTitle title={`Cloud backups (${cloudBackups.length})`} />
-            {cloudBackups.map((backup) => (
-              <Card key={backup.fullPath} style={styles.localRow}>
-                <Ionicons name="cloud-done-outline" size={20} color={colors.primary} />
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.localName} numberOfLines={1}>{backup.name}</Text>
-                  <Text style={styles.localMeta}>
-                    {formatBytes(backup.sizeBytes)} · {formatDateTime(backup.createdAt)}
-                  </Text>
-                </View>
-                <Pressable onPress={() => selectCloudRestore(backup)} disabled={cloudBusy} hitSlop={8}>
-                  <Ionicons name="download-outline" size={20} color={colors.primary} />
-                </Pressable>
-                <Pressable onPress={() => confirmCloudDelete(backup)} disabled={cloudBusy} hitSlop={8}>
-                  <Ionicons name="trash-outline" size={20} color={colors.danger} />
-                </Pressable>
-              </Card>
-            ))}
-          </>
-        ) : null}
 
         <SectionTitle title="Export a backup" />
         <Card>
@@ -517,7 +269,7 @@ export default function BackupScreen({}: Props) {
         <Card>
           <Text style={styles.paragraph}>
             Adds the inmates, rooms, bills, payments and photos from a backup file to what is
-            already on this phone. Anything already here is kept as-is — nothing is deleted or
+            already stored. Anything already here is kept as-is — nothing is deleted or
             overwritten. Your current data is snapshotted first regardless, so this can always be
             undone.
           </Text>
@@ -555,7 +307,7 @@ export default function BackupScreen({}: Props) {
               ) : null}
 
               <Button
-                title="Add to this phone"
+                title="Add to the records"
                 icon="download-outline"
                 onPress={confirmRestore}
                 style={{ marginTop: spacing.sm }}
@@ -568,11 +320,11 @@ export default function BackupScreen({}: Props) {
 
         {data && data.locals.length > 0 ? (
           <>
-            <SectionTitle title="Snapshots on this phone" />
+            <SectionTitle title="Snapshots in Claude storage" />
             <Callout tone="warning" icon="information-circle-outline">
               <CalloutText>
-                These live inside the app. Uninstalling the app deletes them — they are a safety
-                net against mistakes, not against losing the phone.
+                These are kept alongside the records in Claude storage — a safety net against
+                mistakes. Download a backup file too, so a copy exists outside it.
               </CalloutText>
             </Callout>
             {data.locals.map((backup) => (
@@ -673,11 +425,6 @@ const styles = StyleSheet.create({
   localRow: { flexDirection: "row", alignItems: "center", gap: spacing.md },
   localName: { ...type.bodyStrong, fontSize: fontSize.sm, color: colors.text },
   localMeta: { fontSize: fontSize.xs, color: colors.textMuted, marginTop: 2 },
-  cloudAccountRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: spacing.md,
-  },
   backdrop: { flex: 1, backgroundColor: colors.overlay },
   sheet: {
     backgroundColor: colors.surface,

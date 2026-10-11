@@ -1,8 +1,23 @@
 import { Directory, File, Paths } from "expo-file-system";
 import CryptoJS from "crypto-js";
 
-import { closeDb, getDb } from "@/db";
 import { BACKUP_TABLES, BackupTable, SCHEMA_VERSION } from "@/db/schema";
+import {
+  Branch,
+  Complaint,
+  Inmate,
+  MessageKind,
+  MessageLogEntry,
+  MessageTemplate,
+  Notice,
+  PaymentMethod,
+  Room,
+} from "@/types";
+import { newId } from "@/utils/id";
+import { capability, describeError } from "@/web/runtime";
+import { registerDownloadName } from "@/web/shims/sharing";
+import { entries, find, freshWhere, list, logActivity, put, remove, runThrottled, withLock } from "@/store/cloud";
+import { BillDoc, FeeYearDoc, PaymentDoc, allBills, feeDocId } from "@/store/views";
 import {
   CHUNK_SIZE,
   KDF_ITERATIONS,
@@ -15,8 +30,9 @@ import {
   sealChunk,
   textToBytes,
 } from "./crypto";
-import { photosDirectory, readPhotoBase64, writePhotoBase64 } from "./photos";
-import { loadSettings, saveSettings } from "./settings";
+import { readPhotoBase64, storedPhotoIds, uploadPhotoBase64 } from "./photos";
+import { DEFAULT_SETTINGS, loadSettings, saveSettings } from "./settings";
+
 
 /**
  * Backup file format -- a line-oriented container that can be written and read
@@ -169,26 +185,78 @@ class ChunkWriter {
   }
 }
 
-async function collectCounts(): Promise<BackupCounts> {
-  const db = await getDb();
-  const one = async (table: string) => {
-    const row = await db.getFirstAsync<{ n: number }>(`SELECT COUNT(*) AS n FROM ${table};`);
-    return row?.n ?? 0;
-  };
-  // Counts photo *files*, not students -- a student can have both a profile
-  // photo and both sides of an ID proof, so this is a sum of three columns.
-  const photos = await db.getFirstAsync<{ n: number }>(
-    `SELECT
-       (SELECT COUNT(*) FROM students WHERE photoFile IS NOT NULL AND photoFile <> '') +
-       (SELECT COUNT(*) FROM students WHERE idProofFile IS NOT NULL AND idProofFile <> '') +
-       (SELECT COUNT(*) FROM students WHERE idProofBackFile IS NOT NULL AND idProofBackFile <> '') AS n;`
-  );
+// --- records as backup rows -----------------------------------------------------
+
+/**
+ * The live records, shaped exactly as the phone app's SQLite rows.
+ *
+ * Keeping the row format identical means a file exported here restores on a
+ * phone, and a phone's file restores here, with no conversion step.
+ */
+type Row = Record<string, unknown>;
+
+interface ChunkDoc {
+  batchId: string;
+  entries?: Record<string, Omit<MessageLogEntry, "batchId">>;
+}
+
+const COUNTER_PREFIX = "admission-";
+
+function exportRows(): Record<BackupTable, Row[]> {
+  const bills = allBills();
+  const settings = find<Row>("config", "settings") ?? {};
   return {
-    students: await one("students"),
-    rooms: await one("rooms"),
-    feeRecords: await one("fee_records"),
-    payments: await one("payments"),
-    photos: photos?.n ?? 0,
+    branches: list<Branch>("branches") as unknown as Row[],
+    rooms: list<Room>("rooms") as unknown as Row[],
+    students: list<Inmate>("inmates") as unknown as Row[],
+    fee_records: bills.map(({ docId: _doc, payments: _payments, ...bill }) => bill),
+    payments: bills.flatMap((bill) => bill.payments) as unknown as Row[],
+    message_templates: list<MessageTemplate>("templates").map((template) => ({
+      ...template,
+      isBuiltIn: template.isBuiltIn ? 1 : 0,
+    })),
+    message_log: list<ChunkDoc>("messages").flatMap((doc) =>
+      Object.values(doc.entries ?? {}).map((entry) => ({ ...entry, batchId: doc.batchId, branchId: null }))
+    ),
+    notices: list<Notice>("notices").map((notice) => ({ ...notice, pinned: notice.pinned ? 1 : 0 })),
+    complaints: list<Complaint>("complaints") as unknown as Row[],
+    settings: [
+      ...Object.keys(DEFAULT_SETTINGS)
+        .filter((key) => key in settings)
+        .map((key) => ({ key, value: JSON.stringify(settings[key] ?? null) })),
+      // The admission sequence rides along under the phone app's key name.
+      ...entries<{ value?: number }>("counters")
+        .filter(([id]) => id.startsWith(COUNTER_PREFIX))
+        .map(([id, doc]) => ({
+          key: `admissionCounter:${id.slice(COUNTER_PREFIX.length)}`,
+          value: String(doc.value ?? 0),
+        })),
+    ],
+  };
+}
+
+/** Every stored photo a record points at: profile, both Aadhaar sides, complaints. */
+function photoNames(rows: Record<BackupTable, Row[]>): string[] {
+  const names = new Set<string>();
+  for (const row of rows.students) {
+    for (const key of ["photoFile", "idProofFile", "idProofBackFile"]) {
+      const value = row[key];
+      if (typeof value === "string" && value) names.add(value);
+    }
+  }
+  for (const row of rows.complaints) {
+    if (typeof row.photoFile === "string" && row.photoFile) names.add(row.photoFile);
+  }
+  return [...names];
+}
+
+function collectCounts(rows = exportRows()): BackupCounts {
+  return {
+    students: rows.students.length,
+    rooms: rows.rooms.length,
+    feeRecords: rows.fee_records.length,
+    payments: rows.payments.length,
+    photos: photoNames(rows).length,
   };
 }
 
@@ -203,18 +271,22 @@ export interface ExportResult {
 /**
  * Writes a complete backup.
  *
- * `passphrase` is optional only so that automatic snapshots (which stay inside
- * the app's private storage) can be written unattended. Anything leaving the
- * phone should always be encrypted -- see `exportForSharing`.
+ * `passphrase` is optional only so that snapshots (which stay inside the
+ * hostel's private Claude storage) can be written unattended. Anything
+ * downloaded should always be encrypted -- see `exportForSharing`.
+ *
+ * Photos are embedded unless `includePhotos` is false: snapshots leave them
+ * out because the photos already sit in Claude storage under the same ids.
  */
 export async function writeBackup(
   destination: File,
   passphrase: string | null,
-  onProgress?: ProgressFn
+  onProgress?: ProgressFn,
+  { includePhotos = true }: { includePhotos?: boolean } = {}
 ): Promise<ExportResult> {
-  const db = await getDb();
   const settings = await loadSettings();
-  const counts = await collectCounts();
+  const rows = exportRows();
+  const counts = collectCounts(rows);
 
   const keys = passphrase
     ? (() => {
@@ -252,38 +324,22 @@ export async function writeBackup(
   );
 
   try {
+    const photoFiles = includePhotos ? photoNames(rows) : [];
     const totalUnits = Math.max(
-      counts.students + counts.rooms + counts.feeRecords + counts.payments + counts.photos,
+      counts.students + counts.rooms + counts.feeRecords + counts.payments + photoFiles.length,
       1
     );
     let done = 0;
 
     for (const table of BACKUP_TABLES) {
       onProgress?.({ phase: "reading", fraction: done / totalUnits, detail: `Reading ${table}` });
-      const rows = await db.getAllAsync<Record<string, unknown>>(`SELECT * FROM ${table};`);
-      for (const row of rows) {
+      for (const row of rows[table]) {
         writer.push(JSON.stringify({ t: "row", table, d: row }));
         done += 1;
       }
     }
 
     // Photos last: they dominate the file, so progress stays meaningful.
-    // Every student can carry three image files -- their profile photo and
-    // both sides of their ID proof -- all stored the same way in the
-    // photos directory, so they are gathered into one flat list here.
-    const photoRows = await db.getAllAsync<{
-      photoFile: string | null;
-      idProofFile: string | null;
-      idProofBackFile: string | null;
-    }>(
-      `SELECT photoFile, idProofFile, idProofBackFile FROM students
-       WHERE (photoFile IS NOT NULL AND photoFile <> '')
-          OR (idProofFile IS NOT NULL AND idProofFile <> '')
-          OR (idProofBackFile IS NOT NULL AND idProofBackFile <> '');`
-    );
-    const photoFiles = photoRows.flatMap((row) =>
-      [row.photoFile, row.idProofFile, row.idProofBackFile].filter((f): f is string => Boolean(f))
-    );
     let photoIndex = 0;
     for (const photoFile of photoFiles) {
       photoIndex += 1;
@@ -322,7 +378,7 @@ export async function writeBackup(
   };
 }
 
-/** Creates an encrypted file in the cache directory, ready to hand to the share sheet. */
+/** Creates an encrypted file, ready to hand to the download prompt. */
 export async function exportForSharing(
   passphrase: string,
   onProgress?: ProgressFn
@@ -332,30 +388,76 @@ export async function exportForSharing(
   const file = new File(exportsDirectory(), fileName);
   const result = await writeBackup(file, passphrase, onProgress);
   await saveSettings({ lastBackupAt: Date.now() });
+  logActivity({ action: "created", entity: "backup", entityId: fileName, label: "Backup file downloaded", branchId: null });
   return result;
 }
 
-/** Rotating unattended snapshot kept inside app storage. */
+// --- snapshots ------------------------------------------------------------------
+
+/**
+ * Snapshots are unencrypted backups kept inside the hostel's Claude storage:
+ * the file in the file store, its details in the `snapshots` collection.
+ * They protect against mistakes -- a wrong restore, a bulk change -- and
+ * are listed on the Backup screen to download.
+ */
+interface SnapshotDoc {
+  id: string;
+  name: string;
+  kind: "auto" | "before-restore";
+  createdAt: number;
+  sizeBytes: number;
+  assetId: string;
+}
+
+async function storeSnapshot(kind: SnapshotDoc["kind"]): Promise<ExportResult> {
+  const name = `${kind === "auto" ? "auto" : "before-restore"}_${timestampSlug()}.${BACKUP_EXTENSION}`;
+  const file = new File(backupsDirectory(), name);
+  const result = await writeBackup(file, null, undefined, { includePhotos: false });
+
+  const assets = await capability("assets");
+  if (!assets) {
+    file.delete();
+    throw new BackupError("Saving a snapshot needs edit access to the hostel records.");
+  }
+
+  let stored: { id: string; sizeBytes: number };
+  try {
+    stored = await assets.upload(new Blob([await file.bytes()], { type: "text/plain" }), { type: "text/plain" });
+  } catch (error) {
+    throw new BackupError(describeError(error));
+  } finally {
+    file.delete();
+  }
+
+  const id = newId();
+  const createdAt = Date.now();
+  await put("snapshots", id, { id, name, kind, createdAt, sizeBytes: stored.sizeBytes, assetId: stored.id });
+  return { ...result, uri: `/_blob/${stored.id}`, fileName: name, sizeBytes: stored.sizeBytes };
+}
+
+/** Rotating snapshot kept in Claude storage. */
 export async function writeAutoBackup(keep = 5): Promise<ExportResult> {
-  const file = new File(backupsDirectory(), `auto_${timestampSlug()}.${BACKUP_EXTENSION}`);
-  const result = await writeBackup(file, null);
-  pruneAutoBackups(keep);
+  const result = await storeSnapshot("auto");
+  await pruneAutoBackups(keep);
   return result;
 }
 
 /** Snapshot taken immediately before a restore, so a wrong file is recoverable. */
 export async function writeSafetySnapshot(): Promise<ExportResult> {
-  const file = new File(backupsDirectory(), `before-restore_${timestampSlug()}.${BACKUP_EXTENSION}`);
-  return writeBackup(file, null);
+  return storeSnapshot("before-restore");
 }
 
-function pruneAutoBackups(keep: number): void {
+async function pruneAutoBackups(keep: number): Promise<void> {
   try {
-    const entries = backupsDirectory()
-      .list()
-      .filter((entry): entry is File => entry instanceof File && entry.name.startsWith("auto_"))
-      .sort((a, b) => b.name.localeCompare(a.name));
-    for (const stale of entries.slice(keep)) stale.delete();
+    const assets = await capability("assets");
+    const stale = list<SnapshotDoc>("snapshots")
+      .filter((snapshot) => snapshot.kind === "auto")
+      .sort((a, b) => b.createdAt - a.createdAt)
+      .slice(keep);
+    for (const snapshot of stale) {
+      await assets?.delete(snapshot.assetId);
+      await remove("snapshots", snapshot.id);
+    }
   } catch {
     // Pruning is housekeeping; never let it fail a backup.
   }
@@ -369,21 +471,15 @@ export interface LocalBackup {
 }
 
 export function listLocalBackups(): LocalBackup[] {
-  try {
-    return backupsDirectory()
-      .list()
-      .filter((entry): entry is File => entry instanceof File)
-      .map((file) => ({
-        uri: file.uri,
-        name: file.name,
-        sizeBytes: file.size ?? 0,
-        createdAt: file.info().modificationTime ?? 0,
-      }))
-      .sort((a, b) => b.createdAt - a.createdAt);
-  } catch {
-    return [];
-  }
+  return list<SnapshotDoc>("snapshots")
+    .map((snapshot) => {
+      const uri = `/_blob/${snapshot.assetId}`;
+      registerDownloadName(uri, snapshot.name);
+      return { uri, name: snapshot.name, sizeBytes: snapshot.sizeBytes, createdAt: snapshot.createdAt };
+    })
+    .sort((a, b) => b.createdAt - a.createdAt);
 }
+
 
 // --- reading ----------------------------------------------------------------
 
@@ -464,7 +560,7 @@ export function readBackupHeader(fileUri: string): BackupHeader {
 
 export interface RestoreResult {
   counts: BackupCounts;
-  /** Rows actually added, keyed by table. Rows already present on this phone are not counted. */
+  /** Rows actually added, keyed by table. Records already in Claude storage are not counted. */
   inserted: Partial<Record<BackupTable, number>>;
   /** Rows from the backup that were skipped because a matching row already existed. */
   skipped: Partial<Record<BackupTable, number>>;
@@ -475,14 +571,14 @@ export interface RestoreResult {
 }
 
 /**
- * Adds the contents of `fileUri` to whatever is already on this phone.
+ * Adds the contents of `fileUri` to the hostel records in Claude storage.
  *
  * This is a merge, not a replace: existing rows are never touched, and a
  * backup row that shares an id (or, for fee records, a studentId+period) with
- * one already on the phone is skipped rather than overwriting it. That makes
- * importing a backup from another phone -- or re-importing the same file --
+ * one already stored is skipped rather than overwriting it. That makes
+ * importing the phone app's backup -- or re-importing the same file --
  * safe to run any number of times without losing local edits. `settings`
- * (active branch, admission counters, last-backup time) is per-phone
+ * (active branch, admission counters, last-backup time) is per-installation
  * configuration and is deliberately never imported.
  *
  * Order of operations is deliberate:
@@ -555,13 +651,11 @@ export async function restoreBackup(
   try {
     safetySnapshotUri = (await writeSafetySnapshot()).uri;
   } catch {
-    // A hostel restoring onto a brand-new phone has nothing to snapshot.
+    // A brand-new hostel has nothing to snapshot.
     safetySnapshotUri = null;
   }
 
-  const db = await getDb();
-  let rowsRestored = 0;
-  let photosRestored = 0;
+
   let chunkIndex = 0;
 
   // Pass 2 -- decrypt and apply.
@@ -615,55 +709,110 @@ export async function restoreBackup(
     }
   });
   if (carry.trim()) applyLine(carry);
+  const photoMap = new Map(photoWrites.map((photo) => [photo.file, photo.base64]));
 
-  // Insert with foreign keys off: rows arrive in table order, but a student can
-  // reference a room that has not been re-inserted yet within the same pass.
-  // OR IGNORE is what makes this a merge: a row whose primary key (or, for fee
-  // records, whose studentId+period) already exists is silently skipped,
-  // leaving the phone's own copy untouched rather than overwriting it.
-  onProgress?.({ phase: "restoring", fraction: 0.5, detail: "Merging records" });
-  const inserted: Partial<Record<BackupTable, number>> = {};
-  const skipped: Partial<Record<BackupTable, number>> = {};
-  await db.execAsync("PRAGMA foreign_keys = OFF;");
-  try {
-    await db.withExclusiveTransactionAsync(async (txn) => {
-      for (const { table, row } of pendingRows) {
-        const columns = Object.keys(row);
-        if (columns.length === 0) continue;
-        const placeholders = columns.map(() => "?").join(", ");
-        const values = columns.map((key) => row[key] as string | number | null);
-        const result = await txn.runAsync(
-          `INSERT OR IGNORE INTO ${table} (${columns.join(", ")}) VALUES (${placeholders});`,
-          values
-        );
-        const key = table as BackupTable;
-        if (result.changes > 0) {
-          inserted[key] = (inserted[key] ?? 0) + 1;
-          rowsRestored += 1;
-        } else {
-          skipped[key] = (skipped[key] ?? 0) + 1;
+  // Merge -- add what is new, keep everything already in Claude storage.
+  // A record whose id already exists (or, for bills, whose inmate + month
+  // already has one) is skipped rather than overwritten, which makes
+  // importing the same file twice harmless.
+  onProgress?.({ phase: "restoring", fraction: 0.4, detail: "Merging records" });
+  const plan = planMerge(pendingRows);
+  const inserted = plan.inserted;
+  const skipped = plan.skipped;
+
+  const knownPhotos = await storedPhotoIds();
+  const uploadedPhotos = new Map<string, string>();
+  const alreadyStored = new Set<string>();
+  let photosRestored = 0;
+
+  /** Points a record at a stored photo, uploading the file's copy if needed. */
+  const remapPhoto = async (name: unknown): Promise<string | null> => {
+    if (typeof name !== "string" || !name) return null;
+    if (knownPhotos.has(name)) {
+      alreadyStored.add(name);
+      return name;
+    }
+    const done = uploadedPhotos.get(name);
+    if (done) return done;
+    const base64 = photoMap.get(name);
+    // A snapshot carries no photo bytes; its records keep their stored ids.
+    if (!base64) return name;
+    const id = await uploadPhotoBase64(base64);
+    uploadedPhotos.set(name, id);
+    photosRestored += 1;
+    return id;
+  };
+
+  const steps = plan.simple.length + plan.feeDocs.size + plan.messageBatches.size;
+  let stepsDone = 0;
+  const tick = (detail: string) => {
+    stepsDone += 1;
+    onProgress?.({ phase: "restoring", fraction: 0.4 + 0.58 * (stepsDone / Math.max(steps, 1)), detail });
+  };
+
+  await runThrottled(plan.simple, async ({ collection, id, data }) => {
+    const body = { ...data };
+    if (collection === "inmates") {
+      body.photoFile = await remapPhoto(body.photoFile);
+      body.idProofFile = await remapPhoto(body.idProofFile);
+      body.idProofBackFile = await remapPhoto(body.idProofBackFile);
+    } else if (collection === "complaints") {
+      body.photoFile = await remapPhoto(body.photoFile);
+    }
+    await put(collection, id, body);
+    tick(`Adding ${collection}`);
+  });
+
+  await runThrottled([...plan.feeDocs.entries()], async ([docId, incoming]) => {
+    await withLock("fees", docId, async () => {
+      const current = (await freshWhere<FeeYearDoc>("fees", "studentId", incoming.studentId)).find(
+        (doc) => doc.year === incoming.year
+      );
+      const bills: Record<string, BillDoc> = { ...(current?.bills ?? {}) };
+      for (const [period, bill] of Object.entries(incoming.bills)) {
+        if (bills[period]) {
+          // Raised elsewhere since the plan was made: keep the existing bill.
+          continue;
+        }
+        bills[period] = bill;
+      }
+      for (const [billId, payments] of incoming.extraPayments) {
+        const target = Object.values(bills).find((bill) => bill.id === billId);
+        if (!target) continue;
+        target.payments = { ...(target.payments ?? {}) };
+        for (const payment of payments) {
+          if (!target.payments[payment.id]) target.payments[payment.id] = payment;
         }
       }
+      await put("fees", docId, { studentId: incoming.studentId, year: incoming.year, bills });
     });
-  } finally {
-    await db.execAsync("PRAGMA foreign_keys = ON;");
-  }
+    tick("Adding bills and payments");
+  });
 
-  onProgress?.({ phase: "restoring", fraction: 0.8, detail: "Adding photos" });
-  let photosSkipped = 0;
-  for (const photo of photoWrites) {
-    try {
-      // Photo filenames are freshly generated ids (see services/photos.ts), so a
-      // collision means this exact photo is already on the phone -- keep it.
-      if (new File(photosDirectory(), photo.file).exists) {
-        photosSkipped += 1;
-        continue;
-      }
-      writePhotoBase64(photo.file, photo.base64);
-      photosRestored += 1;
-    } catch {
-      // A photo that cannot be written leaves the student record intact.
+  await runThrottled([...plan.messageBatches.entries()], async ([batchId, batch]) => {
+    const existingChunks = entries<{ batchId: string }>("messages").filter(([, doc]) => doc.batchId === batchId).length;
+    for (let start = 0, chunk = existingChunks; start < batch.entries.length; start += 100, chunk += 1) {
+      const part = Object.fromEntries(batch.entries.slice(start, start + 100).map((entry) => [entry.id, entry]));
+      await put("messages", `${batchId}-${chunk}`, {
+        batchId,
+        chunk,
+        kind: batch.kind,
+        createdAt: batch.createdAt,
+        entries: part,
+      });
     }
+    tick("Adding message history");
+  });
+
+  const rowsRestored = Object.values(inserted).reduce((sum, n) => sum + (n ?? 0), 0);
+  if (rowsRestored > 0) {
+    logActivity({
+      action: "imported",
+      entity: "backup",
+      entityId: header.createdAt.toString(),
+      label: `${rowsRestored} record${rowsRestored === 1 ? "" : "s"} added from a backup file`,
+      branchId: null,
+    });
   }
 
   onProgress?.({ phase: "done", fraction: 1, detail: "Import complete" });
@@ -674,10 +823,325 @@ export async function restoreBackup(
     skipped,
     rowsRestored,
     photosRestored,
-    photosSkipped,
+    photosSkipped: alreadyStored.size,
     safetySnapshotUri,
   };
 }
+
+// --- merge planning -------------------------------------------------------------
+
+type CollectionWrite = {
+  collection: "branches" | "rooms" | "inmates" | "templates" | "notices" | "complaints";
+  id: string;
+  data: Record<string, unknown>;
+};
+
+interface MergePlan {
+  simple: CollectionWrite[];
+  feeDocs: Map<
+    string,
+    { studentId: string; year: string; bills: Record<string, BillDoc>; extraPayments: Map<string, PaymentDoc[]> }
+  >;
+  messageBatches: Map<string, { kind: MessageKind; createdAt: number; entries: Omit<MessageLogEntry, "batchId">[] }>;
+  inserted: Partial<Record<BackupTable, number>>;
+  skipped: Partial<Record<BackupTable, number>>;
+}
+
+const num = (value: unknown, fallback = 0): number => {
+  if (value === null || value === undefined || value === "") return fallback;
+  const n = Number(value);
+  return Number.isFinite(n) ? n : fallback;
+};
+const numOrNull = (value: unknown): number | null =>
+  value === null || value === undefined || value === "" ? null : num(value);
+const str = (value: unknown, fallback = ""): string =>
+  value === null || value === undefined ? fallback : String(value);
+const strOrNull = (value: unknown): string | null =>
+  value === null || value === undefined || value === "" ? null : String(value);
+
+/** Records written before branches existed belong to the first hostel. */
+const FIRST_BRANCH = "branch-thammanam";
+
+function branchDoc(row: Row): Branch {
+  return {
+    id: str(row.id),
+    name: str(row.name),
+    shortName: str(row.shortName),
+    code: str(row.code),
+    sortOrder: num(row.sortOrder),
+    createdAt: num(row.createdAt, Date.now()),
+    updatedAt: num(row.updatedAt, Date.now()),
+  };
+}
+
+function roomDoc(row: Row): Room {
+  return {
+    id: str(row.id),
+    branchId: str(row.branchId) || FIRST_BRANCH,
+    block: str(row.block),
+    roomNumber: str(row.roomNumber),
+    floor: str(row.floor),
+    capacity: num(row.capacity, 1),
+    rent: num(row.rent),
+    deposit: num(row.deposit),
+    amenities: str(row.amenities),
+    notes: str(row.notes),
+    createdAt: num(row.createdAt, Date.now()),
+    updatedAt: num(row.updatedAt, Date.now()),
+  };
+}
+
+function inmateDoc(row: Row): Inmate {
+  const admissionType = row.admissionType === "stay" ? "stay" : "monthly";
+  return {
+    id: str(row.id),
+    admissionNo: str(row.admissionNo),
+    fullName: str(row.fullName),
+    phone: str(row.phone),
+    guardianName: str(row.guardianName),
+    guardianPhone: str(row.guardianPhone),
+    email: str(row.email),
+    course: str(row.course),
+    year: str(row.year),
+    address: str(row.address),
+    idProof: str(row.idProof),
+    photoFile: strOrNull(row.photoFile),
+    idProofFile: strOrNull(row.idProofFile),
+    idProofBackFile: strOrNull(row.idProofBackFile),
+    roomId: strOrNull(row.roomId),
+    branchId: str(row.branchId) || FIRST_BRANCH,
+    status: row.status === "left" ? "left" : "active",
+    admissionType,
+    stayDays: admissionType === "stay" ? numOrNull(row.stayDays) : null,
+    monthlyRent: num(row.monthlyRent),
+    billingCycleDays: num(row.billingCycleDays, 30),
+    joinedOn: str(row.joinedOn),
+    leftOn: strOrNull(row.leftOn),
+    notes: str(row.notes),
+    createdAt: num(row.createdAt, Date.now()),
+    updatedAt: num(row.updatedAt, Date.now()),
+  };
+}
+
+function noticeDoc(row: Row): Notice {
+  return {
+    id: str(row.id),
+    branchId: strOrNull(row.branchId),
+    title: str(row.title),
+    body: str(row.body),
+    category: (str(row.category) || "general") as Notice["category"],
+    pinned: Boolean(num(row.pinned)) || row.pinned === true,
+    postedOn: str(row.postedOn),
+    lastSentAt: numOrNull(row.lastSentAt),
+    createdAt: num(row.createdAt, Date.now()),
+    updatedAt: num(row.updatedAt, Date.now()),
+  };
+}
+
+function complaintDoc(row: Row): Complaint {
+  return {
+    id: str(row.id),
+    branchId: str(row.branchId) || FIRST_BRANCH,
+    roomId: strOrNull(row.roomId),
+    studentId: strOrNull(row.studentId),
+    title: str(row.title),
+    description: str(row.description),
+    category: (str(row.category) || "other") as Complaint["category"],
+    status: (str(row.status) || "open") as Complaint["status"],
+    photoFile: strOrNull(row.photoFile),
+    raisedOn: str(row.raisedOn),
+    resolvedAt: numOrNull(row.resolvedAt),
+    resolution: str(row.resolution),
+    createdAt: num(row.createdAt, Date.now()),
+    updatedAt: num(row.updatedAt, Date.now()),
+  };
+}
+
+function templateDoc(row: Row): MessageTemplate {
+  return {
+    id: str(row.id),
+    name: str(row.name),
+    kind: (str(row.kind) || "custom") as MessageKind,
+    body: str(row.body),
+    isBuiltIn: Boolean(num(row.isBuiltIn)) || row.isBuiltIn === true,
+    createdAt: num(row.createdAt, Date.now()),
+    updatedAt: num(row.updatedAt, Date.now()),
+  };
+}
+
+function billDoc(row: Row): BillDoc {
+  return {
+    id: str(row.id),
+    period: str(row.period),
+    rent: num(row.rent),
+    electricity: num(row.electricity),
+    water: num(row.water),
+    other: num(row.other),
+    discount: num(row.discount),
+    total: num(row.total),
+    dueDate: str(row.dueDate),
+    note: str(row.note),
+    createdAt: num(row.createdAt, Date.now()),
+    updatedAt: num(row.updatedAt, Date.now()),
+    payments: {},
+  };
+}
+
+function paymentDoc(row: Row): PaymentDoc {
+  return {
+    id: str(row.id),
+    amount: num(row.amount),
+    method: (str(row.method) || "cash") as PaymentMethod,
+    paidOn: str(row.paidOn),
+    reference: str(row.reference),
+    note: str(row.note),
+    createdAt: num(row.createdAt, Date.now()),
+  };
+}
+
+/** Decides, row by row, what the backup adds to the live records. */
+function planMerge(rows: { table: string; row: Row }[]): MergePlan {
+  const plan: MergePlan = { simple: [], feeDocs: new Map(), messageBatches: new Map(), inserted: {}, skipped: {} };
+  const add = (table: BackupTable) => (plan.inserted[table] = (plan.inserted[table] ?? 0) + 1);
+  const skip = (table: BackupTable) => (plan.skipped[table] = (plan.skipped[table] ?? 0) + 1);
+
+  const COLLECTION: Partial<Record<BackupTable, CollectionWrite["collection"]>> = {
+    branches: "branches",
+    rooms: "rooms",
+    students: "inmates",
+    message_templates: "templates",
+    notices: "notices",
+    complaints: "complaints",
+  };
+  const BUILD: Partial<Record<BackupTable, (row: Row) => object>> = {
+    branches: branchDoc,
+    rooms: roomDoc,
+    students: inmateDoc,
+    message_templates: templateDoc,
+    notices: noticeDoc,
+    complaints: complaintDoc,
+  };
+
+  const seen = new Set<string>();
+  const builtInNames = new Set(
+    list<MessageTemplate>("templates")
+      .filter((template) => template.isBuiltIn)
+      .map((template) => template.name)
+  );
+
+  // Bills already in Claude storage, by id and by inmate + month.
+  const liveBills = allBills();
+  const billIds = new Set(liveBills.map((bill) => bill.id));
+  const billSlots = new Set(liveBills.map((bill) => `${bill.studentId}|${bill.period}`));
+  const paymentIds = new Set(liveBills.flatMap((bill) => bill.payments.map((payment) => payment.id)));
+  /** Where each bill lives -- in storage already, or added by this backup. */
+  const billHome = new Map<string, { docId: string; studentId: string; year: string; period: string; isNew: boolean }>();
+  for (const bill of liveBills) {
+    billHome.set(bill.id, { docId: bill.docId, studentId: bill.studentId, year: bill.period.slice(0, 4), period: bill.period, isNew: false });
+  }
+  const messageIds = new Set(
+    list<ChunkDoc>("messages").flatMap((doc) => Object.keys(doc.entries ?? {}))
+  );
+
+  const feeDocFor = (studentId: string, period: string) => {
+    const docId = feeDocId(studentId, period);
+    let doc = plan.feeDocs.get(docId);
+    if (!doc) {
+      doc = { studentId, year: period.slice(0, 4), bills: {}, extraPayments: new Map() };
+      plan.feeDocs.set(docId, doc);
+    }
+    return { docId, doc };
+  };
+
+  for (const { table: rawTable, row } of rows) {
+    const table = rawTable as BackupTable;
+    const id = str(row.id);
+    const collection = COLLECTION[table];
+    const build = BUILD[table];
+
+    if (collection && build) {
+      const key = `${collection}/${id}`;
+      const duplicateBuiltIn =
+        table === "message_templates" && Boolean(num(row.isBuiltIn)) && builtInNames.has(str(row.name));
+      if (!id || seen.has(key) || find(collection, id) || duplicateBuiltIn) {
+        skip(table);
+        continue;
+      }
+      seen.add(key);
+      plan.simple.push({ collection, id, data: build(row) as Record<string, unknown> });
+      add(table);
+      continue;
+    }
+
+    if (table === "fee_records") {
+      const studentId = str(row.studentId);
+      const period = str(row.period);
+      const slot = `${studentId}|${period}`;
+      if (!id || !studentId || !period || billIds.has(id) || billSlots.has(slot)) {
+        skip(table);
+        continue;
+      }
+      billIds.add(id);
+      billSlots.add(slot);
+      const { docId, doc } = feeDocFor(studentId, period);
+      doc.bills[period] = billDoc(row);
+      billHome.set(id, { docId, studentId, year: doc.year, period, isNew: true });
+      add(table);
+      continue;
+    }
+
+    if (table === "payments") {
+      const home = billHome.get(str(row.feeRecordId));
+      if (!id || !home || paymentIds.has(id)) {
+        skip(table);
+        continue;
+      }
+      paymentIds.add(id);
+      const payment = paymentDoc(row);
+      const { doc } = feeDocFor(home.studentId, home.period);
+      if (home.isNew) {
+        const bill = doc.bills[home.period];
+        bill.payments = { ...(bill.payments ?? {}), [payment.id]: payment };
+      } else {
+        const list = doc.extraPayments.get(str(row.feeRecordId)) ?? [];
+        list.push(payment);
+        doc.extraPayments.set(str(row.feeRecordId), list);
+      }
+      add(table);
+      continue;
+    }
+
+    if (table === "message_log") {
+      const batchId = str(row.batchId);
+      if (!id || !batchId || messageIds.has(id)) {
+        skip(table);
+        continue;
+      }
+      messageIds.add(id);
+      const kind = (str(row.kind) || "custom") as MessageKind;
+      const createdAt = num(row.createdAt, Date.now());
+      const batch = plan.messageBatches.get(batchId) ?? { kind, createdAt, entries: [] };
+      batch.entries.push({
+        id,
+        studentId: strOrNull(row.studentId),
+        recipientName: str(row.recipientName),
+        phone: str(row.phone),
+        kind,
+        body: str(row.body),
+        status: (str(row.status) || "queued") as MessageLogEntry["status"],
+        createdAt,
+        sentAt: numOrNull(row.sentAt),
+      });
+      plan.messageBatches.set(batchId, batch);
+      add(table);
+    }
+    // Settings are per-installation configuration, not hostel records, and
+    // are deliberately never imported.
+  }
+
+  return plan;
+}
+
 
 /** Frees cached export files once they have been shared. */
 export function clearExportCache(): void {
@@ -688,5 +1152,3 @@ export function clearExportCache(): void {
     // Cache is reclaimed by the OS regardless.
   }
 }
-
-export { closeDb };

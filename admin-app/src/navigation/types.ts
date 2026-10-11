@@ -50,6 +50,7 @@ export type RootStackParamList = {
   Search: undefined;
 
   Backup: undefined;
+  AdminPanel: undefined;
   Reports: undefined;
   Settings: undefined;
   ChangePin: undefined;

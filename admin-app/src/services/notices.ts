@@ -1,94 +1,84 @@
-import { getDb } from "@/db";
 import { Notice, NoticeCategory } from "@/types";
 import { newId } from "@/utils/id";
 import { toIsoDate } from "@/utils/format";
-import { branchOrSharedClause, getActiveBranchId } from "./branches";
+import { find, list, logActivity, patch, put, remove } from "@/store/cloud";
+import { compareRaw, contains } from "@/store/views";
+import { inActiveBranchOrShared } from "./branches";
 
 export type NoticeInput = Omit<Notice, "id" | "createdAt" | "updatedAt" | "lastSentAt">;
 
 export type NoticeFilter = "all" | NoticeCategory;
 
-/** SQLite has no boolean type, so `pinned` arrives as 0/1. */
-type NoticeRow = Omit<Notice, "pinned"> & { pinned: number };
+/** Older records (and restored phone backups) may carry `pinned` as 0/1. */
+function hydrate(notice: Notice): Notice {
+  return { ...notice, pinned: Boolean(notice.pinned) };
+}
 
-function hydrate(row: NoticeRow): Notice {
-  return { ...row, pinned: Boolean(row.pinned) };
+function visibleNotices(): Notice[] {
+  // A notice with no branch applies to every branch, so it shows on both boards.
+  return list<Notice>("notices").map(hydrate).filter((notice) => inActiveBranchOrShared(notice.branchId));
 }
 
 export async function listNotices(filter: NoticeFilter = "all", search = ""): Promise<Notice[]> {
-  const db = await getDb();
-
-  const clauses: string[] = [];
-  const params: (string | number)[] = [];
-
-  // A notice with no branch applies to every branch, so it shows on both boards.
-  const branch = branchOrSharedClause("branchId");
-  if (branch.sql) {
-    clauses.push(branch.sql);
-    params.push(...branch.params);
-  }
-
-  if (filter !== "all") {
-    clauses.push("category = ?");
-    params.push(filter);
-  }
-
   const term = search.trim().toLowerCase();
-  if (term) {
-    clauses.push("(LOWER(title) LIKE ? OR LOWER(body) LIKE ?)");
-    params.push(`%${term}%`, `%${term}%`);
-  }
-
-  const where = clauses.length ? `WHERE ${clauses.join(" AND ")}` : "";
-  const rows = await db.getAllAsync<NoticeRow>(
-    `SELECT * FROM notices ${where}
-     ORDER BY pinned DESC, postedOn DESC, createdAt DESC;`,
-    params
-  );
-  return rows.map(hydrate);
+  return visibleNotices()
+    .filter((notice) => filter === "all" || notice.category === filter)
+    .filter((notice) => !term || contains(notice.title, term) || contains(notice.body, term))
+    .sort(
+      (a, b) =>
+        Number(b.pinned) - Number(a.pinned) || compareRaw(b.postedOn, a.postedOn) || b.createdAt - a.createdAt
+    );
 }
 
 export async function getNotice(id: string): Promise<Notice | null> {
-  const db = await getDb();
-  const row = await db.getFirstAsync<NoticeRow>("SELECT * FROM notices WHERE id = ?;", id);
-  return row ? hydrate(row) : null;
+  const notice = find<Notice>("notices", id);
+  return notice ? hydrate(notice) : null;
 }
 
 export async function createNotice(input: NoticeInput): Promise<string> {
-  const db = await getDb();
   const id = newId();
   const now = Date.now();
-  await db.runAsync(
-    `INSERT INTO notices (id, branchId, title, body, category, pinned, postedOn, lastSentAt, createdAt, updatedAt)
-     VALUES (?, ?, ?, ?, ?, ?, ?, NULL, ?, ?);`,
-    id, input.branchId, input.title, input.body, input.category, input.pinned ? 1 : 0,
-    input.postedOn || toIsoDate(), now, now
-  );
+  await put("notices", id, {
+    id,
+    branchId: input.branchId,
+    title: input.title,
+    body: input.body,
+    category: input.category,
+    pinned: Boolean(input.pinned),
+    postedOn: input.postedOn || toIsoDate(),
+    lastSentAt: null,
+    createdAt: now,
+    updatedAt: now,
+  });
+  logActivity({ action: "created", entity: "notice", entityId: id, label: input.title, branchId: input.branchId });
   return id;
 }
 
 export async function updateNotice(id: string, input: NoticeInput): Promise<void> {
-  const db = await getDb();
-  await db.runAsync(
-    `UPDATE notices SET branchId = ?, title = ?, body = ?, category = ?, pinned = ?,
-       postedOn = ?, updatedAt = ?
-     WHERE id = ?;`,
-    input.branchId, input.title, input.body, input.category, input.pinned ? 1 : 0,
-    input.postedOn || toIsoDate(), Date.now(), id
-  );
+  if (!find("notices", id)) return;
+  await patch("notices", id, {
+    branchId: input.branchId,
+    title: input.title,
+    body: input.body,
+    category: input.category,
+    pinned: Boolean(input.pinned),
+    postedOn: input.postedOn || toIsoDate(),
+    updatedAt: Date.now(),
+  });
+  logActivity({ action: "updated", entity: "notice", entityId: id, label: input.title, branchId: input.branchId });
 }
 
 export async function deleteNotice(id: string): Promise<void> {
-  const db = await getDb();
-  await db.runAsync("DELETE FROM notices WHERE id = ?;", id);
+  const existing = find<Notice>("notices", id);
+  await remove("notices", id);
+  if (existing) {
+    logActivity({ action: "deleted", entity: "notice", entityId: id, label: existing.title, branchId: existing.branchId });
+  }
 }
 
 export async function togglePinned(id: string, pinned: boolean): Promise<void> {
-  const db = await getDb();
-  await db.runAsync(
-    "UPDATE notices SET pinned = ?, updatedAt = ? WHERE id = ?;",
-    pinned ? 1 : 0, Date.now(), id
-  );
+  if (!find("notices", id)) return;
+  await patch("notices", id, { pinned, updatedAt: Date.now() });
 }
 
 /**
@@ -100,8 +90,8 @@ export async function togglePinned(id: string, pinned: boolean): Promise<void> {
  * circulated" marker.
  */
 export async function markNoticeSent(id: string): Promise<void> {
-  const db = await getDb();
-  await db.runAsync("UPDATE notices SET lastSentAt = ? WHERE id = ?;", Date.now(), id);
+  if (!find("notices", id)) return;
+  await patch("notices", id, { lastSentAt: Date.now() });
 }
 
 export const CATEGORY_LABELS: Record<NoticeCategory, string> = {
@@ -125,23 +115,13 @@ export function noticeToMessage(notice: Pick<Notice, "title" | "body">): string 
 }
 
 export async function noticeCounts(): Promise<Record<NoticeFilter, number>> {
-  const db = await getDb();
-  const branch = branchOrSharedClause("branchId");
-  const where = branch.sql ? `WHERE ${branch.sql}` : "";
-  const row = await db.getFirstAsync<Record<string, number>>(
-    `SELECT COUNT(*) AS all_count,
-            COALESCE(SUM(category = 'general'), 0)     AS general,
-            COALESCE(SUM(category = 'event'), 0)       AS event,
-            COALESCE(SUM(category = 'maintenance'), 0) AS maintenance,
-            COALESCE(SUM(category = 'urgent'), 0)      AS urgent
-     FROM notices ${where};`,
-    branch.params
-  );
+  const rows = visibleNotices();
+  const of = (category: NoticeCategory) => rows.filter((notice) => notice.category === category).length;
   return {
-    all: row?.all_count ?? 0,
-    general: row?.general ?? 0,
-    event: row?.event ?? 0,
-    maintenance: row?.maintenance ?? 0,
-    urgent: row?.urgent ?? 0,
+    all: rows.length,
+    general: of("general"),
+    event: of("event"),
+    maintenance: of("maintenance"),
+    urgent: of("urgent"),
   };
 }

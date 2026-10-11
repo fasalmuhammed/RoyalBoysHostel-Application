@@ -67,7 +67,7 @@ export default function CreatePinScreen({}: Props) {
     <Screen scroll>
       <Text style={styles.title}>Lock the app</Text>
       <Text style={styles.subtitle}>
-        Inmate records, phone numbers and fee history sit on this phone. A PIN keeps them out of
+        Inmate records, phone numbers and fee history open on this device. A PIN keeps them out of
         reach if someone else picks it up.
       </Text>
 
@@ -110,9 +110,8 @@ export default function CreatePinScreen({}: Props) {
 
       <Callout tone="warning" icon="warning-outline">
         <CalloutText>
-          There is no way to reset this PIN from outside the app — no email, no account. If you
-          forget it you will have to reinstall, which erases the data on this phone. Keep a backup
-          file somewhere safe.
+          This PIN belongs to this device only. If you forget it, clear this browser's data for the
+          app to remove it — the hostel records stay safe in Claude storage.
         </CalloutText>
       </Callout>
 

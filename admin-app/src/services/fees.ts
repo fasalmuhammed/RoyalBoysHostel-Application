@@ -1,42 +1,72 @@
-import { getDb } from "@/db";
-import { FeeRecord, FeeRecordWithInmate, FeeStatus, Payment, PaymentMethod } from "@/types";
+import { FeeRecord, FeeRecordWithInmate, FeeStatus, Inmate, Payment, PaymentMethod } from "@/types";
 import { newId } from "@/utils/id";
-import { daysUntil, toIsoDate, toPeriod } from "@/utils/format";
-import { branchClause } from "./branches";
+import { daysUntil, formatMoney, formatPeriod, toIsoDate, toPeriod } from "@/utils/format";
+import { fresh, logActivity, patch, put, remove, runThrottled, withLock } from "@/store/cloud";
+import {
+  BillDoc,
+  BillEntry,
+  FeeYearDoc,
+  allBills,
+  allInmates,
+  billById,
+  billForPayment,
+  billsForStudent,
+  compareRaw,
+  compareText,
+  contains,
+  feeDocId,
+  inmateById,
+  roomById,
+  roomLabelOf,
+  sumPayments,
+} from "@/store/views";
+import { inActiveBranch } from "./branches";
+import { loadSettings } from "./settings";
 
 export type FeeInput = Omit<FeeRecord, "id" | "createdAt" | "updatedAt" | "total" | "amountPaid">;
 
 /**
- * Status is derived from `total` vs `amountPaid` in SQL rather than stored, so
- * it can never fall out of step with the payments actually recorded.
+ * Status is derived from `total` vs the payments recorded, never stored, so
+ * it can never fall out of step with the money actually collected.
  *
  * The 0.01 tolerance absorbs floating-point drift from split payments (three
  * payments of 2000.00 against 6000.00 can land a hair under).
  */
-const STATUS_SQL = `
-  CASE
-    WHEN f.amountPaid >= f.total - 0.01 THEN 'paid'
-    WHEN f.amountPaid > 0.009 THEN 'partial'
-    ELSE 'unpaid'
-  END
-`;
+function statusOf(bill: Pick<FeeRecord, "total" | "amountPaid">): FeeStatus {
+  if (bill.amountPaid >= bill.total - 0.01) return "paid";
+  if (bill.amountPaid > 0.009) return "partial";
+  return "unpaid";
+}
 
-const SELECT_WITH_STUDENT = `
-  SELECT f.*,
-         s.fullName      AS studentName,
-         s.admissionNo   AS admissionNo,
-         s.phone         AS studentPhone,
-         s.photoFile     AS photoFile,
-         s.admissionType AS admissionType,
-         CASE WHEN r.id IS NULL THEN NULL
-              WHEN r.block = '' THEN r.roomNumber
-              ELSE r.block || '-' || r.roomNumber END AS roomLabel,
-         ${STATUS_SQL} AS status,
-         (f.total - f.amountPaid) AS balance
-  FROM fee_records f
-  JOIN students s ON s.id = f.studentId
-  LEFT JOIN rooms r ON r.id = s.roomId
-`;
+/** A bill joined with the inmate it belongs to. Bills whose inmate is gone are hidden. */
+function withStudent(bill: BillEntry, inmate: Inmate): FeeRecordWithInmate {
+  const { docId: _docId, payments: _payments, ...record } = bill;
+  return {
+    ...record,
+    studentName: inmate.fullName,
+    admissionNo: inmate.admissionNo,
+    studentPhone: inmate.phone,
+    photoFile: inmate.photoFile,
+    admissionType: inmate.admissionType,
+    roomLabel: roomLabelOf(roomById(inmate.roomId)),
+    status: statusOf(bill),
+    balance: bill.total - bill.amountPaid,
+  };
+}
+
+/** Every bill with its inmate, optionally narrowed. */
+function joined(include: (bill: BillEntry, inmate: Inmate) => boolean): FeeRecordWithInmate[] {
+  const out: FeeRecordWithInmate[] = [];
+  for (const bill of allBills()) {
+    const inmate = inmateById(bill.studentId);
+    if (inmate && include(bill, inmate)) out.push(withStudent(bill, inmate));
+  }
+  return out;
+}
+
+/** `ORDER BY period DESC, fullName COLLATE NOCASE`. */
+const byPeriodThenName = (a: FeeRecordWithInmate, b: FeeRecordWithInmate) =>
+  compareRaw(b.period, a.period) || compareText(a.studentName, b.studentName);
 
 /** `"due"` combines unpaid + partial -- everything still owed, across any status split. */
 export type FeeFilter = "all" | "due" | FeeStatus;
@@ -46,100 +76,181 @@ export async function listFees(
   period: string | null = null,
   search = ""
 ): Promise<FeeRecordWithInmate[]> {
-  const db = await getDb();
-
-  const clauses: string[] = [];
-  const params: (string | number)[] = [];
-
-  // A bill has no branch of its own; it belongs to whichever branch the inmate
-  // being billed belongs to.
-  const branch = branchClause("s.branchId");
-  if (branch.sql) {
-    clauses.push(branch.sql);
-    params.push(...branch.params);
-  }
-
-  if (period) {
-    clauses.push("f.period = ?");
-    params.push(period);
-  }
   const term = search.trim().toLowerCase();
-  if (term) {
-    clauses.push("(LOWER(s.fullName) LIKE ? OR LOWER(s.admissionNo) LIKE ?)");
-    params.push(`%${term}%`, `%${term}%`);
-  }
-  if (filter === "due") {
-    clauses.push(`${STATUS_SQL} IN ('unpaid', 'partial')`);
-  } else if (filter !== "all") {
-    clauses.push(`${STATUS_SQL} = ?`);
-    params.push(filter);
-  }
-
-  const where = clauses.length ? `WHERE ${clauses.join(" AND ")}` : "";
-  return db.getAllAsync<FeeRecordWithInmate>(
-    `${SELECT_WITH_STUDENT} ${where} ORDER BY f.period DESC, s.fullName COLLATE NOCASE;`,
-    params
-  );
+  return joined((bill, inmate) => {
+    // A bill has no branch of its own; it belongs to whichever branch the
+    // inmate being billed belongs to.
+    if (!inActiveBranch(inmate.branchId)) return false;
+    if (period && bill.period !== period) return false;
+    if (term && !contains(inmate.fullName, term) && !contains(inmate.admissionNo, term)) return false;
+    const status = statusOf(bill);
+    if (filter === "due") return status === "unpaid" || status === "partial";
+    return filter === "all" || status === filter;
+  }).sort(byPeriodThenName);
 }
 
 export async function getFee(id: string): Promise<FeeRecordWithInmate | null> {
-  const db = await getDb();
-  return db.getFirstAsync<FeeRecordWithInmate>(`${SELECT_WITH_STUDENT} WHERE f.id = ?;`, id);
+  const bill = billById(id);
+  const inmate = bill ? inmateById(bill.studentId) : null;
+  return bill && inmate ? withStudent(bill, inmate) : null;
 }
 
 export async function listFeesForStudent(studentId: string): Promise<FeeRecordWithInmate[]> {
-  const db = await getDb();
-  return db.getAllAsync<FeeRecordWithInmate>(
-    `${SELECT_WITH_STUDENT} WHERE f.studentId = ? ORDER BY f.period DESC;`,
-    studentId
-  );
+  const inmate = inmateById(studentId);
+  if (!inmate) return [];
+  return billsForStudent(studentId)
+    .map((bill) => withStudent(bill, inmate))
+    .sort((a, b) => compareRaw(b.period, a.period));
 }
 
 function sumTotal(input: Pick<FeeInput, "rent" | "electricity" | "water" | "other" | "discount">): number {
   return Math.max(input.rent + input.electricity + input.water + input.other - input.discount, 0);
 }
 
-/** Thrown when an invoice already exists for that student and month. */
+/** Thrown when an invoice already exists for that inmate and month. */
 export class DuplicateInvoiceError extends Error {}
 
-export async function createFee(input: FeeInput): Promise<string> {
-  const db = await getDb();
-  const id = newId();
-  const now = Date.now();
+function billLabel(studentId: string, period: string): string {
+  return `${inmateById(studentId)?.fullName ?? "Inmate"} · ${formatPeriod(period)}`;
+}
 
-  const clash = await db.getFirstAsync<{ id: string }>(
-    "SELECT id FROM fee_records WHERE studentId = ? AND period = ?;",
-    input.studentId,
-    input.period
-  );
-  if (clash) {
+/**
+ * Whose bills a year document holds, from its id (`<studentId>_<yyyy>`).
+ * Written with every change, so a document the platform created empty when
+ * it was first locked still ends up linked to its inmate.
+ */
+function ownerOf(docId: string): { studentId: string; year: string } {
+  return { studentId: docId.slice(0, -5), year: docId.slice(-4) };
+}
+
+/** The server's copy of one inmate-year of bills, read inside its lock. */
+async function readYear(docId: string): Promise<FeeYearDoc | null> {
+  return fresh<FeeYearDoc>("fees", docId);
+}
+
+function findBill(doc: FeeYearDoc | null, billId: string): BillDoc | null {
+  return Object.values(doc?.bills ?? {}).find((bill) => bill.id === billId) ?? null;
+}
+
+/** Adds a bill to its inmate-year, creating the year's document if needed. */
+async function addBill(studentId: string, bill: BillDoc): Promise<void> {
+  const docId = feeDocId(studentId, bill.period);
+  const doc = await readYear(docId);
+  if (doc?.bills?.[bill.period]) {
     throw new DuplicateInvoiceError("An invoice for this student and month already exists.");
   }
+  if (doc) await patch("fees", docId, { ...ownerOf(docId), bills: { [bill.period]: bill } });
+  else await put("fees", docId, { studentId, year: bill.period.slice(0, 4), bills: { [bill.period]: bill } });
+}
 
-  await db.runAsync(
-    `INSERT INTO fee_records (id, studentId, period, rent, electricity, water, other, discount,
-       total, amountPaid, dueDate, note, createdAt, updatedAt)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?);`,
-    id, input.studentId, input.period, input.rent, input.electricity, input.water,
-    input.other, input.discount, sumTotal(input), input.dueDate, input.note, now, now
-  );
+/** Rewrites an inmate-year without one bill, or removes it when it was the last. */
+async function writeWithout(docId: string, doc: FeeYearDoc, period: string): Promise<void> {
+  const bills = { ...(doc.bills ?? {}) };
+  delete bills[period];
+  if (Object.keys(bills).length === 0) await remove("fees", docId);
+  else await put("fees", docId, { ...doc, ...ownerOf(docId), bills });
+}
+
+export async function createFee(input: FeeInput): Promise<string> {
+  const id = newId();
+  const now = Date.now();
+  const bill: BillDoc = {
+    id,
+    period: input.period,
+    rent: input.rent,
+    electricity: input.electricity,
+    water: input.water,
+    other: input.other,
+    discount: input.discount,
+    total: sumTotal(input),
+    dueDate: input.dueDate,
+    note: input.note,
+    createdAt: now,
+    updatedAt: now,
+    payments: {},
+  };
+  await withLock("fees", feeDocId(input.studentId, input.period), () => addBill(input.studentId, bill));
+  logActivity({
+    action: "created",
+    entity: "bill",
+    entityId: id,
+    label: billLabel(input.studentId, input.period),
+    branchId: inmateById(input.studentId)?.branchId ?? null,
+  });
   return id;
 }
 
 export async function updateFee(id: string, input: FeeInput): Promise<void> {
-  const db = await getDb();
-  await db.runAsync(
-    `UPDATE fee_records SET period = ?, rent = ?, electricity = ?, water = ?, other = ?,
-       discount = ?, total = ?, dueDate = ?, note = ?, updatedAt = ?
-     WHERE id = ?;`,
-    input.period, input.rent, input.electricity, input.water, input.other,
-    input.discount, sumTotal(input), input.dueDate, input.note, Date.now(), id
-  );
+  const current = billById(id);
+  if (!current) return;
+  const changes = {
+    rent: input.rent,
+    electricity: input.electricity,
+    water: input.water,
+    other: input.other,
+    discount: input.discount,
+    total: sumTotal(input),
+    dueDate: input.dueDate,
+    note: input.note,
+    updatedAt: Date.now(),
+  };
+  const sourceId = current.docId;
+
+  if (input.period === current.period) {
+    await withLock("fees", sourceId, async () => {
+      const doc = await readYear(sourceId);
+      const bill = findBill(doc, id);
+      if (!doc || !bill) return;
+      await patch("fees", sourceId, { ...ownerOf(sourceId), bills: { [bill.period]: changes } });
+    });
+  } else {
+    // Moving a bill to another month: one bill per inmate per month still holds.
+    const targetId = feeDocId(current.studentId, input.period);
+    await withLock("fees", sourceId, async () => {
+      const doc = await readYear(sourceId);
+      const bill = findBill(doc, id);
+      if (!doc || !bill) return;
+      const moved: BillDoc = { ...bill, ...changes, period: input.period };
+      if (targetId === sourceId) {
+        if (doc.bills?.[input.period]) {
+          throw new DuplicateInvoiceError("An invoice for this student and month already exists.");
+        }
+        const bills = { ...(doc.bills ?? {}) };
+        delete bills[bill.period];
+        bills[input.period] = moved;
+        await put("fees", sourceId, { ...doc, ...ownerOf(sourceId), bills });
+      } else {
+        await withLock("fees", targetId, () => addBill(current.studentId, moved));
+        await writeWithout(sourceId, doc, bill.period);
+      }
+    });
+  }
+
+  logActivity({
+    action: "updated",
+    entity: "bill",
+    entityId: id,
+    label: billLabel(current.studentId, input.period),
+    branchId: inmateById(current.studentId)?.branchId ?? null,
+  });
 }
 
 export async function deleteFee(id: string): Promise<void> {
-  const db = await getDb();
-  await db.runAsync("DELETE FROM fee_records WHERE id = ?;", id);
+  const current = billById(id);
+  if (!current) return;
+  await withLock("fees", current.docId, async () => {
+    const doc = await readYear(current.docId);
+    const bill = findBill(doc, id);
+    if (!doc || !bill) return;
+    await writeWithout(current.docId, doc, bill.period);
+  });
+  logActivity({
+    action: "deleted",
+    entity: "bill",
+    entityId: id,
+    label: billLabel(current.studentId, current.period),
+    branchId: inmateById(current.studentId)?.branchId ?? null,
+  });
 }
 
 export interface GenerateResult {
@@ -148,80 +259,74 @@ export interface GenerateResult {
 }
 
 /**
- * Raises one invoice per active, room-assigned student for `period`, pricing
- * each at their room's rent.
+ * Raises one invoice per active monthly inmate for `period`, pricing each at
+ * their own rent (their room's rent only as a fallback for older records).
  *
- * Students who already have an invoice for that month are skipped, which makes
+ * Inmates who already have an invoice for that month are skipped, which makes
  * the whole operation safe to re-run -- the common case is running it again
- * after a few more students have been admitted mid-month.
+ * after a few more inmates have been admitted mid-month -- and safe to run
+ * from two devices at once.
  */
 export async function generateInvoices(period: string): Promise<GenerateResult> {
-  const db = await getDb();
-
-  // Each student carries their own rent and join date, so a batch run produces
-  // per-student amounts and deadlines rather than one blanket figure. Their
-  // room's rent is only a fallback for records created before rent moved onto
-  // the student.
-  const branch = branchClause("s.branchId");
-  const branchAnd = branch.sql ? `AND ${branch.sql}` : "";
-
-  const candidates = await db.getAllAsync<{
-    id: string;
-    monthlyRent: number;
-    joinedOn: string;
-    roomRent: number | null;
-  }>(
-    `SELECT s.id AS id, s.monthlyRent AS monthlyRent, s.joinedOn AS joinedOn,
-            r.rent AS roomRent
-     FROM students s
-     LEFT JOIN rooms r ON r.id = s.roomId
-     WHERE s.status = 'active'
-       AND s.admissionType != 'stay'
-       AND s.id NOT IN (SELECT studentId FROM fee_records WHERE period = ?)
-       ${branchAnd};`,
-    [period, ...branch.params]
-  );
-
   // Fixed-days stays are billed once at admission (see InmateFormScreen), never
   // swept into this recurring monthly batch -- so they don't count toward the
   // "active inmates this batch could bill" total either.
-  const activeBranch = branchClause("branchId");
-  const total = await db.getFirstAsync<{ n: number }>(
-    `SELECT COUNT(*) AS n FROM students WHERE status = 'active' AND admissionType != 'stay'
-     ${activeBranch.sql ? `AND ${activeBranch.sql}` : ""};`,
-    activeBranch.params
+  const eligible = allInmates().filter(
+    (inmate) => inmate.status === "active" && inmate.admissionType !== "stay" && inActiveBranch(inmate.branchId)
   );
+  const billed = new Set(allBills().filter((bill) => bill.period === period).map((bill) => bill.studentId));
+  const candidates = eligible.filter((inmate) => !billed.has(inmate.id));
 
-  if (candidates.length > 0) {
-    const now = Date.now();
-    await db.withExclusiveTransactionAsync(async (txn) => {
-      for (const row of candidates) {
-        const rent = row.monthlyRent > 0 ? row.monthlyRent : (row.roomRent ?? 0);
-        const dueDate = dueDateFor(period, anchorDayFor(row.joinedOn));
-        await txn.runAsync(
-          `INSERT INTO fee_records (id, studentId, period, rent, electricity, water, other,
-             discount, total, amountPaid, dueDate, note, createdAt, updatedAt)
-           VALUES (?, ?, ?, ?, 0, 0, 0, 0, ?, 0, ?, '', ?, ?);`,
-          newId(), row.id, period, rent, rent, dueDate, now, now
-        );
-      }
+  let created = 0;
+  const now = Date.now();
+  await runThrottled(candidates, async (inmate) => {
+    const rent = inmate.monthlyRent > 0 ? inmate.monthlyRent : (roomById(inmate.roomId)?.rent ?? 0);
+    const bill: BillDoc = {
+      id: newId(),
+      period,
+      rent,
+      electricity: 0,
+      water: 0,
+      other: 0,
+      discount: 0,
+      total: rent,
+      dueDate: dueDateFor(period, anchorDayFor(inmate.joinedOn)),
+      note: "",
+      createdAt: now,
+      updatedAt: now,
+      payments: {},
+    };
+    try {
+      await withLock("fees", feeDocId(inmate.id, period), () => addBill(inmate.id, bill));
+      created += 1;
+    } catch (error) {
+      // Raised from another device in the meantime: already billed, not a failure.
+      if (!(error instanceof DuplicateInvoiceError)) throw error;
+    }
+  });
+
+  if (created > 0) {
+    logActivity({
+      action: "created",
+      entity: "bill",
+      entityId: period,
+      label: `${created} bill${created === 1 ? "" : "s"} raised for ${formatPeriod(period)}`,
+      branchId: eligible[0]?.branchId ?? null,
     });
   }
 
-  return {
-    created: candidates.length,
-    skipped: (total?.n ?? 0) - candidates.length,
-  };
+  return { created, skipped: eligible.length - created };
 }
 
 export class OverpaymentError extends Error {}
 
 /**
- * Records a payment and advances the invoice's paid total in one transaction.
+ * Records a payment against a bill.
  *
- * Overpayment is rejected rather than clamped: a wrong amount is far more
- * likely to be a typo than a genuine tip, and silently absorbing it would hide
- * the mistake from the receipt.
+ * Runs under the bill's lock against the server's current copy, so two people
+ * collecting from the same inmate at once cannot together take more than is
+ * owed. Overpayment is rejected rather than clamped: a wrong amount is far
+ * more likely to be a typo than a genuine tip.
  */
 export async function recordPayment(
   feeRecordId: string,
@@ -233,58 +338,79 @@ export async function recordPayment(
 ): Promise<void> {
   if (amount <= 0) throw new OverpaymentError("Enter an amount greater than zero.");
 
-  const db = await getDb();
-  await db.withExclusiveTransactionAsync(async (txn) => {
-    const fee = await txn.getFirstAsync<{ total: number; amountPaid: number; studentId: string }>(
-      "SELECT total, amountPaid, studentId FROM fee_records WHERE id = ?;",
-      feeRecordId
-    );
-    if (!fee) throw new OverpaymentError("That invoice no longer exists.");
+  const current = billById(feeRecordId);
+  if (!current) throw new OverpaymentError("That invoice no longer exists.");
 
-    const balance = fee.total - fee.amountPaid;
+  await withLock("fees", current.docId, async () => {
+    const doc = await readYear(current.docId);
+    const bill = findBill(doc, feeRecordId);
+    if (!bill) throw new OverpaymentError("That invoice no longer exists.");
+
+    const balance = bill.total - sumPayments(bill.payments);
     if (amount > balance + 0.01) {
       throw new OverpaymentError(
         `That is more than the outstanding balance. At most ${balance.toFixed(2)} can be collected.`
       );
     }
 
-    await txn.runAsync(
-      `INSERT INTO payments (id, feeRecordId, studentId, amount, method, paidOn, reference, note, createdAt)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);`,
-      newId(), feeRecordId, fee.studentId, amount, method, paidOn, reference, note, Date.now()
-    );
-    await txn.runAsync(
-      "UPDATE fee_records SET amountPaid = amountPaid + ?, updatedAt = ? WHERE id = ?;",
-      amount, Date.now(), feeRecordId
-    );
+    const paymentId = newId();
+    const now = Date.now();
+    await patch("fees", current.docId, {
+      ...ownerOf(current.docId),
+      bills: {
+        [bill.period]: {
+          updatedAt: now,
+          payments: {
+            [paymentId]: { id: paymentId, amount, method, paidOn, reference, note, createdAt: now },
+          },
+        },
+      },
+    });
+  });
+
+  logActivity({
+    action: "payment",
+    entity: "payment",
+    entityId: feeRecordId,
+    label: `${formatMoney(amount, (await loadSettings()).currencySymbol)} from ${billLabel(current.studentId, current.period)}`,
+    branchId: inmateById(current.studentId)?.branchId ?? null,
   });
 }
 
 export async function listPayments(feeRecordId: string): Promise<Payment[]> {
-  const db = await getDb();
   // `id` breaks the tie: two instalments recorded in the same millisecond would
   // otherwise come back in an arbitrary order, so the newest-first list could
   // reshuffle between renders.
-  return db.getAllAsync<Payment>(
-    "SELECT * FROM payments WHERE feeRecordId = ? ORDER BY createdAt DESC, id DESC;",
-    feeRecordId
+  return [...(billById(feeRecordId)?.payments ?? [])].sort(
+    (a, b) => b.createdAt - a.createdAt || compareRaw(b.id, a.id)
   );
 }
 
 /** Reverses a payment, restoring the invoice balance. */
 export async function deletePayment(paymentId: string): Promise<void> {
-  const db = await getDb();
-  await db.withExclusiveTransactionAsync(async (txn) => {
-    const payment = await txn.getFirstAsync<{ amount: number; feeRecordId: string }>(
-      "SELECT amount, feeRecordId FROM payments WHERE id = ?;",
-      paymentId
-    );
-    if (!payment) return;
-    await txn.runAsync("DELETE FROM payments WHERE id = ?;", paymentId);
-    await txn.runAsync(
-      "UPDATE fee_records SET amountPaid = MAX(amountPaid - ?, 0), updatedAt = ? WHERE id = ?;",
-      payment.amount, Date.now(), payment.feeRecordId
-    );
+  const current = billForPayment(paymentId);
+  if (!current) return;
+  const amount = current.payments.find((payment) => payment.id === paymentId)?.amount ?? 0;
+
+  await withLock("fees", current.docId, async () => {
+    const doc = await readYear(current.docId);
+    const bill = findBill(doc, current.id);
+    if (!doc || !bill || !bill.payments?.[paymentId]) return;
+    const payments = { ...bill.payments };
+    delete payments[paymentId];
+    await put("fees", current.docId, {
+      ...doc,
+      ...ownerOf(current.docId),
+      bills: { ...doc.bills, [bill.period]: { ...bill, payments, updatedAt: Date.now() } },
+    });
+  });
+
+  logActivity({
+    action: "reversed",
+    entity: "payment",
+    entityId: current.id,
+    label: `${formatMoney(amount, (await loadSettings()).currencySymbol)} from ${billLabel(current.studentId, current.period)}`,
+    branchId: inmateById(current.studentId)?.branchId ?? null,
   });
 }
 
@@ -298,56 +424,35 @@ export interface FeeTotals {
 }
 
 export async function feeTotals(period: string | null = null): Promise<FeeTotals> {
-  const db = await getDb();
-
-  const clauses: string[] = [];
-  const params: (string | number)[] = [];
-  if (period) {
-    clauses.push("f.period = ?");
-    params.push(period);
+  const totals: FeeTotals = { billed: 0, collected: 0, outstanding: 0, paidCount: 0, unpaidCount: 0, partialCount: 0 };
+  for (const bill of joined((b, inmate) => (!period || b.period === period) && inActiveBranch(inmate.branchId))) {
+    totals.billed += bill.total;
+    totals.collected += bill.amountPaid;
+    totals.outstanding += bill.total - bill.amountPaid;
+    if (bill.status === "paid") totals.paidCount += 1;
+    else if (bill.status === "unpaid") totals.unpaidCount += 1;
+    else totals.partialCount += 1;
   }
-  const branch = branchClause("s.branchId");
-  if (branch.sql) {
-    clauses.push(branch.sql);
-    params.push(...branch.params);
-  }
-  const where = clauses.length ? `WHERE ${clauses.join(" AND ")}` : "";
-
-  const row = await db.getFirstAsync<FeeTotals>(
-    `SELECT COALESCE(SUM(f.total), 0) AS billed,
-            COALESCE(SUM(f.amountPaid), 0) AS collected,
-            COALESCE(SUM(f.total - f.amountPaid), 0) AS outstanding,
-            COALESCE(SUM(${STATUS_SQL} = 'paid'), 0) AS paidCount,
-            COALESCE(SUM(${STATUS_SQL} = 'unpaid'), 0) AS unpaidCount,
-            COALESCE(SUM(${STATUS_SQL} = 'partial'), 0) AS partialCount
-     FROM fee_records f
-     JOIN students s ON s.id = f.studentId
-     ${where};`,
-    params
-  );
-
-  return (
-    row ?? { billed: 0, collected: 0, outstanding: 0, paidCount: 0, unpaidCount: 0, partialCount: 0 }
-  );
+  return totals;
 }
 
+/** `ORDER BY dueDate ASC, fullName COLLATE NOCASE`. */
+const byDueThenName = (a: FeeRecordWithInmate, b: FeeRecordWithInmate) =>
+  compareRaw(a.dueDate, b.dueDate) || compareText(a.studentName, b.studentName);
+
 /**
- * Unsettled invoices whose due date falls on or before `throughDate`, newest
+ * Unsettled invoices whose due date falls on or before `throughDate`, oldest
  * dues first. This is the source list for the fee-reminder message queue.
  */
 export async function listDueForReminder(throughDate: string): Promise<FeeRecordWithInmate[]> {
-  const db = await getDb();
-  const reminderBranch = branchClause("s.branchId");
-  return db.getAllAsync<FeeRecordWithInmate>(
-    `${SELECT_WITH_STUDENT}
-     WHERE f.amountPaid < f.total - 0.01
-       AND f.dueDate <> ''
-       AND f.dueDate <= ?
-       AND s.status = 'active'
-       ${reminderBranch.sql ? `AND ${reminderBranch.sql}` : ""}
-     ORDER BY f.dueDate ASC, s.fullName COLLATE NOCASE;`,
-    [throughDate, ...reminderBranch.params]
-  );
+  return joined(
+    (bill, inmate) =>
+      bill.amountPaid < bill.total - 0.01 &&
+      bill.dueDate !== "" &&
+      bill.dueDate <= throughDate &&
+      inmate.status === "active" &&
+      inActiveBranch(inmate.branchId)
+  ).sort(byDueThenName);
 }
 
 /**
@@ -359,16 +464,10 @@ export async function listDueForReminder(throughDate: string): Promise<FeeRecord
  * already slipped.
  */
 export async function listAllDues(): Promise<FeeRecordWithInmate[]> {
-  const db = await getDb();
-  const branch = branchClause("s.branchId");
-  return db.getAllAsync<FeeRecordWithInmate>(
-    `${SELECT_WITH_STUDENT}
-     WHERE f.amountPaid < f.total - 0.01
-       AND s.status = 'active'
-       ${branch.sql ? `AND ${branch.sql}` : ""}
-     ORDER BY (f.dueDate = '') ASC, f.dueDate ASC, s.fullName COLLATE NOCASE;`,
-    branch.params
-  );
+  return joined(
+    (bill, inmate) =>
+      bill.amountPaid < bill.total - 0.01 && inmate.status === "active" && inActiveBranch(inmate.branchId)
+  ).sort((a, b) => Number(a.dueDate === "") - Number(b.dueDate === "") || byDueThenName(a, b));
 }
 
 /** Buckets a collection round is actually organised around. */
@@ -435,25 +534,25 @@ export function currentPeriod(): string {
 }
 
 /**
- * Legacy value for the `billingCycleDays` column, which no longer drives any
+ * Legacy value for the `billingCycleDays` field, which no longer drives any
  * billing logic (see `dueDateFor` below) but still exists on old records and
- * backups. Kept only so writes to that column have something to write.
+ * backups. Kept only so writes to that field have something to write.
  */
 export const DEFAULT_CYCLE_DAYS = 30;
 
-/** The day-of-month a monthly bill is due, taken from when the student joined. */
+/** The day-of-month a monthly bill is due, taken from when the inmate joined. */
 export function anchorDayFor(joinedOn: string): number {
   const day = Number(joinedOn.slice(8, 10));
   return Number.isFinite(day) && day > 0 ? day : 1;
 }
 
 /**
- * Due date for a billing period: the same day-of-month the student joined on.
+ * Due date for a billing period: the same day-of-month the inmate joined on.
  *
  * A join date the admin already recognises makes a better deadline than a
  * separately configured cycle length -- someone who joined on the 1st is
  * always due on the 1st, someone who joined on the 15th is always due on the
- * 15th, with nothing to set up or get out of sync per student. Clamped to the
+ * 15th, with nothing to set up or get out of sync per inmate. Clamped to the
  * last day of a shorter month (join on the 31st, due on the 28th/30th in
  * February or a 30-day month).
  */

@@ -40,7 +40,11 @@ export function useAsyncData<T>(loader: () => Promise<T>, deps: unknown[] = []):
     try {
       const result = await loaderRef.current();
       if (!mounted.current) return;
-      setData(result);
+      // Live updates refetch on every change anywhere in the hostel. When this
+      // screen's data came back the same, keep the old object, so effects that
+      // seed a form from it (the composer's ticked recipients, say) do not
+      // reset under the admin because someone else edited something else.
+      setData((previous) => (sameData(previous, result) ? previous : result));
       setError(null);
     } catch (e) {
       if (!mounted.current) return;
@@ -62,6 +66,16 @@ export function useAsyncData<T>(loader: () => Promise<T>, deps: unknown[] = []):
   );
 
   return { data, loading, error, reload: () => setTick((t) => t + 1) };
+}
+
+function sameData(previous: unknown, next: unknown): boolean {
+  if (previous === next) return true;
+  if (previous === null || next === null) return false;
+  try {
+    return JSON.stringify(previous) === JSON.stringify(next);
+  } catch {
+    return false;
+  }
 }
 
 /** Debounces a fast-changing value, used to keep search from querying per keystroke. */

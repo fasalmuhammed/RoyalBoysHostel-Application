@@ -83,7 +83,7 @@ export default function RestoreExistingScreen({ navigation }: Props) {
       Alert.alert(
         "Restore complete",
         `${result.counts.students} inmates, ${result.counts.rooms} rooms and ` +
-          `${result.photosRestored} photos were restored to this phone.`,
+          `${result.photosRestored} photos were added to Claude storage.`,
         [{ text: "Continue", onPress: () => navigation.navigate("CreatePin") }]
       );
     } catch (e) {

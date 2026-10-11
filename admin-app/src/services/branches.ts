@@ -1,13 +1,13 @@
-import { getDb } from "@/db";
 import { Branch } from "@/types";
+import { canWriteRecords, count, logActivity, patch, put } from "@/store/cloud";
+import { allBranches, allInmates, allRooms, branchById, compareRaw } from "@/store/views";
 
 /**
  * Branch scoping.
  *
- * Both hostels live in one database and one backup file. "Switching branch"
- * changes a filter, not the store -- so a single export always covers the whole
- * organisation, and moving an inmate between branches is an edit rather than a
- * migration.
+ * Both hostels live in one store. "Switching branch" changes a filter, not
+ * the store -- so a single export always covers the whole organisation, and
+ * moving an inmate between branches is an edit rather than a migration.
  *
  * The active branch is held here as module state rather than threaded through
  * every query signature. Only one branch is ever active in the UI, and passing
@@ -40,42 +40,55 @@ export function requireActiveBranchId(): string {
 }
 
 /**
- * SQL fragment scoping a query to the active branch.
- *
- * Returns an empty clause when no branch is active, which is what backup and
- * whole-organisation reports want. `column` is a trusted literal supplied by
- * this codebase, never user input.
+ * Whether a record belongs to the active branch. Everything matches when no
+ * branch is active, which is what backup and whole-organisation reports want.
  */
-export function branchClause(column: string): { sql: string; params: string[] } {
-  if (!activeBranchId) return { sql: "", params: [] };
-  return { sql: `${column} = ?`, params: [activeBranchId] };
+export function inActiveBranch(branchId: string | null | undefined): boolean {
+  return !activeBranchId || branchId === activeBranchId;
 }
 
-/** Like `branchClause`, but also matches rows shared across every branch. */
-export function branchOrSharedClause(column: string): { sql: string; params: string[] } {
-  if (!activeBranchId) return { sql: "", params: [] };
-  return { sql: `(${column} = ? OR ${column} IS NULL)`, params: [activeBranchId] };
+/** Like `inActiveBranch`, but also matches records shared across every branch. */
+export function inActiveBranchOrShared(branchId: string | null | undefined): boolean {
+  return !activeBranchId || branchId === activeBranchId || branchId == null;
+}
+
+/**
+ * The two hostels. Ids are fixed strings rather than generated uuids so a
+ * backup taken on any device lines up with the same branches everywhere.
+ */
+const DEFAULT_BRANCHES: Omit<Branch, "createdAt" | "updatedAt">[] = [
+  { id: "branch-thammanam", name: "Thammanam - Royal Boys Hostel", shortName: "Thammanam", code: "T", sortOrder: 1 },
+  { id: "branch-Kalamassery", name: "Kalamassery - Royal Boys Hostel", shortName: "Kalamassery", code: "K", sortOrder: 2 },
+];
+
+/**
+ * Creates the two branches the first time the records are opened. Fixed ids
+ * make this safe if two people open a brand-new store at the same moment.
+ */
+export async function seedBranches(): Promise<void> {
+  if (count("branches") > 0 || canWriteRecords() === false) return;
+  const now = Date.now();
+  for (const branch of DEFAULT_BRANCHES) {
+    await put("branches", branch.id, { ...branch, createdAt: now, updatedAt: now });
+  }
+}
+
+function byOrder(a: Branch, b: Branch): number {
+  return a.sortOrder - b.sortOrder || compareRaw(a.name, b.name);
 }
 
 export async function listBranches(): Promise<Branch[]> {
-  const db = await getDb();
-  return db.getAllAsync<Branch>("SELECT * FROM branches ORDER BY sortOrder, name;");
+  return [...allBranches()].sort(byOrder);
 }
 
 export async function getBranch(id: string): Promise<Branch | null> {
-  const db = await getDb();
-  return db.getFirstAsync<Branch>("SELECT * FROM branches WHERE id = ?;", id);
+  return branchById(id);
 }
 
 export async function renameBranch(id: string, name: string, shortName: string): Promise<void> {
-  const db = await getDb();
-  await db.runAsync(
-    "UPDATE branches SET name = ?, shortName = ?, updatedAt = ? WHERE id = ?;",
-    name.trim(),
-    shortName.trim(),
-    Date.now(),
-    id
-  );
+  if (!branchById(id)) return;
+  await patch("branches", id, { name: name.trim(), shortName: shortName.trim(), updatedAt: Date.now() });
+  logActivity({ action: "updated", entity: "branch", entityId: id, label: shortName.trim() || name.trim(), branchId: id });
 }
 
 export interface BranchSummary extends Branch {
@@ -85,15 +98,13 @@ export interface BranchSummary extends Branch {
 
 /** Headline counts per branch, for the picker. */
 export async function listBranchSummaries(): Promise<BranchSummary[]> {
-  const db = await getDb();
-  return db.getAllAsync<BranchSummary>(
-    `SELECT b.*,
-            (SELECT COUNT(*) FROM students s
-              WHERE s.branchId = b.id AND s.status = 'active') AS inmates,
-            (SELECT COUNT(*) FROM rooms r WHERE r.branchId = b.id) AS rooms
-     FROM branches b
-     ORDER BY b.sortOrder, b.name;`
-  );
+  const inmates = allInmates();
+  const rooms = allRooms();
+  return (await listBranches()).map((branch) => ({
+    ...branch,
+    inmates: inmates.filter((item) => item.branchId === branch.id && item.status === "active").length,
+    rooms: rooms.filter((item) => item.branchId === branch.id).length,
+  }));
 }
 
 /**

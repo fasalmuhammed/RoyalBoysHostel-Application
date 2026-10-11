@@ -18,7 +18,7 @@ type Props = CompositeScreenProps<
 >;
 
 export default function MoreScreen({ navigation }: Props) {
-  const { settings, lock, activeBranch, clearBranch } = useApp();
+  const { settings, lock, activeBranch, clearBranch, access } = useApp();
 
   const overdueBackup =
     settings.lastBackupAt === null ||
@@ -44,6 +44,18 @@ export default function MoreScreen({ navigation }: Props) {
             <Text style={styles.switchPillText}>Switch</Text>
           </View>
         </Pressable>
+
+        {access.canEdit ? (
+          <View style={styles.group}>
+            <Row
+              icon="speedometer-outline"
+              label="Admin panel"
+              sublabel="Every record across both hostels, live"
+              onPress={() => navigation.navigate("AdminPanel")}
+              last
+            />
+          </View>
+        ) : null}
 
         <View style={styles.group}>
           <Row
@@ -114,7 +126,7 @@ export default function MoreScreen({ navigation }: Props) {
 
         <Text style={styles.footer}>
           Royal Boys Hostel · v{Constants.expoConfig?.version ?? "—"}{"\n"}
-          All data stays on this phone. Nothing is uploaded.
+          Records are kept in Claude storage and update live on every device.
         </Text>
       </ScrollView>
     </SafeAreaView>

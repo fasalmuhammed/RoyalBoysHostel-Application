@@ -1,96 +1,96 @@
-import { getDb } from "@/db";
-import { Room, RoomWithOccupancy } from "@/types";
+import { Complaint, Inmate, Room, RoomWithOccupancy } from "@/types";
 import { newId } from "@/utils/id";
-import { branchClause, requireActiveBranchId } from "./branches";
+import { list, logActivity, patch, put, remove } from "@/store/cloud";
+import { allInmates, allRooms, compareRooms, contains, occupancyByRoom, roomById, roomLabelOf } from "@/store/views";
+import { inActiveBranch, requireActiveBranchId } from "./branches";
 
 type RoomInput = Omit<Room, "id" | "createdAt" | "updatedAt">;
 
-const SELECT_WITH_OCCUPANCY = `
-  SELECT r.*,
-         COALESCE(o.occupied, 0) AS occupied,
-         MAX(r.capacity - COALESCE(o.occupied, 0), 0) AS vacant
-  FROM rooms r
-  LEFT JOIN (
-    SELECT roomId, COUNT(*) AS occupied
-    FROM students
-    WHERE status = 'active' AND roomId IS NOT NULL
-    GROUP BY roomId
-  ) o ON o.roomId = r.id
-`;
+function withOccupancy(room: Room): RoomWithOccupancy {
+  const occupied = occupancyByRoom().get(room.id) ?? 0;
+  return { ...room, occupied, vacant: Math.max(room.capacity - occupied, 0) };
+}
 
 /**
- * Occupancy is always derived from `students.roomId` rather than stored on the
- * room. A denormalised counter would drift the moment a inmate is deleted or
+ * Occupancy is always derived from inmates' `roomId` rather than stored on the
+ * room. A denormalised counter would drift the moment an inmate is deleted or
  * a backup is restored mid-edit.
  */
 export async function listRooms(search = ""): Promise<RoomWithOccupancy[]> {
-  const db = await getDb();
-
-  const clauses: string[] = [];
-  const params: string[] = [];
-
-  const branch = branchClause("r.branchId");
-  if (branch.sql) {
-    clauses.push(branch.sql);
-    params.push(...branch.params);
-  }
-
   const term = search.trim().toLowerCase();
-  if (term) {
-    clauses.push("(LOWER(r.block || ' ' || r.roomNumber) LIKE ? OR LOWER(r.roomNumber) LIKE ?)");
-    params.push(`%${term}%`, `%${term}%`);
-  }
-
-  const where = clauses.length ? `WHERE ${clauses.join(" AND ")}` : "";
-  return db.getAllAsync<RoomWithOccupancy>(
-    `${SELECT_WITH_OCCUPANCY} ${where} ORDER BY r.block, CAST(r.roomNumber AS INTEGER), r.roomNumber;`,
-    params
-  );
+  return allRooms()
+    .filter((room) => inActiveBranch(room.branchId))
+    .filter((room) => !term || contains(`${room.block} ${room.roomNumber}`, term) || contains(room.roomNumber, term))
+    .sort(compareRooms)
+    .map(withOccupancy);
 }
 
 export async function getRoom(id: string): Promise<RoomWithOccupancy | null> {
-  const db = await getDb();
-  return db.getFirstAsync<RoomWithOccupancy>(`${SELECT_WITH_OCCUPANCY} WHERE r.id = ?;`, id);
+  const room = roomById(id);
+  return room ? withOccupancy(room) : null;
 }
 
 export async function createRoom(input: RoomInput): Promise<string> {
-  const db = await getDb();
   const id = newId();
   const now = Date.now();
   const branchId = input.branchId || requireActiveBranchId();
-  await db.runAsync(
-    `INSERT INTO rooms (id, branchId, block, roomNumber, floor, capacity, rent, deposit, amenities, notes, createdAt, updatedAt)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`,
-    id, branchId, input.block, input.roomNumber, input.floor, input.capacity,
-    input.rent, input.deposit, input.amenities, input.notes, now, now
-  );
+  await put("rooms", id, {
+    id,
+    branchId,
+    block: input.block,
+    roomNumber: input.roomNumber,
+    floor: input.floor,
+    capacity: input.capacity,
+    rent: input.rent,
+    deposit: input.deposit,
+    amenities: input.amenities,
+    notes: input.notes,
+    createdAt: now,
+    updatedAt: now,
+  });
+  logActivity({ action: "created", entity: "room", entityId: id, label: `Room ${formatRoomLabel(input)}`, branchId });
   return id;
 }
 
 export async function updateRoom(id: string, input: RoomInput): Promise<void> {
-  const db = await getDb();
-  await db.runAsync(
-    `UPDATE rooms SET block = ?, roomNumber = ?, floor = ?, capacity = ?, rent = ?,
-       deposit = ?, amenities = ?, notes = ?, updatedAt = ?
-     WHERE id = ?;`,
-    input.block, input.roomNumber, input.floor, input.capacity, input.rent,
-    input.deposit, input.amenities, input.notes, Date.now(), id
-  );
+  const existing = roomById(id);
+  if (!existing) return;
+  await patch("rooms", id, {
+    block: input.block,
+    roomNumber: input.roomNumber,
+    floor: input.floor,
+    capacity: input.capacity,
+    rent: input.rent,
+    deposit: input.deposit,
+    amenities: input.amenities,
+    notes: input.notes,
+    updatedAt: Date.now(),
+  });
+  logActivity({ action: "updated", entity: "room", entityId: id, label: `Room ${formatRoomLabel(input)}`, branchId: existing.branchId });
 }
 
 /**
- * Deleting a room detaches its occupants (ON DELETE SET NULL) rather than
- * removing them, so a mis-tap can never destroy student records.
+ * Deleting a room detaches its occupants rather than removing them, so a
+ * mis-tap can never destroy inmate records. Complaints about the room keep
+ * their history and simply lose the room link.
  */
 export async function deleteRoom(id: string): Promise<void> {
-  const db = await getDb();
-  await db.runAsync("DELETE FROM rooms WHERE id = ?;", id);
+  const existing = roomById(id);
+  for (const inmate of allInmates().filter((item: Inmate) => item.roomId === id)) {
+    await patch("inmates", inmate.id, { roomId: null });
+  }
+  for (const complaint of list<Complaint>("complaints").filter((item) => item.roomId === id)) {
+    await patch("complaints", complaint.id, { roomId: null });
+  }
+  await remove("rooms", id);
+  if (existing) {
+    logActivity({ action: "deleted", entity: "room", entityId: id, label: `Room ${formatRoomLabel(existing)}`, branchId: existing.branchId });
+  }
 }
 
 export async function roomLabel(id: string | null): Promise<string | null> {
   if (!id) return null;
-  const room = await getRoom(id);
-  return room ? formatRoomLabel(room) : null;
+  return roomLabelOf(roomById(id));
 }
 
 export function formatRoomLabel(room: Pick<Room, "block" | "roomNumber">): string {
@@ -105,27 +105,10 @@ export interface OccupancyTotals {
 }
 
 export async function occupancyTotals(): Promise<OccupancyTotals> {
-  const db = await getDb();
-  const roomBranch = branchClause("branchId");
-  const roomWhere = roomBranch.sql ? `WHERE ${roomBranch.sql}` : "";
-  const studentBranch = branchClause("branchId");
-
-  const row = await db.getFirstAsync<{ rooms: number; beds: number }>(
-    `SELECT COUNT(*) AS rooms, COALESCE(SUM(capacity), 0) AS beds FROM rooms ${roomWhere};`,
-    roomBranch.params
-  );
-  const occ = await db.getFirstAsync<{ occupied: number }>(
-    `SELECT COUNT(*) AS occupied FROM students
-     WHERE status = 'active' AND roomId IS NOT NULL
-     ${studentBranch.sql ? `AND ${studentBranch.sql}` : ""};`,
-    studentBranch.params
-  );
-  const beds = row?.beds ?? 0;
-  const occupied = occ?.occupied ?? 0;
-  return {
-    rooms: row?.rooms ?? 0,
-    beds,
-    occupied,
-    vacant: Math.max(beds - occupied, 0),
-  };
+  const rooms = allRooms().filter((room) => inActiveBranch(room.branchId));
+  const beds = rooms.reduce((sum, room) => sum + room.capacity, 0);
+  const occupied = allInmates().filter(
+    (inmate) => inmate.status === "active" && inmate.roomId && inActiveBranch(inmate.branchId)
+  ).length;
+  return { rooms: rooms.length, beds, occupied, vacant: Math.max(beds - occupied, 0) };
 }

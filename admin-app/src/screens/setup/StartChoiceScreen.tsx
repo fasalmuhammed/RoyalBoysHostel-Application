@@ -23,7 +23,7 @@ export default function StartChoiceScreen({ navigation }: Props) {
         </View>
         <Text style={styles.title}>Set up your hostel</Text>
         <Text style={styles.subtitle}>
-          Everything stays on this phone. Nothing is uploaded anywhere.
+          Records are kept in Claude storage, so they open on any device you sign in from.
         </Text>
       </View>
 
@@ -37,7 +37,7 @@ export default function StartChoiceScreen({ navigation }: Props) {
       <ChoiceCard
         icon="cloud-download-outline"
         title="Restore from a backup file"
-        description="Moving to a new phone, or reinstalling? Load a .hostelbak file and every inmate, room, fee and photo comes back exactly as it was."
+        description="Moving from the phone app? Load its .hostelbak file and every inmate, room, fee and photo comes across exactly as it was."
         onPress={() => navigation.navigate("RestoreExisting")}
       />
 

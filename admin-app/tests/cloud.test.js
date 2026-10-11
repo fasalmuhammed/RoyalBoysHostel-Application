@@ -1,0 +1,265 @@
+/* Service tests against the Claude storage stand-in, including two devices
+   racing for the same bed, admission number and bill balance. */
+const { SharedStore, device, settle, OWNER } = require("./harness");
+
+const WARDEN = { id: "u_warden000000000000002", name: "Warden", isOwner: false, canEdit: true, canWrite: true };
+const VIEWER = { id: "u_viewer000000000000003", name: "Viewer", isOwner: false, canEdit: false, canWrite: false };
+const T = "branch-thammanam";
+const K = "branch-Kalamassery";
+
+let pass = 0;
+let fail = 0;
+const check = (name, cond, extra) => {
+  if (cond) {
+    pass += 1;
+    console.log(`  ok   ${name}`);
+  } else {
+    fail += 1;
+    console.log(`  FAIL ${name}${extra !== undefined ? `  -> ${extra}` : ""}`);
+  }
+};
+const rejects = async (promise, ErrorType) => {
+  try {
+    await promise;
+    return false;
+  } catch (error) {
+    return ErrorType ? error instanceof ErrorType : true;
+  }
+};
+
+const inmate = (name, roomId, extra = {}) => ({
+  admissionNo: "", fullName: name, phone: "9876500000", guardianName: "", guardianPhone: "",
+  email: "", course: "", year: "", address: "", idProof: "", photoFile: null, idProofFile: null,
+  idProofBackFile: null, roomId: roomId ?? null, branchId: "", status: "active", monthlyRent: 6000,
+  billingCycleDays: 30, admissionType: "monthly", stayDays: null, joinedOn: "2026-01-15", leftOn: null, notes: "",
+  ...extra,
+});
+const room = (number, capacity, rent = 5000) => ({
+  branchId: "", block: "A", roomNumber: number, floor: "", capacity, rent, deposit: 0, amenities: "", notes: "",
+});
+
+async function fresh(user = OWNER) {
+  const store = new SharedStore();
+  const app = await device(store, user);
+  await app.branches.seedBranches();
+  await app.messaging.seedTemplates();
+  app.branches.setActiveBranchId(T);
+  return { store, app };
+}
+
+async function pureLogic() {
+  console.log("Pure logic");
+  const { app } = await fresh();
+  const { fees, format, validate, messaging, notices, csv } = app;
+  check("due date follows the join day", fees.dueDateFor("2026-02", fees.anchorDayFor("2026-01-31")) === "2026-02-28");
+  check("stay due date adds the stay length", fees.stayDueDateFor("2026-01-30", 3) === "2026-02-02");
+  check("money in Indian format", format.formatMoney(1234567, "₹") === "₹12,34,567");
+  check("phone normalised for wa.me", validate.toWhatsAppNumber("98765 43210", "91") === "919876543210");
+  check("template placeholders merge", messaging.renderTemplate("Hi {{first_name}}, {{room}}", { name: "Arjun Menon", room: "A-1" }) === "Hi Arjun, A-1");
+  check("notice keeps placeholders", notices.noticeToMessage({ title: "T", body: "B" }).includes("{{name}}"));
+  const out = csv.toCsv([{ a: "=SUM(1)", b: 'x,"y"' }], [{ header: "A", value: (r) => r.a }, { header: "B", value: (r) => r.b }]);
+  check("CSV guards formulas and quotes commas", out.includes("'=SUM(1)") && out.includes('"x,""y"""'));
+}
+
+async function singleDevice() {
+  console.log("One device");
+  const { store, app } = await fresh();
+  const { rooms, inmates, fees, branches, complaints, notices, messaging, cloud, views } = app;
+
+  check("two branches seeded", (await branches.listBranches()).length === 2);
+  check("five built-in templates seeded", (await messaging.listTemplates()).length === 5);
+  await branches.seedBranches();
+  await messaging.seedTemplates();
+  check("seeding again adds nothing", store.query("branches", []).length === 2 && store.query("templates", []).length === 5);
+
+  const r1 = await rooms.createRoom(room("101", 1));
+  const a = await inmates.createInmate(inmate("Arjun", r1));
+  const b = await inmates.createInmate(inmate("Bala", null));
+  const typed = await inmates.createInmate(inmate("Chris", null, { admissionNo: "50" }));
+  check("admission numbers issued 1, 2", (await inmates.getInmate(a)).admissionNo === "1" && (await inmates.getInmate(b)).admissionNo === "2");
+  check("a typed admission number is kept", (await inmates.getInmate(typed)).admissionNo === "50");
+  check("next number continues past the highest", (await inmates.peekNextAdmissionNo()) === "51");
+
+  check("a full room refuses another inmate", await rejects(inmates.createInmate(inmate("Dev", r1)), inmates.RoomFullError));
+  check("assigning into a full room is refused", await rejects(inmates.assignRoom(b, r1), inmates.RoomFullError));
+  await inmates.markLeft(a);
+  await inmates.assignRoom(b, r1);
+  check("leaving frees the bed", (await inmates.getInmate(b)).roomId === r1 && (await rooms.getRoom(r1)).occupied === 1);
+
+  branches.setActiveBranchId(K);
+  const kRoom = await rooms.createRoom(room("201", 2));
+  await inmates.createInmate(inmate("Kiran", kRoom));
+  check("numbering restarts per branch", (await inmates.listInmates("", "all"))[0].admissionNo === "1");
+  const shared = await notices.createNotice({ branchId: null, title: "Water cut", body: "", category: "general", pinned: true, postedOn: "" });
+  await notices.createNotice({ branchId: K, title: "K only", body: "", category: "general", pinned: false, postedOn: "" });
+  branches.setActiveBranchId(T);
+  const tNames = (await inmates.listInmates("", "all")).map((i) => i.fullName);
+  check("branches do not see each other's inmates", !tNames.includes("Kiran") && tNames.includes("Bala"));
+  check("branches do not see each other's rooms", (await rooms.listRooms()).length === 1);
+  const tNotices = (await notices.listNotices()).map((n) => n.id);
+  check("shared notices show on both boards", tNotices.includes(shared) && tNotices.length === 1);
+
+  // Fees
+  const billId = await fees.createFee({ studentId: b, period: "2026-03", rent: 5000, electricity: 200, water: 0, other: 0, discount: 200, dueDate: "2026-03-15", note: "" });
+  check("bill total is rent + charges - discount", (await fees.getFee(billId)).total === 5000);
+  check("duplicate bill for the same month refused", await rejects(fees.createFee({ studentId: b, period: "2026-03", rent: 1, electricity: 0, water: 0, other: 0, discount: 0, dueDate: "", note: "" }), fees.DuplicateInvoiceError));
+  check("bills are grouped per inmate per year", store.docs.has(`fees/${b}_2026`));
+
+  await fees.recordPayment(billId, 2000, "cash", "2026-03-10", "", "");
+  let bill = await fees.getFee(billId);
+  check("part payment marks the bill partial", bill.status === "partial" && bill.balance === 3000);
+  check("overpayment refused", await rejects(fees.recordPayment(billId, 3500, "cash", "2026-03-11", "", ""), fees.OverpaymentError));
+  const [payment] = await fees.listPayments(billId);
+  await fees.deletePayment(payment.id);
+  bill = await fees.getFee(billId);
+  check("reversing a payment restores the balance", bill.status === "unpaid" && bill.balance === 5000);
+
+  await inmates.createInmate(inmate("Stay guest", null, { admissionType: "stay", stayDays: 5 }));
+  const gen = await fees.generateInvoices("2026-04");
+  check("monthly bills raised for active monthly inmates only", gen.created === 2, JSON.stringify(gen));
+  const again = await fees.generateInvoices("2026-04");
+  check("raising again creates nothing", again.created === 0 && again.skipped === 2, JSON.stringify(again));
+  const april = (await fees.listFees("all", "2026-04")).find((f) => f.studentId === b);
+  check("monthly bill priced from the inmate and due on their join day", april.total === 6000 && april.dueDate === "2026-04-15");
+
+  check("moving a bill onto an occupied month is refused", await rejects(fees.updateFee(april.id, { ...april, period: "2026-03" }), fees.DuplicateInvoiceError));
+  await fees.updateFee(april.id, { ...april, period: "2027-01" });
+  check("moving a bill across years moves its document", views.billById(april.id).docId === `${b}_2027` && store.docs.has(`fees/${b}_2027`));
+  const due = await fees.listDueForReminder("2026-12-31");
+  check("reminder list is ordered by due date", due.length >= 1 && due.every((f, i) => i === 0 || due[i - 1].dueDate <= f.dueDate));
+  const totals = await fees.feeTotals();
+  check("fee totals add up", Math.abs(totals.billed - (totals.collected + totals.outstanding)) < 0.01);
+
+  // Cascades
+  const c = await complaints.createComplaint({ branchId: "", roomId: r1, studentId: b, title: "Fan", description: "", category: "electrical", status: "open", photoFile: null, raisedOn: "" });
+  await rooms.deleteRoom(r1);
+  check("deleting a room detaches its inmates", (await inmates.getInmate(b)).roomId === null);
+  check("deleting a room keeps its complaints", (await complaints.getComplaint(c)).roomId === null);
+  await inmates.deleteInmate(b);
+  check("deleting an inmate removes their bills", ![...store.docs.keys()].some((k) => k.startsWith(`fees/${b}_`)));
+  check("complaints outlive the inmate", (await complaints.getComplaint(c)).studentId === null);
+
+  // Messaging in chunks
+  const recipients = Array.from({ length: 250 }, (_, i) => ({ studentId: null, name: `P${i}`, phone: "1", body: "x".repeat(400) }));
+  const batch = await messaging.queueBatch("announcement", recipients);
+  check("large batches are split into chunk documents", store.query("messages", []).length === 3);
+  const entries = await messaging.listBatchEntries(batch);
+  await messaging.markMessage(entries[0].id, "sent");
+  const summary = (await messaging.listBatches()).find((s) => s.batchId === batch);
+  check("batch summary counts sent and pending", summary.total === 250 && summary.sent === 1 && summary.pending === 249);
+  await messaging.deleteBatch(batch);
+  check("deleting a batch removes its documents", store.query("messages", []).length === 0);
+
+  check("changes are recorded in the activity feed", cloud.recentActivity().some((e) => e.action === "payment"));
+}
+
+async function backups() {
+  console.log("Backups");
+  const { store, app } = await fresh();
+  const r = await app.rooms.createRoom(room("1", 3));
+  const id = await app.inmates.createInmate(inmate("Ünïcode name", r, { notes: "line one\nline two" }));
+  const bill = await app.fees.createFee({ studentId: id, period: "2026-05", rent: 4000, electricity: 0, water: 0, other: 0, discount: 0, dueDate: "", note: "" });
+  await app.fees.recordPayment(bill, 1000, "upi", "2026-05-02", "R1", "");
+
+  const file = new app.fs.File("file:///cache/test.hostelbak");
+  const result = await app.backup.writeBackup(file, "secret passphrase");
+  const text = await file.text();
+  check("backup is encrypted", result.encrypted && !text.includes("Ünïcode") && !text.includes("9876500000"));
+
+  // A brand-new hostel restoring it.
+  const target = new SharedStore();
+  const other = await device(target);
+  await other.branches.seedBranches();
+  const copy = new other.fs.File("file:///cache/in.hostelbak");
+  copy.write(new Uint8Array(Buffer.from(text)));
+  check("wrong passphrase refused", await rejects(other.backup.restoreBackup(copy.uri, "nope"), other.backup.BackupError));
+  check("nothing changed after a refused restore", target.query("inmates", []).length === 0);
+
+  const lines = text.split("\n");
+  const tampered = new other.fs.File("file:///cache/bad.hostelbak");
+  lines[1] = lines[1].slice(0, -4) + (lines[1].endsWith("AAAA") ? "BBBB" : "AAAA");
+  tampered.write(new Uint8Array(Buffer.from(lines.join("\n"))));
+  check("tampered file refused", await rejects(other.backup.restoreBackup(tampered.uri, "secret passphrase"), other.backup.BackupError));
+
+  const restored = await other.backup.restoreBackup(copy.uri, "secret passphrase");
+  await settle();
+  const copyInmate = await other.inmates.getInmate(id);
+  check("records restored exactly", copyInmate && copyInmate.fullName === "Ünïcode name" && copyInmate.notes === "line one\nline two");
+  other.branches.setActiveBranchId(T);
+  const restoredBill = await other.fees.getFee(bill);
+  check("bills and payments restored", restoredBill && restoredBill.amountPaid === 1000 && restoredBill.status === "partial");
+  check("restore counts inserted rows", restored.inserted.students === 1 && restored.inserted.payments === 1);
+
+  const again = await other.backup.restoreBackup(copy.uri, "secret passphrase");
+  check("re-importing adds nothing", again.rowsRestored === 0 && target.query("inmates", []).length === 1);
+}
+
+async function twoDevices() {
+  console.log("Two devices on one store");
+  const store = new SharedStore();
+  const a = await device(store, OWNER);
+  await a.branches.seedBranches();
+  a.branches.setActiveBranchId(T);
+  const b = await device(store, WARDEN);
+  b.branches.setActiveBranchId(T);
+
+  let heard = 0;
+  b.cloud.subscribeStore(() => (heard += 1));
+  const live = await a.inmates.createInmate(inmate("Live one", null));
+  await settle(60);
+  check("a change on one device reaches the other live", heard > 0 && (await b.inmates.getInmate(live)) !== null);
+
+  const bed = await a.rooms.createRoom(room("9", 1));
+  await settle(60);
+  const race = await Promise.allSettled([
+    a.inmates.createInmate(inmate("From A", bed)),
+    b.inmates.createInmate(inmate("From B", bed)),
+  ]);
+  check("two devices racing for the last bed: exactly one gets it", race.filter((r) => r.status === "fulfilled").length === 1,
+    race.map((r) => r.status).join(","));
+
+  const pair = await Promise.all([a.inmates.createInmate(inmate("N1", null)), b.inmates.createInmate(inmate("N2", null))]);
+  await settle(60);
+  const numbers = pair.map((id) => store.docs.get(`inmates/${id}`).admissionNo);
+  check("simultaneous admissions get different numbers", numbers[0] !== numbers[1], numbers.join(","));
+
+  const billId = await a.fees.createFee({ studentId: live, period: "2026-06", rent: 5000, electricity: 0, water: 0, other: 0, discount: 0, dueDate: "", note: "" });
+  await settle(60);
+  const pay = await Promise.allSettled([
+    a.fees.recordPayment(billId, 3000, "cash", "2026-06-01", "", ""),
+    b.fees.recordPayment(billId, 3000, "cash", "2026-06-01", "", ""),
+  ]);
+  await settle(60);
+  const paid = (await a.fees.getFee(billId)).amountPaid;
+  check("two collectors cannot take more than is owed", pay.filter((r) => r.status === "fulfilled").length === 1 && paid === 3000, `paid ${paid}`);
+
+  const gen = await Promise.all([a.fees.generateInvoices("2026-07"), b.fees.generateInvoices("2026-07")]);
+  await settle(60);
+  const july = a.views.allBills().filter((x) => x.period === "2026-07");
+  const perInmate = new Set(july.map((x) => x.studentId));
+  check("raising bills from two devices at once never duplicates", july.length === perInmate.size, `${july.length} bills, ${gen.map((g) => g.created)}`);
+
+  const viewer = await device(store, VIEWER);
+  viewer.branches.setActiveBranchId(T);
+  let message = "";
+  try {
+    await viewer.inmates.createInmate(inmate("Nope", null, { admissionNo: "99" }));
+  } catch (error) {
+    message = error.message;
+  }
+  check("a view-only person is told they cannot change records", /view the hostel records but not change them/.test(message), message);
+}
+
+(async () => {
+  const started = Date.now();
+  for (const suite of [pureLogic, singleDevice, backups, twoDevices]) {
+    try {
+      await suite();
+    } catch (error) {
+      fail += 1;
+      console.log(`  FAIL ${suite.name} crashed -> ${error && error.stack ? error.stack : error}`);
+    }
+  }
+  console.log(`\n${pass} passed, ${fail} failed (${((Date.now() - started) / 1000).toFixed(1)}s)`);
+  process.exit(fail ? 1 : 0);
+})();

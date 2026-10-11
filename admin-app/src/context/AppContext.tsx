@@ -10,12 +10,23 @@ import React, {
 } from "react";
 import { AppState, AppStateStatus } from "react-native";
 
-import { getDb } from "@/db";
 import { AppSettings, Branch } from "@/types";
 import { loadSettings, saveSettings } from "@/services/settings";
 import { seedTemplates } from "@/services/messaging";
 import { hasPin as hasPinStored } from "@/services/security";
-import { getBranch, listBranches, setActiveBranchId } from "@/services/branches";
+import { getBranch, listBranches, seedBranches, setActiveBranchId } from "@/services/branches";
+import { canWriteRecords, openStore, storeProblem, subscribeStore } from "@/store/cloud";
+import { capability } from "@/web/runtime";
+
+/** What the signed-in person may do, as claude.ai sharing decides it. */
+export interface Access {
+  /** Owns the artifact the records live in. */
+  isOwner: boolean;
+  /** Editor or owner: sees the admin panel. */
+  canEdit: boolean;
+  /** False for view-only people; null when claude.ai has not said. */
+  canWrite: boolean | null;
+}
 
 /** Re-lock after this long in the background. */
 const AUTO_LOCK_MS = 2 * 60 * 1000;
@@ -40,9 +51,16 @@ interface AppContextValue {
   chooseBranch: (branchId: string) => Promise<void>;
   clearBranch: () => void;
 
-  /** Bumped whenever data changes, so open screens know to refetch. */
+  /**
+   * Bumped whenever data changes -- here or on any other device -- so open
+   * screens refetch and every list stays live.
+   */
   dataVersion: number;
   invalidate: () => void;
+
+  access: Access;
+  /** Set while live updates from Claude storage have stopped. */
+  syncProblem: string | null;
 
   updateSettings: (patch: Partial<AppSettings>) => Promise<void>;
   refreshSettings: () => Promise<void>;
@@ -71,6 +89,8 @@ export function AppProvider({ children }: PropsWithChildren) {
   const [hasPin, setHasPin] = useState(false);
   const [locked, setLocked] = useState(true);
   const [dataVersion, setDataVersion] = useState(0);
+  const [access, setAccess] = useState<Access>({ isOwner: false, canEdit: false, canWrite: null });
+  const [syncProblem, setSyncProblem] = useState<string | null>(null);
 
   const backgroundedAt = useRef<number | null>(null);
 
@@ -79,11 +99,19 @@ export function AppProvider({ children }: PropsWithChildren) {
 
     (async () => {
       try {
-        await getDb();
-        await seedTemplates();
+        await openStore();
+        const user = await capability("user");
+        const [isOwner, canEdit] = user ? await Promise.all([user.isOwner(), user.canEdit()]) : [false, false];
+        if (canWriteRecords() !== false) {
+          // First open of a brand-new store: the two branches and the built-in
+          // templates. Both are fixed ids, so two people doing this at once agree.
+          await seedBranches().catch(() => undefined);
+          await seedTemplates().catch(() => undefined);
+        }
         const [loaded, pinExists] = await Promise.all([loadSettings(), hasPinStored()]);
         if (cancelled) return;
 
+        setAccess({ isOwner, canEdit, canWrite: canWriteRecords() });
         setSettings(loaded);
         setBranches(await listBranches());
         setHasPin(pinExists);
@@ -101,6 +129,25 @@ export function AppProvider({ children }: PropsWithChildren) {
       cancelled = true;
     };
   }, []);
+
+  /**
+   * Live updates. Any change in Claude storage -- this device or another --
+   * refreshes the open screens, the shared settings and the branch list.
+   */
+  useEffect(() => {
+    if (!ready || startupError) return;
+    return subscribeStore(() => {
+      setDataVersion((v) => v + 1);
+      setSyncProblem(storeProblem());
+      loadSettings().then(setSettings).catch(() => undefined);
+      listBranches()
+        .then((next) => {
+          setBranches(next);
+          setActiveBranch((current) => (current ? next.find((b) => b.id === current.id) ?? current : current));
+        })
+        .catch(() => undefined);
+    });
+  }, [ready, startupError]);
 
   /**
    * Locks again after a spell in the background. Time-based rather than
@@ -180,6 +227,8 @@ export function AppProvider({ children }: PropsWithChildren) {
       clearBranch,
       dataVersion,
       invalidate,
+      access,
+      syncProblem,
       updateSettings,
       refreshSettings,
       refreshPinState,
@@ -188,8 +237,8 @@ export function AppProvider({ children }: PropsWithChildren) {
     }),
     [
       ready, startupError, settings, hasPin, locked, branches, activeBranch,
-      chooseBranch, clearBranch, dataVersion,
-      invalidate, updateSettings, refreshSettings, refreshPinState, unlock, lock,
+      chooseBranch, clearBranch, dataVersion, invalidate, access, syncProblem,
+      updateSettings, refreshSettings, refreshPinState, unlock, lock,
     ]
   );
 

@@ -689,8 +689,8 @@ export default function InmateFormScreen({ navigation, route }: Props) {
 
           <Callout tone="info" icon="phone-portrait-outline">
             <CalloutText>
-              The inmate is saved on this phone first. Use Cloud backup in Settings to keep an
-              encrypted recovery copy outside the phone.
+              The inmate is saved to Claude storage and appears straight away on every device
+              signed in to this hostel.
             </CalloutText>
           </Callout>
 

@@ -16,6 +16,21 @@ import Inter_800ExtraBold from "@expo-google-fonts/inter/800ExtraBold/Inter_800E
 import { colors } from "@/constants/theme";
 import { AppProvider } from "@/context/AppContext";
 import RootNavigator from "@/navigation/RootNavigator";
+import DialogHost from "@/web/DialogHost";
+import { useFrameWidth } from "@/web/frame";
+
+/**
+ * The app is laid out for phones. On a wider screen it sits in a centred
+ * column of phone width (wider for the admin panel), on the same background.
+ */
+function AppFrame({ children }: { children: React.ReactNode }) {
+  const maxWidth = useFrameWidth();
+  return (
+    <View style={{ flex: 1, width: "100%", maxWidth, alignSelf: "center", backgroundColor: colors.background }}>
+      {children}
+    </View>
+  );
+}
 
 export default function App() {
   const [fontsLoaded, fontError] = useFonts({
@@ -45,7 +60,10 @@ export default function App() {
     <SafeAreaProvider>
       <AppProvider>
         <StatusBar style="dark" />
-        <RootNavigator />
+        <AppFrame>
+          <RootNavigator />
+        </AppFrame>
+        <DialogHost />
       </AppProvider>
     </SafeAreaProvider>
   );

@@ -17,6 +17,7 @@ import SettingsScreen from "@/screens/SettingsScreen";
 import ReportsScreen from "@/screens/ReportsScreen";
 import BackupScreen from "@/screens/BackupScreen";
 import NotificationsScreen from "@/screens/NotificationsScreen";
+import AdminPanelScreen from "@/screens/AdminPanelScreen";
 import SearchScreen from "@/screens/SearchScreen";
 import ChangePinScreen from "@/screens/ChangePinScreen";
 
@@ -223,6 +224,11 @@ function MainStack() {
         options={{ ...detailOptions, title: "Search" }}
       />
 
+      <Stack.Screen
+        name="AdminPanel"
+        component={AdminPanelScreen}
+        options={{ ...detailOptions, title: "Admin panel" }}
+      />
       <Stack.Screen
         name="Backup"
         component={BackupScreen}
