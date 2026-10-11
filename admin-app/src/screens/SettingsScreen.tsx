@@ -14,18 +14,16 @@ import {
   isBiometricEnabled,
   setBiometricEnabled,
 } from "@/services/security";
-import { scheduleBackupReminder } from "@/services/reminders";
 import type { RootStackParamList } from "@/navigation/types";
 
 type Props = NativeStackScreenProps<RootStackParamList, "Settings">;
 
 export default function SettingsScreen({ navigation }: Props) {
-  const { settings, updateSettings } = useApp();
+  const { settings, updateSettings, access } = useApp();
 
   const [hostelName, setHostelName] = useState(settings.hostelName);
   const [countryCode, setCountryCode] = useState(settings.countryCode);
   const [currencySymbol, setCurrencySymbol] = useState(settings.currencySymbol);
-  const [reminderDays, setReminderDays] = useState(String(settings.backupReminderDays));
 
   const [biometrics, setBiometrics] = useState<BiometricSupport | null>(null);
   const [biometricOn, setBiometricOn] = useState(false);
@@ -38,20 +36,13 @@ export default function SettingsScreen({ navigation }: Props) {
   }, []);
 
   const onSave = async () => {
-    const days = Number.parseInt(reminderDays, 10);
-    const safeDays = Number.isFinite(days) && days > 0 ? days : 7;
-
     setSaving(true);
     try {
       await updateSettings({
         hostelName: hostelName.trim() || "Royal Boys Hostel",
         countryCode: countryCode.replace(/\D/g, "") || "91",
         currencySymbol: currencySymbol.trim() || "₹",
-        backupReminderDays: safeDays,
       });
-
-      // Reschedule so the backup nudge tracks the value just saved.
-      await scheduleBackupReminder(safeDays);
 
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
@@ -74,6 +65,9 @@ export default function SettingsScreen({ navigation }: Props) {
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
+        {/* Hostel details are the admin's; a manager sees the app lock only. */}
+        {access.isOwner ? (
+          <>
         <SectionTitle title="Hostel" />
         <Input
           label="Hostel name"
@@ -107,6 +101,9 @@ export default function SettingsScreen({ navigation }: Props) {
           </CalloutText>
         </Callout>
 
+          </>
+        ) : null}
+
         <SectionTitle title="Security" />
         <Card>
           {canUseBiometrics ? (
@@ -136,28 +133,16 @@ export default function SettingsScreen({ navigation }: Props) {
           />
         </Card>
 
-        <SectionTitle title="Backup reminders" />
-        <Input
-          label="Remind me every (days)"
-          value={reminderDays}
-          onChangeText={setReminderDays}
-          keyboardType="number-pad"
-          icon="alarm-outline"
-        />
-
-        <Callout tone="info" icon="phone-portrait-outline">
-          <CalloutText>
-            Records are kept in Claude storage, shared by everyone with access to this hostel.
-            Download a backup file regularly and keep it somewhere safe as well.
-          </CalloutText>
-        </Callout>
-
+        {access.isOwner ? (
+          <>
         <Button
           title={saved ? "Saved" : "Save settings"}
           icon={saved ? "checkmark" : undefined}
           onPress={onSave}
           loading={saving}
         />
+          </>
+        ) : null}
       </ScrollView>
     </SafeAreaView>
   );

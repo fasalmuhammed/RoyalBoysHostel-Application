@@ -1,75 +1,153 @@
+import { useEffect, useState } from "react";
+import { Platform } from "react-native";
+
 import { capability, describeError } from "@/web/runtime";
 import { bytesToBase64, base64ToBytes } from "@/web/shims/file-system";
+import { getActiveBranchId } from "./branches";
 
 /**
  * Inmate photos, both sides of their Aadhaar card and complaint photos live
- * in Claude storage's file store. The record keeps only the stored file's id
- * -- the same field that held a bare filename on the phone -- and the image is
- * served from `/_blob/<id>` on every device.
+ * in the backend's file storage, in a folder per branch. The record keeps
+ * only the stored file's id -- the same field that held a bare filename on
+ * the phone. A branch's manager can open their own branch's photos; the
+ * admin can open both.
  */
 
-/** Width, in pixels, that captures are scaled to before saving. */
-const MAX_DIMENSION = 640;
-/** JPEG quality. 0.6 keeps faces clearly recognisable at roughly 30-45 KB. */
-const QUALITY = 0.6;
+export type PhotoKind = "profile" | "document";
 
-/** Storage used by every stored file, refreshed after each upload or delete. */
-let storageBytes = 0;
+/**
+ * How far each kind is reduced before upload. A camera shot is 3-8 MB; these
+ * keep a face clearly recognisable at about 60 KB and every line of an
+ * Aadhaar card readable at about 200 KB, so storage is not spent on detail
+ * nobody needs.
+ */
+const TARGET: Record<PhotoKind, { width: number; quality: number }> = {
+  profile: { width: 640, quality: 0.7 },
+  document: { width: 1400, quality: 0.78 },
+};
 
-async function refreshUsage(): Promise<void> {
-  try {
-    const assets = await capability("assets");
-    if (assets) storageBytes = (await assets.list()).usage.bytes;
-  } catch {
-    // The meter is informational only.
+/** Anything larger than this after compression is refused. */
+const MAX_BYTES = 1024 * 1024;
+
+/** Where a branch's photos are kept. */
+function photoFolder(branchId: string | null | undefined): string {
+  return `photos/${branchId || getActiveBranchId() || "shared"}`;
+}
+
+// --- display addresses ------------------------------------------------------
+
+const urls = new Map<string, string | null>();
+const waiting = new Map<string, Promise<string | null>>();
+const listeners = new Set<() => void>();
+
+/** Looks up (once) the address an image can be shown from. */
+function resolveUrl(fileName: string): Promise<string | null> {
+  let pending = waiting.get(fileName);
+  if (!pending) {
+    pending = (async () => {
+      let url: string | null = null;
+      try {
+        const assets = await capability("assets");
+        url = assets?.url ? await assets.url(fileName) : `/_blob/${fileName}`;
+      } catch {
+        // Missing, or not this login's branch: shown as "no photo".
+      }
+      urls.set(fileName, url);
+      listeners.forEach((listener) => listener());
+      return url;
+    })();
+    waiting.set(fileName, pending);
   }
+  return pending;
 }
 
-void refreshUsage();
-
-/** URL for an `<Image source>`; null when there's no photo. */
+/**
+ * Address for an `<Image source>` once known; null while it is being looked
+ * up or when there is no photo. Components should use `usePhotoUri`, which
+ * re-renders when the address arrives.
+ */
 export function photoUri(fileName: string | null | undefined): string | null {
-  return fileName ? `/_blob/${fileName}` : null;
+  if (!fileName) return null;
+  if (!urls.has(fileName)) void resolveUrl(fileName);
+  return urls.get(fileName) ?? null;
 }
 
-function encodeJpeg(canvas: HTMLCanvasElement): Promise<Blob> {
+/** The same address, awaited. For code that reads the photo's bytes. */
+export async function photoUrl(fileName: string | null | undefined): Promise<string | null> {
+  if (!fileName) return null;
+  return urls.get(fileName) ?? resolveUrl(fileName);
+}
+
+/** `photoUri` for components: updates when the image's address is ready. */
+export function usePhotoUri(fileName: string | null | undefined): string | null {
+  const [, refresh] = useState(0);
+  useEffect(() => {
+    const listener = () => refresh((n) => n + 1);
+    listeners.add(listener);
+    return () => {
+      listeners.delete(listener);
+    };
+  }, []);
+  return photoUri(fileName);
+}
+
+// --- compression ------------------------------------------------------------
+
+/** Browser: draw the picture smaller on a canvas and re-encode it as JPEG. */
+async function compressInBrowser(sourceUri: string, kind: PhotoKind): Promise<Blob> {
+  const { width, quality } = TARGET[kind];
+  const source = await (await fetch(sourceUri)).blob();
+  const bitmap = await createImageBitmap(source);
+  // Never enlarge: a small picture gains nothing but file size.
+  const scale = Math.min(1, width / bitmap.width);
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.max(1, Math.round(bitmap.width * scale));
+  canvas.height = Math.max(1, Math.round(bitmap.height * scale));
+  canvas.getContext("2d")?.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+  bitmap.close?.();
+  if (sourceUri.startsWith("blob:")) URL.revokeObjectURL(sourceUri);
   return new Promise((resolve, reject) =>
     canvas.toBlob(
       (blob) => (blob ? resolve(blob) : reject(new Error("The photo could not be processed."))),
       "image/jpeg",
-      QUALITY
+      quality
     )
   );
 }
 
+/** Phone: the native image tools do the same resize and re-encode. */
+async function compressOnPhone(sourceUri: string, kind: PhotoKind): Promise<Blob> {
+  const { width, quality } = TARGET[kind];
+  // Loaded only on a phone; the browser build has no such module.
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const { ImageManipulator, SaveFormat } = require("expo-image-manipulator");
+  const rendered = await ImageManipulator.manipulate(sourceUri).resize({ width }).renderAsync();
+  const result = await rendered.saveAsync({ compress: quality, format: SaveFormat.JPEG });
+  return (await fetch(result.uri)).blob();
+}
+
 /**
- * Compresses a freshly captured/picked image and stores it.
+ * Compresses a freshly captured/picked image and stores it, returning the id
+ * to keep on the record.
  *
- * Compression is not cosmetic -- an uncompressed 4 MB camera shot per inmate
- * would use up the hostel's storage and make every backup slow to download.
- * The same 640px / 0.6 treatment as the phone app keeps each near 40 KB.
+ * `kind` picks how much detail to keep: a profile photo is small, an ID
+ * document keeps enough for its text to stay readable.
  */
-export async function savePhoto(sourceUri: string): Promise<string> {
+export async function savePhoto(
+  sourceUri: string,
+  kind: PhotoKind = "profile",
+  branchId?: string | null
+): Promise<string> {
   const assets = await capability("assets");
-  if (!assets) {
-    throw new Error("Adding photos needs edit access to the hostel records.");
+  if (!assets) throw new Error("Adding photos needs a login that can change records.");
+
+  const jpeg = Platform.OS === "web" ? await compressInBrowser(sourceUri, kind) : await compressOnPhone(sourceUri, kind);
+  if (jpeg.size > MAX_BYTES) {
+    throw new Error("That photo is too large even after compressing. Retake it a little further away.");
   }
 
-  const source = await (await fetch(sourceUri)).blob();
-  const bitmap = await createImageBitmap(source);
-  const scale = MAX_DIMENSION / bitmap.width;
-  const canvas = document.createElement("canvas");
-  canvas.width = MAX_DIMENSION;
-  canvas.height = Math.max(1, Math.round(bitmap.height * scale));
-  canvas.getContext("2d")?.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
-  bitmap.close?.();
-  const jpeg = await encodeJpeg(canvas);
-
-  if (sourceUri.startsWith("blob:")) URL.revokeObjectURL(sourceUri);
-
   try {
-    const stored = await assets.upload(jpeg, { type: "image/jpeg" });
-    storageBytes += stored.sizeBytes;
+    const stored = await assets.upload(jpeg, { type: "image/jpeg", folder: photoFolder(branchId) });
     return stored.id;
   } catch (error) {
     throw new Error(describeError(error));
@@ -79,11 +157,12 @@ export async function savePhoto(sourceUri: string): Promise<string> {
 /** Removes a stored photo. Never fails a save: a leftover file is harmless. */
 export function deletePhoto(fileName: string | null | undefined): void {
   if (!fileName) return;
+  urls.delete(fileName);
+  waiting.delete(fileName);
   void (async () => {
     try {
       const assets = await capability("assets");
       await assets?.delete(fileName);
-      await refreshUsage();
     } catch {
       // A missing photo is not an error worth failing a save over.
     }
@@ -93,7 +172,9 @@ export function deletePhoto(fileName: string | null | undefined): void {
 /** Base64 of a stored photo, for embedding in a backup file. */
 export async function readPhotoBase64(fileName: string): Promise<string | null> {
   try {
-    const response = await fetch(photoUri(fileName) as string);
+    const url = await photoUrl(fileName);
+    if (!url) return null;
+    const response = await fetch(url);
     if (!response.ok) return null;
     return bytesToBase64(new Uint8Array(await response.arrayBuffer()));
   } catch {
@@ -101,17 +182,38 @@ export async function readPhotoBase64(fileName: string): Promise<string | null> 
   }
 }
 
-/** Stores a photo carried in a backup file and returns its new id. */
-export async function uploadPhotoBase64(base64: string): Promise<string> {
+/** Stores a photo carried in a backup file, in its branch's folder; returns its new id. */
+export async function uploadPhotoBase64(base64: string, branchId?: string | null): Promise<string> {
   const assets = await capability("assets");
-  if (!assets) throw new Error("Restoring photos needs edit access to the hostel records.");
+  if (!assets) throw new Error("Restoring photos needs a login that can change records.");
   try {
     const bytes = base64ToBytes(base64);
-    const stored = await assets.upload(new Blob([bytes as BlobPart], { type: "image/jpeg" }), { type: "image/jpeg" });
-    storageBytes += stored.sizeBytes;
+    const stored = await assets.upload(new Blob([bytes as BlobPart], { type: "image/jpeg" }), {
+      type: "image/jpeg",
+      folder: photoFolder(branchId),
+    });
     return stored.id;
   } catch (error) {
     throw new Error(describeError(error));
+  }
+}
+
+/**
+ * Copies a photo into another branch's folder and removes the original.
+ * Used when the admin moves an inmate between hostels, so the new branch's
+ * manager can open their photos. Returns the new id, or the old one if the
+ * copy could not be made.
+ */
+export async function movePhotoToBranch(fileName: string | null, branchId: string): Promise<string | null> {
+  if (!fileName) return null;
+  try {
+    const base64 = await readPhotoBase64(fileName);
+    if (!base64) return fileName;
+    const moved = await uploadPhotoBase64(base64, branchId);
+    deletePhoto(fileName);
+    return moved;
+  } catch {
+    return fileName;
   }
 }
 
@@ -125,7 +227,20 @@ export async function storedPhotoIds(): Promise<Set<string>> {
   }
 }
 
-/** Total bytes used by stored files, for the Backup screen's size line. */
+let storageBytes = 0;
+
+/** Measures the storage used by photos. Slow on a large hostel; call sparingly. */
+export async function measurePhotoUsage(): Promise<number> {
+  try {
+    const assets = await capability("assets");
+    if (assets) storageBytes = (await assets.list()).usage.bytes;
+  } catch {
+    // The figure is informational only.
+  }
+  return storageBytes;
+}
+
+/** The last measured storage use, for the Backup screen's size line. */
 export function photosDiskUsage(): number {
   return storageBytes;
 }

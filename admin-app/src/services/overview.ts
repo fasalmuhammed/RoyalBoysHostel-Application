@@ -1,5 +1,5 @@
 import { Notice } from "@/types";
-import { list } from "@/store/cloud";
+import { limitedToBranch, list } from "@/store/cloud";
 import {
   allBills,
   allInmates,
@@ -164,20 +164,6 @@ export async function buildAlerts(): Promise<Alert[]> {
     });
   }
 
-  const ageDays = settings.lastBackupAt
-    ? Math.floor((Date.now() - settings.lastBackupAt) / 86_400_000)
-    : null;
-  if (ageDays === null || ageDays >= settings.backupReminderDays) {
-    alerts.push({
-      id: "backup-overdue",
-      tone: "warning",
-      icon: "cloud-upload-outline",
-      title: ageDays === null ? "You have never backed up" : `Last backup ${ageDays} days ago`,
-      body: "Download a backup file now and then, so a copy exists outside Claude storage.",
-      action: "backup",
-    });
-  }
-
   const active = allInmates().filter((inmate) => inmate.status === "active" && inActiveBranch(inmate.branchId));
 
   const unassigned = active.filter((inmate) => !inmate.roomId).length;
@@ -222,7 +208,7 @@ export async function buildAlerts(): Promise<Alert[]> {
       tone: "success",
       icon: "checkmark-circle-outline",
       title: "Nothing needs attention",
-      body: "Fees are current and your backup is recent.",
+      body: "Fees are current and every inmate has a room and a phone number.",
       action: null,
     });
   }

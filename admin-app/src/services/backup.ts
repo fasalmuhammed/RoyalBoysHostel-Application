@@ -16,7 +16,7 @@ import {
 import { newId } from "@/utils/id";
 import { capability, describeError } from "@/web/runtime";
 import { registerDownloadName } from "@/web/shims/sharing";
-import { entries, find, freshWhere, list, logActivity, put, remove, runThrottled, withLock } from "@/store/cloud";
+import { entries, find, freshWhere, limitedToBranch, list, logActivity, put, remove, runThrottled, withLock } from "@/store/cloud";
 import { BillDoc, FeeYearDoc, PaymentDoc, allBills, feeDocId } from "@/store/views";
 import {
   CHUNK_SIZE,
@@ -272,11 +272,11 @@ export interface ExportResult {
  * Writes a complete backup.
  *
  * `passphrase` is optional only so that snapshots (which stay inside the
- * hostel's private Claude storage) can be written unattended. Anything
+ * hostel's private online storage) can be written unattended. Anything
  * downloaded should always be encrypted -- see `exportForSharing`.
  *
  * Photos are embedded unless `includePhotos` is false: snapshots leave them
- * out because the photos already sit in Claude storage under the same ids.
+ * out because the photos already sit in online storage under the same ids.
  */
 export async function writeBackup(
   destination: File,
@@ -395,7 +395,7 @@ export async function exportForSharing(
 // --- snapshots ------------------------------------------------------------------
 
 /**
- * Snapshots are unencrypted backups kept inside the hostel's Claude storage:
+ * Snapshots are unencrypted backups kept inside the hostel's online storage:
  * the file in the file store, its details in the `snapshots` collection.
  * They protect against mistakes -- a wrong restore, a bulk change -- and
  * are listed on the Backup screen to download.
@@ -422,7 +422,10 @@ async function storeSnapshot(kind: SnapshotDoc["kind"]): Promise<ExportResult> {
 
   let stored: { id: string; sizeBytes: number };
   try {
-    stored = await assets.upload(new Blob([await file.bytes()], { type: "text/plain" }), { type: "text/plain" });
+    stored = await assets.upload(new Blob([await file.bytes()], { type: "text/plain" }), {
+      type: "text/plain",
+      folder: "snapshots",
+    });
   } catch (error) {
     throw new BackupError(describeError(error));
   } finally {
@@ -435,7 +438,7 @@ async function storeSnapshot(kind: SnapshotDoc["kind"]): Promise<ExportResult> {
   return { ...result, uri: `/_blob/${stored.id}`, fileName: name, sizeBytes: stored.sizeBytes };
 }
 
-/** Rotating snapshot kept in Claude storage. */
+/** Rotating snapshot kept in online storage. */
 export async function writeAutoBackup(keep = 5): Promise<ExportResult> {
   const result = await storeSnapshot("auto");
   await pruneAutoBackups(keep);
@@ -560,7 +563,7 @@ export function readBackupHeader(fileUri: string): BackupHeader {
 
 export interface RestoreResult {
   counts: BackupCounts;
-  /** Rows actually added, keyed by table. Records already in Claude storage are not counted. */
+  /** Rows actually added, keyed by table. Records already in online storage are not counted. */
   inserted: Partial<Record<BackupTable, number>>;
   /** Rows from the backup that were skipped because a matching row already existed. */
   skipped: Partial<Record<BackupTable, number>>;
@@ -571,7 +574,7 @@ export interface RestoreResult {
 }
 
 /**
- * Adds the contents of `fileUri` to the hostel records in Claude storage.
+ * Adds the contents of `fileUri` to the hostel records in online storage.
  *
  * This is a merge, not a replace: existing rows are never touched, and a
  * backup row that shares an id (or, for fee records, a studentId+period) with
@@ -711,7 +714,7 @@ export async function restoreBackup(
   if (carry.trim()) applyLine(carry);
   const photoMap = new Map(photoWrites.map((photo) => [photo.file, photo.base64]));
 
-  // Merge -- add what is new, keep everything already in Claude storage.
+  // Merge -- add what is new, keep everything already in online storage.
   // A record whose id already exists (or, for bills, whose inmate + month
   // already has one) is skipped rather than overwritten, which makes
   // importing the same file twice harmless.
@@ -726,7 +729,7 @@ export async function restoreBackup(
   let photosRestored = 0;
 
   /** Points a record at a stored photo, uploading the file's copy if needed. */
-  const remapPhoto = async (name: unknown): Promise<string | null> => {
+  const remapPhoto = async (name: unknown, branchId?: string | null): Promise<string | null> => {
     if (typeof name !== "string" || !name) return null;
     if (knownPhotos.has(name)) {
       alreadyStored.add(name);
@@ -737,7 +740,7 @@ export async function restoreBackup(
     const base64 = photoMap.get(name);
     // A snapshot carries no photo bytes; its records keep their stored ids.
     if (!base64) return name;
-    const id = await uploadPhotoBase64(base64);
+    const id = await uploadPhotoBase64(base64, branchId);
     uploadedPhotos.set(name, id);
     photosRestored += 1;
     return id;
@@ -753,11 +756,12 @@ export async function restoreBackup(
   await runThrottled(plan.simple, async ({ collection, id, data }) => {
     const body = { ...data };
     if (collection === "inmates") {
-      body.photoFile = await remapPhoto(body.photoFile);
-      body.idProofFile = await remapPhoto(body.idProofFile);
-      body.idProofBackFile = await remapPhoto(body.idProofBackFile);
+      const branch = body.branchId as string | null;
+      body.photoFile = await remapPhoto(body.photoFile, branch);
+      body.idProofFile = await remapPhoto(body.idProofFile, branch);
+      body.idProofBackFile = await remapPhoto(body.idProofBackFile, branch);
     } else if (collection === "complaints") {
-      body.photoFile = await remapPhoto(body.photoFile);
+      body.photoFile = await remapPhoto(body.photoFile, body.branchId as string | null);
     }
     await put(collection, id, body);
     tick(`Adding ${collection}`);
@@ -784,7 +788,12 @@ export async function restoreBackup(
           if (!target.payments[payment.id]) target.payments[payment.id] = payment;
         }
       }
-      await put("fees", docId, { studentId: incoming.studentId, year: incoming.year, bills });
+      await put("fees", docId, {
+        studentId: incoming.studentId,
+        year: incoming.year,
+        branchId: find<Inmate>("inmates", incoming.studentId)?.branchId ?? current?.branchId ?? null,
+        bills,
+      });
     });
     tick("Adding bills and payments");
   });
@@ -795,6 +804,7 @@ export async function restoreBackup(
       const part = Object.fromEntries(batch.entries.slice(start, start + 100).map((entry) => [entry.id, entry]));
       await put("messages", `${batchId}-${chunk}`, {
         batchId,
+        branchId: limitedToBranch(),
         chunk,
         kind: batch.kind,
         createdAt: batch.createdAt,
@@ -1029,7 +1039,7 @@ function planMerge(rows: { table: string; row: Row }[]): MergePlan {
       .map((template) => template.name)
   );
 
-  // Bills already in Claude storage, by id and by inmate + month.
+  // Bills already in online storage, by id and by inmate + month.
   const liveBills = allBills();
   const billIds = new Set(liveBills.map((bill) => bill.id));
   const billSlots = new Set(liveBills.map((bill) => `${bill.studentId}|${bill.period}`));

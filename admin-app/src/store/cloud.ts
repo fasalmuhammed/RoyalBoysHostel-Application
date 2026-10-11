@@ -1,5 +1,5 @@
 /**
- * The hostel's records in Claude storage.
+ * The hostel's records in online storage.
  *
  * Every collection is subscribed to once when the app opens. Each snapshot
  * replaces that collection's in-memory copy, so reads are synchronous and
@@ -7,14 +7,14 @@
  * other devices, which arrive live. Services read from here and write
  * through here; nothing else talks to the database.
  *
- * Claude storage has no transactions and no joins. The services compute
+ * online storage has no transactions and no joins. The services compute
  * joins and totals in memory, as SQLite used to, and the few writes that
  * must not race (a bed being taken, an admission number being issued, a
  * payment against a bill) run inside `withLock`, a short cooperative lease
  * on the document being changed, reading the server's current copy before
  * writing.
  */
-import { capability, describeError, type Db, type DocRef } from "@/web/runtime";
+import { capability, describeError, type Db, type DocRef, type Query } from "@/web/runtime";
 
 export type CollectionName =
   | "branches"
@@ -58,7 +58,22 @@ let db: Db | null = null;
 let opening: Promise<void> | null = null;
 let userId: string | null = null;
 let writable: boolean | null = null;
+/**
+ * The one branch this login is limited to, or null for the admin. The server
+ * refuses a manager anything outside their branch, so every query a manager
+ * makes names it.
+ */
+let scopeBranch: string | null = null;
+
+/** Collections whose records belong to a branch (`branchId` on each). */
+const BRANCH_SCOPED: CollectionName[] = ["rooms", "inmates", "fees", "messages", "complaints", "counters", "activity"];
+/** Admin-only collections a manager never subscribes to. */
+const ADMIN_ONLY: CollectionName[] = ["snapshots"];
 let connectionProblem: string | null = null;
+/** Stops for every live subscription, so logging out closes them. */
+let unsubscribers: (() => void)[] = [];
+/** Bumped on close, so a late reconnect from an old login does nothing. */
+let generation = 0;
 
 export const sessionId =
   typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : String(Math.random());
@@ -100,40 +115,98 @@ function requireDb(): Db {
   return db;
 }
 
-function subscribe(name: CollectionName, onFirst: () => void, onFail: (error: unknown) => void): void {
-  let first = true;
-  const ref =
-    name === "activity"
-      ? requireDb().collection("activity").where("day", ">=", activityCutoff())
-      : requireDb().collection(name);
+/** The queries that together make up what this login may see of a collection. */
+function queriesFor(name: CollectionName): Query[] {
+  const base = requireDb().collection(name);
+  if (!scopeBranch) {
+    return [name === "activity" ? base.where("day", ">=", activityCutoff()) : base];
+  }
+  if (ADMIN_ONLY.includes(name)) return [];
+  if (name === "activity") {
+    return [base.where("branchId", "==", scopeBranch).where("day", ">=", activityCutoff())];
+  }
+  if (BRANCH_SCOPED.includes(name)) return [base.where("branchId", "==", scopeBranch)];
+  // Notices: the manager's own branch, plus those shared with every branch.
+  if (name === "notices") return [base.where("branchId", "==", scopeBranch), base.where("branchId", "==", null)];
+  return [base];
+}
 
-  ref.onSnapshot(
-    (snap) => {
-      const map = new Map<string, DocData>();
-      for (const doc of snap.docs) {
-        const body = doc.data();
-        if (body) map.set(doc.id, body);
+function subscribe(name: CollectionName, onFirst: () => void, onFail: (error: unknown) => void): void {
+  const queries = queriesFor(name);
+  const parts: (Map<string, DocData> | null)[] = queries.map(() => null);
+  let failed = false;
+
+  if (queries.length === 0) {
+    collections.set(name, new Map());
+    onFirst();
+    return;
+  }
+
+  const openedIn = generation;
+  queries.forEach((ref, index) => {
+    const stop = ref.onSnapshot(
+      (snap) => {
+        const firstDelivery = parts.some((part) => part === null);
+        const map = new Map<string, DocData>();
+        for (const doc of snap.docs) {
+          const body = doc.data();
+          if (body) map.set(doc.id, body);
+        }
+        parts[index] = map;
+        if (parts.some((part) => part === null)) return;
+        const merged = new Map<string, DocData>();
+        for (const part of parts) for (const [id, body] of part as Map<string, DocData>) merged.set(id, body);
+        collections.set(name, merged);
+        if (connectionProblem) connectionProblem = null;
+        changed();
+        if (firstDelivery) onFirst();
+      },
+      (error) => {
+        if (parts.some((part) => part === null)) {
+          if (!failed) {
+            failed = true;
+            onFail(error);
+          }
+          return;
+        }
+        connectionProblem = describeError(error);
+        changed();
+        // A dropped connection recovers only through a fresh subscription.
+        if (error.code === "unavailable") {
+          setTimeout(() => {
+            if (openedIn === generation) subscribe(name, () => undefined, () => undefined);
+          }, 3000);
+        }
       }
-      collections.set(name, map);
-      if (connectionProblem) connectionProblem = null;
-      changed();
-      if (first) {
-        first = false;
-        onFirst();
-      }
-    },
-    (error) => {
-      if (first) {
-        first = false;
-        onFail(error);
-        return;
-      }
-      connectionProblem = describeError(error);
-      changed();
-      // A dropped bridge recovers only through a fresh subscription.
-      if (error.code === "unavailable") setTimeout(() => subscribe(name, () => undefined, () => undefined), 3000);
+    );
+    unsubscribers.push(stop);
+  });
+}
+
+/**
+ * Closes the records: stops every live subscription and forgets what was
+ * loaded. Called on log-out, so the next login starts clean and never sees
+ * the previous person's data.
+ */
+export function closeStore(): void {
+  generation += 1;
+  for (const stop of unsubscribers) {
+    try {
+      stop();
+    } catch {
+      // Already stopped.
     }
-  );
+  }
+  unsubscribers = [];
+  collections.clear();
+  writeQueues.clear();
+  opening = null;
+  db = null;
+  userId = null;
+  writable = null;
+  scopeBranch = null;
+  connectionProblem = null;
+  changed();
 }
 
 /**
@@ -146,12 +219,13 @@ export function openStore(): Promise<void> {
       db = await capability("db");
       if (!db) {
         throw new Error(
-          "Claude storage is not available here. Open the hostel app from claude.ai while signed in."
+          "online storage is not available here. Open the hostel app from claude.ai while signed in."
         );
       }
       const user = await capability("user");
       userId = user ? await user.id() : null;
       writable = user ? await user.can("data.write") : null;
+      scopeBranch = user?.branchId ? await user.branchId() : null;
 
       await Promise.all(
         [...SUBSCRIBED, "activity" as const].map(
@@ -169,9 +243,14 @@ export function openStore(): Promise<void> {
   return opening;
 }
 
-/** The signed-in person's id, as Claude storage knows them. */
+/** The signed-in person's id, as online storage knows them. */
 export function currentUserId(): string | null {
   return userId;
+}
+
+/** The branch this login is limited to; null for the admin. */
+export function limitedToBranch(): string | null {
+  return scopeBranch;
 }
 
 /** False when this person can only view the records; null when not told. */
@@ -207,7 +286,11 @@ export async function fresh<T>(name: CollectionName, id: string): Promise<T | nu
 
 /** The server's current matches for one equality filter. */
 export async function freshWhere<T>(name: CollectionName, field: string, value: unknown): Promise<T[]> {
-  const snap = await requireDb().collection(name).where(field, "==", value).get();
+  let ref = requireDb().collection(name).where(field, "==", value);
+  if (scopeBranch && BRANCH_SCOPED.includes(name) && field !== "branchId") {
+    ref = ref.where("branchId", "==", scopeBranch);
+  }
+  const snap = await ref.get();
   return snap.docs.map((doc) => doc.data() as T);
 }
 
@@ -220,9 +303,12 @@ function enqueue<T>(path: string, task: () => Promise<T>): Promise<T> {
   const previous = writeQueues.get(path) ?? Promise.resolve();
   const next = previous.catch(() => undefined).then(task);
   writeQueues.set(path, next);
-  next.finally(() => {
-    if (writeQueues.get(path) === next) writeQueues.delete(path);
-  });
+  // The caller handles a failed write; this tidy-up must not raise it again.
+  next
+    .finally(() => {
+      if (writeQueues.get(path) === next) writeQueues.delete(path);
+    })
+    .catch(() => undefined);
   return next;
 }
 
@@ -346,7 +432,7 @@ export type ActivityAction = "created" | "updated" | "deleted" | "payment" | "re
 export interface ActivityEvent {
   id: string;
   at: number;
-  /** Claude storage id of the person who made the change. */
+  /** online storage id of the person who made the change. */
   by: string | null;
   action: ActivityAction;
   entity: "inmate" | "room" | "bill" | "payment" | "notice" | "complaint" | "template" | "message" | "branch" | "settings" | "backup";
@@ -379,14 +465,19 @@ export function logActivity(event: Omit<ActivityEvent, "id" | "at" | "by">): voi
     at: Date.now(),
     by: userId,
   };
+  // One document per day per branch, so a manager's feed (and the server's
+  // check on it) covers their own hostel only. Changes with no branch of
+  // their own are filed under the branch of whoever made them.
   const day = dayKey();
-  const exists = local("activity").has(day);
+  const branchId = event.branchId ?? scopeBranch ?? null;
+  const docId = `${day}_${branchId ?? "all"}`;
+  const exists = local("activity").has(docId);
   const write = exists
-    ? patch("activity", day, { events: { [entry.id]: entry } })
-    : put("activity", day, { day, events: { [entry.id]: entry } });
+    ? patch("activity", docId, { events: { [entry.id]: entry } })
+    : put("activity", docId, { day, branchId, events: { [entry.id]: entry } });
   write.catch(() => {
     // The day's document may have been created elsewhere a moment ago.
-    if (!exists) patch("activity", day, { events: { [entry.id]: entry } }).catch(() => undefined);
+    if (!exists) patch("activity", docId, { events: { [entry.id]: entry } }).catch(() => undefined);
   });
 }
 
@@ -420,7 +511,7 @@ export async function runThrottled<T>(
           attempt += 1;
           const message = error instanceof Error ? error.message : "";
           // Back off on rate limits and transient drops; anything else is real.
-          if (attempt >= 4 || !/Too many changes|connection to Claude storage/.test(message)) throw error;
+          if (attempt >= 4 || !/Too many changes|connection to the server/.test(message)) throw error;
           await sleep(800 * attempt);
         }
       }

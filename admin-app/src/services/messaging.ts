@@ -11,6 +11,7 @@ import { formatMoney, formatDate, formatPeriod } from "@/utils/format";
 import { toWhatsAppNumber } from "@/utils/validate";
 import { entries, find, list, logActivity, patch, put, remove } from "@/store/cloud";
 import { compareRaw, compareText } from "@/store/views";
+import { getActiveBranchId } from "./branches";
 
 /**
  * WhatsApp messaging.
@@ -205,6 +206,8 @@ type EntryDoc = Omit<MessageLogEntry, "batchId">;
 
 interface BatchChunkDoc {
   batchId: string;
+  /** The branch the batch was prepared in. */
+  branchId?: string | null;
   chunk: number;
   kind: MessageKind;
   createdAt: number;
@@ -243,7 +246,14 @@ export async function queueBatch(kind: MessageKind, recipients: QueueRecipient[]
         sentAt: null,
       };
     }
-    await put("messages", `${batchId}-${chunk}`, { batchId, chunk, kind, createdAt: now, entries: part });
+    await put("messages", `${batchId}-${chunk}`, {
+      batchId,
+      branchId: getActiveBranchId(),
+      chunk,
+      kind,
+      createdAt: now,
+      entries: part,
+    });
   }
 
   logActivity({

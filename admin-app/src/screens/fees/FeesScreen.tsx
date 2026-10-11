@@ -153,17 +153,8 @@ export default function FeesScreen({ navigation, route }: Props) {
                 debounced
                   ? `No bill matches "${debounced}".`
                   : period
-                    ? `Nothing raised for ${formatPeriod(period)} yet. Raise this month's bills in one tap.`
+                    ? `No bills for ${formatPeriod(period)}. Each inmate's monthly bill is raised automatically.`
                     : "No fee records yet."
-              }
-              action={
-                debounced ? undefined : (
-                  <Button
-                    title="Raise monthly bills"
-                    icon="documents-outline"
-                    onPress={() => navigation.navigate("GenerateInvoices")}
-                  />
-                )
               }
             />
           }
@@ -179,12 +170,6 @@ export default function FeesScreen({ navigation, route }: Props) {
           )}
         />
       )}
-
-      <Fab
-        icon="documents-outline"
-        label="Raise bills"
-        onPress={() => navigation.navigate("GenerateInvoices")}
-      />
 
       <OptionPicker
         visible={periodPickerOpen}

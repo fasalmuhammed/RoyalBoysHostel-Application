@@ -5,7 +5,7 @@
  * and lock state are kept in this browser's storage for the artifact, never
  * in the shared records. Each device (and each person on it) sets its own
  * PIN, and a forgotten one is cleared by clearing this browser's data for
- * the app -- the hostel records stay untouched in Claude storage.
+ * the app -- the hostel records stay untouched in online storage.
  *
  * Storage the browser blocks leaves the values in memory for this visit.
  */

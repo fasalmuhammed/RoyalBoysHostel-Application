@@ -4,7 +4,7 @@
  * On a phone, reports, receipts and backups go out through the share sheet.
  * In a claude.ai artifact the equivalent is the `downloads` capability, which
  * shows the viewer a save prompt. Files come from the in-memory file system
- * (reports, receipts, backups) or from Claude storage (`/_blob/<id>` photos).
+ * (reports, receipts, backups) or from online storage (`/_blob/<id>` photos).
  */
 import { capability, describeError } from "../runtime";
 import { readVirtualFile } from "./file-system";
@@ -72,7 +72,11 @@ export async function shareAsync(uri: string, options: ShareOptions = {}): Promi
   if (local) {
     data = new Blob([local as BlobPart], { type: options.mimeType ?? "application/octet-stream" });
   } else {
-    const response = await fetch(uri);
+    // A stored file is saved from wherever the backend actually keeps it.
+    const storedId = uri.startsWith("/_blob/") ? uri.slice("/_blob/".length) : null;
+    const assets = storedId ? await capability("assets") : null;
+    const address = storedId && assets?.url ? await assets.url(storedId) : uri;
+    const response = await fetch(address ?? uri);
     if (!response.ok) throw new Error("That file is no longer available.");
     data = await response.blob();
   }

@@ -32,7 +32,7 @@ import {
 } from "@/services/complaints";
 import { listRooms } from "@/services/rooms";
 import { listInmates } from "@/services/inmates";
-import { deletePhoto, photoUri, savePhoto } from "@/services/photos";
+import { deletePhoto, savePhoto, usePhotoUri } from "@/services/photos";
 import { ComplaintCategory, ComplaintStatus } from "@/types";
 import { toIsoDate } from "@/utils/format";
 import { successFeedback } from "@/utils/haptics";
@@ -200,7 +200,7 @@ export default function ComplaintFormScreen({ navigation, route }: Props) {
 
   const room = rooms?.find((r) => r.id === roomId);
   const inmate = inmates?.find((s) => s.id === studentId);
-  const preview = photoUri(photoFile);
+  const preview = usePhotoUri(photoFile);
 
   return (
     <SafeAreaView style={styles.screen} edges={["left", "right", "bottom"]}>

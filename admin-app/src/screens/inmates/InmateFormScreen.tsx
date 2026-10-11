@@ -32,7 +32,7 @@ import {
   updateInmate,
 } from "@/services/inmates";
 import { listRooms } from "@/services/rooms";
-import { deletePhoto, photoUri, savePhoto } from "@/services/photos";
+import { deletePhoto, savePhoto, usePhotoUri } from "@/services/photos";
 import { formatMoney, initials, toIsoDate } from "@/utils/format";
 import { isValidEmail, isValidPhone, parseAmount } from "@/utils/validate";
 import { createFee, DEFAULT_CYCLE_DAYS, DuplicateInvoiceError, stayDueDateFor } from "@/services/fees";
@@ -243,7 +243,8 @@ export default function InmateFormScreen({ navigation, route }: Props) {
 
       if (result.canceled || !result.assets?.[0]) return;
 
-      const stored = await savePhoto(result.assets[0].uri);
+      // An ID card keeps more detail than a face, so its text stays readable.
+      const stored = await savePhoto(result.assets[0].uri, kind === "photo" ? "profile" : "document", form.branchId);
       const { pending, original } = refsFor(kind);
       // Drop a photo taken earlier in this same session; it was never saved.
       const superseded = pending.current;
@@ -392,9 +393,9 @@ export default function InmateFormScreen({ navigation, route }: Props) {
     []
   );
 
-  const previewUri = photoUri(form.photoFile);
-  const idProofPreviewUri = photoUri(form.idProofFile);
-  const idProofBackPreviewUri = photoUri(form.idProofBackFile);
+  const previewUri = usePhotoUri(form.photoFile);
+  const idProofPreviewUri = usePhotoUri(form.idProofFile);
+  const idProofBackPreviewUri = usePhotoUri(form.idProofBackFile);
   const selectedRoom = rooms?.find((room) => room.id === form.roomId);
 
   if (!loaded) {
@@ -689,7 +690,7 @@ export default function InmateFormScreen({ navigation, route }: Props) {
 
           <Callout tone="info" icon="phone-portrait-outline">
             <CalloutText>
-              The inmate is saved to Claude storage and appears straight away on every device
+              The inmate is saved to online storage and appears straight away on every device
               signed in to this hostel.
             </CalloutText>
           </Callout>

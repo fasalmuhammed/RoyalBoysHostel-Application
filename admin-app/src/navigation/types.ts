@@ -22,7 +22,6 @@ export type RootStackParamList = {
   FeeDetail: { feeId: string };
   FeeForm: { feeId?: string; studentId?: string } | undefined;
   CollectFee: { feeId: string };
-  GenerateInvoices: undefined;
   Dues: undefined;
 
   Messages: undefined;
@@ -49,18 +48,10 @@ export type RootStackParamList = {
   Notifications: undefined;
   Search: undefined;
 
-  Backup: undefined;
   AdminPanel: undefined;
   Reports: undefined;
   Settings: undefined;
   ChangePin: undefined;
-};
-
-export type SetupStackParamList = {
-  Welcome: undefined;
-  StartChoice: undefined;
-  RestoreExisting: undefined;
-  CreatePin: undefined;
 };
 
 declare global {

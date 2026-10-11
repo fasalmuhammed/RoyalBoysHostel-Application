@@ -171,6 +171,9 @@ function makeRuntime(store, user) {
         store.assets.set(id, { bytes, type: (options && options.type) || blob.type });
         return { id, url: `/_blob/${id}`, sizeBytes: bytes.length, contentType: (options && options.type) || blob.type };
       },
+      async url(id) {
+        return store.assets.has(id) ? `/_blob/${id}` : null;
+      },
       async list() {
         const assets = [...store.assets].map(([id, a]) => ({ id, url: `/_blob/${id}`, contentType: a.type, sizeBytes: a.bytes.length, createdAt: "" }));
         return { assets, usage: { files: assets.length, bytes: assets.reduce((s, a) => s + a.sizeBytes, 0), maxFiles: 5000, maxBytes: 1 << 30 } };

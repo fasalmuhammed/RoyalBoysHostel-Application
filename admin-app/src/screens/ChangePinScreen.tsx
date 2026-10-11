@@ -88,7 +88,7 @@ export default function ChangePinScreen({ navigation }: Props) {
         <Callout tone="warning" icon="warning-outline">
           <CalloutText>
             This PIN belongs to this device only. A forgotten one is removed by clearing this
-            browser's data for the app; the hostel records stay safe in Claude storage.
+            browser's data for the app; the hostel records stay safe in online storage.
           </CalloutText>
         </Callout>
 

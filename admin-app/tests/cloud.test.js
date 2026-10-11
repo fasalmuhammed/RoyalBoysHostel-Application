@@ -153,6 +153,41 @@ async function singleDevice() {
   check("changes are recorded in the activity feed", cloud.recentActivity().some((e) => e.action === "payment"));
 }
 
+async function automaticBilling() {
+  console.log("Automatic monthly billing");
+  const { app } = await fresh();
+  const { inmates, fees, views, rooms, format } = app;
+  const now = fees.currentPeriod();
+  const today = format.toIsoDate();
+  const billsOf = (id) => views.billsForStudent(id).filter((b) => b.period === now);
+
+  const r = await rooms.createRoom(room("7", 4, 4500));
+  const monthly = await inmates.createInmate(inmate("Monthly", r, { joinedOn: today, monthlyRent: 5200 }));
+  check("a new monthly inmate is billed for this month on admission", billsOf(monthly).length === 1 && billsOf(monthly)[0].total === 5200);
+  check("the bill falls due on their join day", billsOf(monthly)[0].dueDate === fees.dueDateFor(now, fees.anchorDayFor(today)));
+
+  const roomPriced = await inmates.createInmate(inmate("Room priced", r, { joinedOn: today, monthlyRent: 0 }));
+  check("with no personal rent, the room's rent is used", billsOf(roomPriced)[0].total === 4500);
+
+  const guest = await inmates.createInmate(inmate("Guest", null, { admissionType: "stay", stayDays: 4, joinedOn: today }));
+  check("a fixed-days guest gets no monthly bill", billsOf(guest).length === 0);
+
+  const future = await inmates.createInmate(inmate("Joining next year", null, { joinedOn: `${Number(now.slice(0, 4)) + 1}-01-10` }));
+  check("someone joining in a later month is not billed yet", billsOf(future).length === 0);
+
+  check("the automatic run finds nothing left to do", (await fees.raiseDueBills()) === 0);
+
+  await fees.deleteFee(billsOf(monthly)[0].id);
+  check("the automatic run raises a missing bill", (await fees.raiseDueBills()) === 1 && billsOf(monthly).length === 1);
+  check("running it again raises nothing", (await fees.raiseDueBills()) === 0);
+
+  await inmates.markLeft(roomPriced);
+  await fees.deleteFee(billsOf(roomPriced)[0].id);
+  check("an inmate who has left is not billed", (await fees.raiseDueBills()) === 0);
+  await inmates.reinstate(roomPriced);
+  check("reinstating an inmate bills them for this month", billsOf(roomPriced).length === 1);
+}
+
 async function backups() {
   console.log("Backups");
   const { store, app } = await fresh();
@@ -252,7 +287,7 @@ async function twoDevices() {
 
 (async () => {
   const started = Date.now();
-  for (const suite of [pureLogic, singleDevice, backups, twoDevices]) {
+  for (const suite of [pureLogic, singleDevice, automaticBilling, backups, twoDevices]) {
     try {
       await suite();
     } catch (error) {

@@ -1,18 +1,38 @@
 rules_version = '2';
 
+// Stored files: photos in a folder per branch, and saved snapshots.
+// Access follows the login's staff/<uid> record, as in firestore.rules: the
+// admin opens everything, a manager only their own branch's folder.
 service firebase.storage {
   match /b/{bucket}/o {
-    // Backups contain sensitive identity and financial records. Each account
-    // can access only its own folder, and only the app's encrypted file type
-    // can be created there.
-    match /admin-backups/{userId}/{fileName} {
-      allow read, delete: if request.auth != null && request.auth.uid == userId;
-      allow create, update: if request.auth != null
-        && request.auth.uid == userId
-        && fileName.matches('.*[.]hostelbak')
-        && request.resource.contentType == 'application/octet-stream'
-        && request.resource.size < 250 * 1024 * 1024
-        && request.resource.metadata.encrypted == 'true';
+    function staffPath() {
+      return /databases/(default)/documents/staff/$(request.auth.uid);
+    }
+    function active() {
+      return request.auth != null
+        && firestore.exists(staffPath())
+        && firestore.get(staffPath()).data.disabled != true;
+    }
+    function isAdmin() {
+      return active() && firestore.get(staffPath()).data.role == 'admin';
+    }
+    function inBranch(branchId) {
+      return isAdmin() || (active() && firestore.get(staffPath()).data.branchId == branchId);
+    }
+
+    // Profile, Aadhaar and complaint photos. Compressed in the app before
+    // upload, so anything large or not a JPEG is not from the app.
+    match /photos/{branchId}/{file} {
+      allow read, delete: if inBranch(branchId);
+      allow create, update: if inBranch(branchId)
+        && request.resource.size < 1536 * 1024
+        && request.resource.contentType == 'image/jpeg';
+    }
+
+    // Snapshots of the records cover both hostels.
+    match /snapshots/{file} {
+      allow read, delete: if isAdmin();
+      allow create, update: if isAdmin() && request.resource.size < 25 * 1024 * 1024;
     }
 
     match /{allPaths=**} {
@@ -20,4 +40,3 @@ service firebase.storage {
     }
   }
 }
-

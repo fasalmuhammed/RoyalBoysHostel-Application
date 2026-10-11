@@ -14,7 +14,8 @@ import {
   roomById,
   roomLabelOf,
 } from "@/store/views";
-import { deletePhoto } from "./photos";
+import { deletePhoto, movePhotoToBranch } from "./photos";
+import { raiseBillFor } from "./fees";
 import { getActiveBranchId, inActiveBranch, requireActiveBranchId } from "./branches";
 
 export type InmateInput = Omit<Inmate, "id" | "createdAt" | "updatedAt">;
@@ -191,6 +192,11 @@ export async function createInmate(input: InmateInput): Promise<string> {
   }
 
   logActivity({ action: "created", entity: "inmate", entityId: id, label: input.fullName, branchId });
+
+  // A monthly inmate is billed for the current month as soon as they are
+  // admitted. A failure here is retried by the automatic monthly run.
+  const admitted = inmateById(id);
+  if (admitted) await raiseBillFor(admitted).catch(() => false);
   return id;
 }
 
@@ -288,6 +294,8 @@ export async function reinstate(studentId: string): Promise<void> {
   const inmate = inmateById(studentId);
   if (!inmate) return;
   await patch("inmates", studentId, { status: "active", leftOn: null, updatedAt: Date.now() });
+  const back = inmateById(studentId);
+  if (back) await raiseBillFor(back).catch(() => false);
   logActivity({ action: "updated", entity: "inmate", entityId: studentId, label: `${inmate.fullName} reinstated`, branchId: inmate.branchId });
 }
 
@@ -301,7 +309,22 @@ export async function reinstate(studentId: string): Promise<void> {
 export async function moveToBranch(studentId: string, branchId: string): Promise<void> {
   const inmate = inmateById(studentId);
   if (!inmate) return;
-  await patch("inmates", studentId, { branchId, roomId: null, updatedAt: Date.now() });
+  // Their photos move to the new branch's folder, so its manager can open them.
+  const photoFile = await movePhotoToBranch(inmate.photoFile, branchId);
+  const idProofFile = await movePhotoToBranch(inmate.idProofFile, branchId);
+  const idProofBackFile = await movePhotoToBranch(inmate.idProofBackFile, branchId);
+  await patch("inmates", studentId, {
+    branchId,
+    roomId: null,
+    photoFile,
+    idProofFile,
+    idProofBackFile,
+    updatedAt: Date.now(),
+  });
+  // Their bills follow them, so the new branch's manager can see and collect them.
+  for (const [docId, doc] of entries<FeeYearDoc>("fees")) {
+    if (doc.studentId === studentId) await patch("fees", docId, { branchId });
+  }
   logActivity({ action: "updated", entity: "inmate", entityId: studentId, label: `${inmate.fullName} moved branch`, branchId });
 }
 

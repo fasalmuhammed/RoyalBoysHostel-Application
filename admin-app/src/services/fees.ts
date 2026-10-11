@@ -119,8 +119,21 @@ function billLabel(studentId: string, period: string): string {
  * Written with every change, so a document the platform created empty when
  * it was first locked still ends up linked to its inmate.
  */
-function ownerOf(docId: string): { studentId: string; year: string } {
-  return { studentId: docId.slice(0, -5), year: docId.slice(-4) };
+function ownerOf(docId: string): { studentId: string; year: string; branchId?: string } {
+  const studentId = docId.slice(0, -5);
+  // Bills belong to their inmate's branch; the server checks access by it.
+  // When the inmate is not in the local copy just now, the branch already on
+  // the document is left as it is rather than blanked.
+  const branchId = inmateById(studentId)?.branchId;
+  return { studentId, year: docId.slice(-4), ...(branchId ? { branchId } : {}) };
+}
+
+/** The inmate's branch for a new year of bills: local copy first, then the server. */
+async function branchOf(studentId: string, known?: string | null): Promise<string | null> {
+  if (known) return known;
+  const local = inmateById(studentId)?.branchId;
+  if (local) return local;
+  return (await fresh<Inmate>("inmates", studentId))?.branchId ?? null;
 }
 
 /** The server's copy of one inmate-year of bills, read inside its lock. */
@@ -133,14 +146,20 @@ function findBill(doc: FeeYearDoc | null, billId: string): BillDoc | null {
 }
 
 /** Adds a bill to its inmate-year, creating the year's document if needed. */
-async function addBill(studentId: string, bill: BillDoc): Promise<void> {
+async function addBill(studentId: string, bill: BillDoc, branchId?: string | null): Promise<void> {
   const docId = feeDocId(studentId, bill.period);
   const doc = await readYear(docId);
   if (doc?.bills?.[bill.period]) {
     throw new DuplicateInvoiceError("An invoice for this student and month already exists.");
   }
   if (doc) await patch("fees", docId, { ...ownerOf(docId), bills: { [bill.period]: bill } });
-  else await put("fees", docId, { studentId, year: bill.period.slice(0, 4), bills: { [bill.period]: bill } });
+  else {
+    await put("fees", docId, {
+      ...ownerOf(docId),
+      branchId: await branchOf(studentId, branchId),
+      bills: { [bill.period]: bill },
+    });
+  }
 }
 
 /** Rewrites an inmate-year without one bill, or removes it when it was the last. */
@@ -297,7 +316,7 @@ export async function generateInvoices(period: string): Promise<GenerateResult> 
       payments: {},
     };
     try {
-      await withLock("fees", feeDocId(inmate.id, period), () => addBill(inmate.id, bill));
+      await withLock("fees", feeDocId(inmate.id, period), () => addBill(inmate.id, bill, inmate.branchId));
       created += 1;
     } catch (error) {
       // Raised from another device in the meantime: already billed, not a failure.
@@ -316,6 +335,81 @@ export async function generateInvoices(period: string): Promise<GenerateResult> 
   }
 
   return { created, skipped: eligible.length - created };
+}
+
+/**
+ * Whether an inmate should have a monthly bill for `period`: active, on the
+ * monthly cycle (a fixed-days stay is billed once at admission), and already
+ * joined by then.
+ */
+function isBillable(inmate: Inmate, period: string): boolean {
+  if (inmate.status !== "active" || inmate.admissionType === "stay") return false;
+  return !inmate.joinedOn || inmate.joinedOn.slice(0, 7) <= period;
+}
+
+function monthlyBill(inmate: Inmate, period: string): BillDoc {
+  const rent = inmate.monthlyRent > 0 ? inmate.monthlyRent : (roomById(inmate.roomId)?.rent ?? 0);
+  const now = Date.now();
+  return {
+    id: newId(),
+    period,
+    rent,
+    electricity: 0,
+    water: 0,
+    other: 0,
+    discount: 0,
+    total: rent,
+    dueDate: dueDateFor(period, anchorDayFor(inmate.joinedOn)),
+    note: "",
+    createdAt: now,
+    updatedAt: now,
+    payments: {},
+  };
+}
+
+/**
+ * Raises this month's bill for one inmate if they should have one and do not.
+ * Called when someone is admitted or reinstated, so nobody waits for a
+ * monthly run to be billed. Returns whether a bill was created.
+ */
+export async function raiseBillFor(inmate: Inmate, period = currentPeriod()): Promise<boolean> {
+  if (!isBillable(inmate, period)) return false;
+  if (billsForStudent(inmate.id).some((bill) => bill.period === period)) return false;
+  try {
+    await withLock("fees", feeDocId(inmate.id, period), () =>
+      addBill(inmate.id, monthlyBill(inmate, period), inmate.branchId)
+    );
+    return true;
+  } catch (error) {
+    // Raised from another device in the meantime: already billed.
+    if (error instanceof DuplicateInvoiceError) return false;
+    throw error;
+  }
+}
+
+/**
+ * Monthly billing, without anyone pressing a button: raises this month's
+ * bill for every inmate this login can see who should have one and does not.
+ * Runs when the app opens and when a new month begins; safe to run from any
+ * number of devices at once, and does nothing when everyone is billed.
+ */
+export async function raiseDueBills(period = currentPeriod()): Promise<number> {
+  const billed = new Set(allBills().filter((bill) => bill.period === period).map((bill) => bill.studentId));
+  const due = allInmates().filter((inmate) => isBillable(inmate, period) && !billed.has(inmate.id));
+  let created = 0;
+  await runThrottled(due, async (inmate) => {
+    if (await raiseBillFor(inmate, period)) created += 1;
+  });
+  if (created > 0) {
+    logActivity({
+      action: "created",
+      entity: "bill",
+      entityId: period,
+      label: `${created} bill${created === 1 ? "" : "s"} raised automatically for ${formatPeriod(period)}`,
+      branchId: null,
+    });
+  }
+  return created;
 }
 
 export class OverpaymentError extends Error {}

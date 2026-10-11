@@ -29,7 +29,7 @@ const CATEGORIES: NoticeCategory[] = ["general", "event", "maintenance", "urgent
 export default function NoticeFormScreen({ navigation, route }: Props) {
   const noticeId = route.params?.noticeId;
   const isEditing = Boolean(noticeId);
-  const { invalidate, activeBranch } = useApp();
+  const { invalidate, activeBranch, access } = useApp();
   const branchLabel = activeBranch?.shortName ?? "this branch";
 
   const [title, setTitle] = useState("");
@@ -175,7 +175,8 @@ export default function NoticeFormScreen({ navigation, route }: Props) {
           icon="calendar-outline"
         />
 
-        <View style={styles.switchRow}>
+        {/* Only the admin posts to both hostels; a manager's notices are their branch's. */}
+        <View style={[styles.switchRow, access.isOwner ? null : { display: "none" }]}>
           <View style={{ flex: 1 }}>
             <Text style={styles.switchLabel}>Applies to both branches</Text>
             <Text style={styles.switchHint}>

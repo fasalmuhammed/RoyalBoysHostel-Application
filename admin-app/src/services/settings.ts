@@ -13,7 +13,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
 };
 
 /**
- * Settings shared by everyone live in one Claude storage document,
+ * Settings shared by everyone live in one online storage document,
  * `config/settings`. The branch picked on the last visit is a per-person
  * convenience, so it stays in this browser instead of being shared: two
  * wardens working different hostels must not flip each other's branch.

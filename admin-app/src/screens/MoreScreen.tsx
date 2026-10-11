@@ -18,18 +18,16 @@ type Props = CompositeScreenProps<
 >;
 
 export default function MoreScreen({ navigation }: Props) {
-  const { settings, lock, activeBranch, clearBranch, access } = useApp();
-
-  const overdueBackup =
-    settings.lastBackupAt === null ||
-    Date.now() - settings.lastBackupAt > settings.backupReminderDays * 86_400_000;
+  const { settings, lock, activeBranch, clearBranch, access, user, signOut } = useApp();
+  // A manager works in one hostel; only the admin can switch.
+  const canSwitch = !access.branchId;
 
   return (
     <SafeAreaView style={styles.screen} edges={["top", "left", "right"]}>
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <Text style={styles.title}>More</Text>
 
-        <Pressable style={styles.branchCard} onPress={clearBranch}>
+        <Pressable style={styles.branchCard} onPress={clearBranch} disabled={!canSwitch}>
           <View style={styles.branchBadge}>
             <Text style={styles.branchBadgeText}>{activeBranch?.code ?? "?"}</Text>
           </View>
@@ -39,10 +37,12 @@ export default function MoreScreen({ navigation }: Props) {
               {activeBranch?.name ?? "No branch selected"}
             </Text>
           </View>
-          <View style={styles.switchPill}>
-            <Ionicons name="swap-horizontal" size={14} color={colors.primary} />
-            <Text style={styles.switchPillText}>Switch</Text>
-          </View>
+          {canSwitch ? (
+            <View style={styles.switchPill}>
+              <Ionicons name="swap-horizontal" size={14} color={colors.primary} />
+              <Text style={styles.switchPillText}>Switch</Text>
+            </View>
+          ) : null}
         </Pressable>
 
         {access.canEdit ? (
@@ -95,20 +95,9 @@ export default function MoreScreen({ navigation }: Props) {
             onPress={() => navigation.navigate("Messages")}
           />
           <Row
-            icon="cloud-upload-outline"
-            label="Backup & restore"
-            sublabel={
-              settings.lastBackupAt
-                ? `Last backup ${formatDateTime(settings.lastBackupAt)}`
-                : "Never backed up"
-            }
-            warn={overdueBackup}
-            onPress={() => navigation.navigate("Backup")}
-          />
-          <Row
             icon="document-text-outline"
-            label="Reports & CSV export"
-            sublabel="Spreadsheets for printing and accounts"
+            label="Reports"
+            sublabel="Download spreadsheets for printing and accounts"
             onPress={() => navigation.navigate("Reports")}
             last
           />
@@ -118,15 +107,22 @@ export default function MoreScreen({ navigation }: Props) {
           <Row
             icon="settings-outline"
             label="Settings"
-            sublabel="Hostel details, PIN, reminders"
+            sublabel={access.isOwner ? "Hostel details, PIN and app lock" : "PIN and app lock"}
             onPress={() => navigation.navigate("Settings")}
           />
-          <Row icon="lock-closed-outline" label="Lock the app now" onPress={lock} last />
+          <Row icon="lock-closed-outline" label="Lock the app now" onPress={lock} />
+          <Row
+            icon="log-out-outline"
+            label="Log out"
+            sublabel={user ? `Signed in as ${user.name || user.username}` : undefined}
+            onPress={() => void signOut()}
+            last
+          />
         </View>
 
         <Text style={styles.footer}>
           Royal Boys Hostel · v{Constants.expoConfig?.version ?? "—"}{"\n"}
-          Records are kept in Claude storage and update live on every device.
+          Records are kept online and update live on every device.
         </Text>
       </ScrollView>
     </SafeAreaView>

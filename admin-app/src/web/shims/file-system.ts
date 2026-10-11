@@ -6,7 +6,7 @@
  * browser those files live in memory for the length of the page load: the
  * share shim turns them into a download, and the document-picker shim places
  * picked files here so the backup reader can stream them exactly as it does
- * on a phone. Nothing here persists; durable data lives in Claude storage.
+ * on a phone. Nothing here persists; durable data lives in online storage.
  */
 
 const files = new Map<string, Uint8Array>();

@@ -15,7 +15,6 @@ import DashboardScreen from "@/screens/DashboardScreen";
 import MoreScreen from "@/screens/MoreScreen";
 import SettingsScreen from "@/screens/SettingsScreen";
 import ReportsScreen from "@/screens/ReportsScreen";
-import BackupScreen from "@/screens/BackupScreen";
 import NotificationsScreen from "@/screens/NotificationsScreen";
 import AdminPanelScreen from "@/screens/AdminPanelScreen";
 import SearchScreen from "@/screens/SearchScreen";
@@ -34,7 +33,6 @@ import FeesScreen from "@/screens/fees/FeesScreen";
 import FeeDetailScreen from "@/screens/fees/FeeDetailScreen";
 import FeeFormScreen from "@/screens/fees/FeeFormScreen";
 import CollectFeeScreen from "@/screens/fees/CollectFeeScreen";
-import GenerateInvoicesScreen from "@/screens/fees/GenerateInvoicesScreen";
 import DuesScreen from "@/screens/fees/DuesScreen";
 
 import MessagesScreen from "@/screens/messages/MessagesScreen";
@@ -47,15 +45,12 @@ import ComplaintFormScreen from "@/screens/complaints/ComplaintFormScreen";
 import NoticesScreen from "@/screens/notices/NoticesScreen";
 import NoticeFormScreen from "@/screens/notices/NoticeFormScreen";
 
-import StartChoiceScreen from "@/screens/setup/StartChoiceScreen";
-import RestoreExistingScreen from "@/screens/setup/RestoreExistingScreen";
-import CreatePinScreen from "@/screens/setup/CreatePinScreen";
+import LoginScreen from "@/screens/LoginScreen";
 
-import type { MainTabParamList, RootStackParamList, SetupStackParamList } from "./types";
+import type { MainTabParamList, RootStackParamList } from "./types";
 
 const Tab = createBottomTabNavigator<MainTabParamList>();
 const Stack = createNativeStackNavigator<RootStackParamList>();
-const SetupStack = createNativeStackNavigator<SetupStackParamList>();
 
 const navTheme = {
   ...DefaultTheme,
@@ -172,11 +167,6 @@ function MainStack() {
         options={{ ...detailOptions, title: "Collect payment" }}
       />
       <Stack.Screen
-        name="GenerateInvoices"
-        component={GenerateInvoicesScreen}
-        options={{ ...detailOptions, title: "Raise bills" }}
-      />
-      <Stack.Screen
         name="Dues"
         component={DuesScreen}
         options={{ ...detailOptions, title: "Dues" }}
@@ -230,11 +220,6 @@ function MainStack() {
         options={{ ...detailOptions, title: "Admin panel" }}
       />
       <Stack.Screen
-        name="Backup"
-        component={BackupScreen}
-        options={{ ...detailOptions, title: "Backup & restore" }}
-      />
-      <Stack.Screen
         name="Reports"
         component={ReportsScreen}
         options={{ ...detailOptions, title: "Reports" }}
@@ -246,24 +231,6 @@ function MainStack() {
         options={{ ...detailOptions, title: "Change PIN" }}
       />
     </Stack.Navigator>
-  );
-}
-
-function SetupFlow() {
-  return (
-    <SetupStack.Navigator screenOptions={{ headerShown: false }}>
-      <SetupStack.Screen name="StartChoice" component={StartChoiceScreen} />
-      <SetupStack.Screen
-        name="RestoreExisting"
-        component={RestoreExistingScreen}
-        options={{ headerShown: true, title: "Restore" }}
-      />
-      <SetupStack.Screen
-        name="CreatePin"
-        component={CreatePinScreen}
-        options={{ headerShown: true, title: "Security" }}
-      />
-    </SetupStack.Navigator>
   );
 }
 
@@ -283,11 +250,11 @@ function StartupError({ message }: { message: string }) {
 /**
  * Chooses the top-level flow.
  *
- * Setup runs before the lock screen: a fresh install has no PIN yet, and the
- * restore path must be reachable without one.
+ * Login comes first: nothing is loaded until the server knows who is asking.
+ * The PIN lock is this device's own quick re-lock on top of that.
  */
 export default function RootNavigator() {
-  const { ready, startupError, settings, hasPin, locked, activeBranch } = useApp();
+  const { ready, startupError, user, hasPin, locked, activeBranch } = useApp();
 
   if (!ready) {
     return (
@@ -301,8 +268,8 @@ export default function RootNavigator() {
 
   return (
     <NavigationContainer theme={navTheme}>
-      {!settings.setupComplete ? (
-        <SetupFlow />
+      {!user ? (
+        <LoginScreen />
       ) : hasPin && locked ? (
         <LockScreen />
       ) : !activeBranch ? (

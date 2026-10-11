@@ -43,6 +43,8 @@ export interface BillDoc {
 export interface FeeYearDoc {
   studentId: string;
   year: string;
+  /** The inmate's branch, kept on the document so access can be checked by it. */
+  branchId?: string | null;
   bills?: Record<string, BillDoc>;
 }
 

@@ -65,13 +65,17 @@ export interface UserNs {
   can(name: string): Promise<boolean | null>;
   id(): Promise<string | null>;
   profiles(ids: readonly string[]): Promise<Record<string, { id: string; name: string; isMe: boolean }>>;
+  /** The one branch this person is limited to, or null for the admin. */
+  branchId?(): Promise<string | null>;
 }
 
 export interface AssetsNs {
   upload(
     blob: Blob,
-    options?: { type?: string }
+    options?: { type?: string; /** Folder to file it under, e.g. a branch's photos. */ folder?: string }
   ): Promise<{ id: string; url: string; sizeBytes: number; contentType: string }>;
+  /** Address a stored file can be shown or downloaded from. Absent where `/_blob/<id>` serves it. */
+  url?(id: string): Promise<string | null>;
   list(): Promise<{
     assets: { id: string; url: string; contentType: string; sizeBytes: number; createdAt: string }[];
     usage: { files: number; bytes: number; maxFiles: number; maxBytes: number };
@@ -92,7 +96,17 @@ interface CapabilityMap {
 
 type Use = (name: string) => Promise<unknown>;
 
+/** The backend the app was started with (Firebase); see src/backend. */
+let backend: { use: Use } | null = null;
+
+/** Installs the backend. Call before anything reads a capability. */
+export function setBackend(next: { use: Use }): void {
+  backend = next;
+  resolved.clear();
+}
+
 function runtime(): { use: Use } | null {
+  if (backend) return backend;
   const claude = (globalThis as { claude?: { use?: Use } }).claude;
   return claude && typeof claude.use === "function" ? (claude as { use: Use }) : null;
 }
@@ -130,7 +144,10 @@ export function describeError(error: unknown): string {
       return "Too many changes at once. Wait a few seconds and try again.";
     }
     if (code === "unavailable" || code === "store_unavailable") {
-      return "The connection to Claude storage dropped. Check your internet and try again.";
+      return "The connection to the server dropped. Check your internet and try again.";
+    }
+    if (code === "permission_denied") {
+      return "This login is not allowed to do that.";
     }
     if (code === "revoked" || code === "not_granted") {
       return "This account no longer has access to the hostel records.";

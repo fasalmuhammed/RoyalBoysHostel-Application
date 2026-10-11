@@ -32,7 +32,6 @@ export default function NotificationsScreen({ navigation }: Props) {
 
   const go = (action: FeedAlert["action"]) => {
     if (action === "fees") navigation.navigate("Tabs", { screen: "Fees" });
-    else if (action === "backup") navigation.navigate("Backup");
     else if (action === "inmates")
       navigation.navigate("Tabs", { screen: "Inmates", params: { filter: "unassigned" } });
     else if (action === "notices") navigation.navigate("Notices");

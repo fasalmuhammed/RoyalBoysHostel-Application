@@ -7,6 +7,7 @@ import type { BottomTabScreenProps } from "@react-navigation/bottom-tabs";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 
 import { Badge, Card } from "@/components/Base";
+import { SegmentedTabs } from "@/components/Controls";
 import Avatar from "@/components/Avatar";
 import {
   HIT_TARGET,
@@ -36,7 +37,7 @@ type Props = CompositeScreenProps<
 const DUE_PREVIEW = 4;
 
 export default function DashboardScreen({ navigation }: Props) {
-  const { settings, activeBranch } = useApp();
+  const { settings, activeBranch, access, branches, chooseBranch } = useApp();
   const period = currentPeriod();
 
   const { data, loading, reload } = useAsyncData(async () => {
@@ -49,10 +50,6 @@ export default function DashboardScreen({ navigation }: Props) {
     return { inmates, occupancy, fees, due };
   }, [period]);
 
-  const backupAgeDays = settings.lastBackupAt
-    ? Math.floor((Date.now() - settings.lastBackupAt) / 86_400_000)
-    : null;
-  const backupOverdue = backupAgeDays === null || backupAgeDays >= settings.backupReminderDays;
   const symbol = settings.currencySymbol;
 
   return (
@@ -83,27 +80,22 @@ export default function DashboardScreen({ navigation }: Props) {
           />
         </View>
 
+        {/* The admin runs both hostels and switches between them here; a manager has only their own. */}
+        {access.isOwner && branches.length > 1 ? (
+          <View style={styles.branchSwitch}>
+            <SegmentedTabs
+              options={branches.map((branch) => ({ key: branch.id, label: branch.shortName || branch.name }))}
+              value={activeBranch?.id ?? branches[0].id}
+              onChange={(branchId) => void chooseBranch(branchId)}
+            />
+          </View>
+        ) : null}
+
         {loading && !data ? (
           <DashboardSkeleton />
         ) : (
           <>
             {/* Critical first: things that cost the admin money or data if ignored. */}
-            {backupOverdue ? (
-              <FadeIn>
-                <AlertRow
-                  tone="warning"
-                  icon="cloud-upload-outline"
-                  title={
-                    backupAgeDays === null
-                      ? "No backup yet"
-                      : `Last backup ${backupAgeDays} days ago`
-                  }
-                  body="Download a backup file so a copy exists outside Claude storage."
-                  onPress={() => navigation.navigate("Backup")}
-                />
-              </FadeIn>
-            ) : null}
-
             {data && data.due.length > 0 ? (
               <FadeIn index={1}>
                 <AlertRow
@@ -169,11 +161,6 @@ export default function DashboardScreen({ navigation }: Props) {
                 onPress={() => navigation.navigate("Dues")}
               />
               <QuickActionTile
-                label="Raise bills"
-                icon="receipt-outline"
-                onPress={() => navigation.navigate("GenerateInvoices")}
-              />
-              <QuickActionTile
                 label="Complaints"
                 icon="construct-outline"
                 onPress={() => navigation.navigate("Complaints")}
@@ -192,11 +179,6 @@ export default function DashboardScreen({ navigation }: Props) {
                 label="Reports"
                 icon="bar-chart-outline"
                 onPress={() => navigation.navigate("Reports")}
-              />
-              <QuickActionTile
-                label="Backup"
-                icon="cloud-upload-outline"
-                onPress={() => navigation.navigate("Backup")}
               />
             </View>
 
@@ -535,6 +517,7 @@ function greeting(): string {
 }
 
 const styles = StyleSheet.create({
+  branchSwitch: { marginBottom: spacing.md },
   screen: { flex: 1, backgroundColor: colors.background },
   content: {
     paddingHorizontal: spacing.lg,

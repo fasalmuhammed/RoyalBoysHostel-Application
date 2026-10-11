@@ -14,7 +14,7 @@ import { useApp } from "@/context/AppContext";
 import { useAsyncData } from "@/utils/hooks";
 import { deleteInmate, getInmate, markLeft, reinstate } from "@/services/inmates";
 import { listFeesForStudent } from "@/services/fees";
-import { photoUri } from "@/services/photos";
+import { photoUrl, usePhotoUri } from "@/services/photos";
 import { formatInmateId } from "@/services/branches";
 import { formatDate, formatMoney, formatPeriod, relativeDays } from "@/utils/format";
 import type { RootStackParamList } from "@/navigation/types";
@@ -81,7 +81,7 @@ export default function InmateDetailScreen({ navigation, route }: Props) {
   };
 
   const downloadImage = async (fileName: string | null, label: string) => {
-    const uri = photoUri(fileName);
+    const uri = await photoUrl(fileName);
     if (!uri) return;
     try {
       if (await Sharing.isAvailableAsync()) {
@@ -363,7 +363,7 @@ function DocumentRow({
   fileName: string | null;
   onDownload: () => void;
 }) {
-  const uri = photoUri(fileName);
+  const uri = usePhotoUri(fileName);
   return (
     <View style={styles.documentRow}>
       {uri ? (
