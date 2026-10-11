@@ -71,13 +71,6 @@ export default function MoreScreen({ navigation }: Props) {
         {access.canEdit ? (
           <View style={styles.group}>
             <Row
-              tone="info"
-              icon="speedometer-outline"
-              label="Admin panel"
-              sublabel="Every record across both hostels, live"
-              onPress={() => navigation.navigate("AdminPanel")}
-            />
-            <Row
               icon="people-circle-outline"
               label="Logins"
               sublabel="Manager logins, passwords and access"

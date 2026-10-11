@@ -1,8 +1,8 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { ScrollView, StyleSheet, Text, View } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { StyleSheet, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import type { NativeStackScreenProps } from "@react-navigation/native-stack";
+import { useNavigation } from "@react-navigation/native";
+import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 
 import Avatar from "@/components/Avatar";
 import { Badge, Callout, CalloutText, Card, EmptyState } from "@/components/Base";
@@ -31,10 +31,7 @@ import {
 import { listBatches } from "@/services/messaging";
 import { formatDate, formatDateTime, formatMoney, formatPeriod, toPeriod } from "@/utils/format";
 import { capability } from "@/web/runtime";
-import { useWideFrame } from "@/web/frame";
 import type { MessageBatchSummary } from "@/types";
-
-type Props = NativeStackScreenProps<RootStackParamList, "AdminPanel">;
 
 type Tab = "activity" | "inmates" | "rooms" | "fees" | "payments" | "complaints" | "notices" | "messages";
 
@@ -209,8 +206,13 @@ function buildModel() {
   };
 }
 
-export default function AdminPanelScreen({ navigation }: Props) {
-  useWideFrame();
+/**
+ * Both hostels at once, for the admin: totals side by side, a live feed of
+ * who changed what, and every record in one searchable place. Shown on the
+ * dashboard when the hostel switch is set to "Both".
+ */
+export default function BothHostelsOverview() {
+  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const { dataVersion, settings, chooseBranch, syncProblem } = useApp();
   const [tab, setTab] = useState<Tab>("activity");
   const [query, setQuery] = useState("");
@@ -298,8 +300,8 @@ export default function AdminPanelScreen({ navigation }: Props) {
   const shown = filtered[tab].length;
 
   return (
-    <SafeAreaView style={styles.screen} edges={["left", "right", "bottom"]}>
-      <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+    <View>
+      <View>
         <View style={styles.liveRow}>
           <View style={[styles.liveDot, syncProblem ? styles.liveDotOff : null]} />
           <Text style={styles.liveText}>
@@ -545,8 +547,8 @@ export default function AdminPanelScreen({ navigation }: Props) {
             Showing the first {ROW_LIMIT} of {shown}. Search to narrow the list.
           </Text>
         ) : null}
-      </ScrollView>
-    </SafeAreaView>
+      </View>
+    </View>
   );
 }
 
@@ -573,8 +575,6 @@ function SummaryCard({
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: colors.background },
-  content: { padding: spacing.lg, paddingBottom: spacing.xl * 2 },
   liveRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm, marginBottom: spacing.md },
   liveDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.success },
   liveDotOff: { backgroundColor: colors.warning },

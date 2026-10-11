@@ -21,7 +21,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
 const SETTINGS_DOC = "settings";
 const PER_DEVICE: (keyof AppSettings)[] = ["activeBranchId"];
 const LOCAL_PREFIX = "hostel.setting.";
-/** Changes worth showing in the admin panel's activity feed. */
+/** Changes worth showing in the activity feed of the both-hostels view. */
 const NOTEWORTHY: (keyof AppSettings)[] = ["hostelName", "countryCode", "currencySymbol", "backupReminderDays"];
 
 function readLocal(key: string): unknown {

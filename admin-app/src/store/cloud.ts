@@ -48,7 +48,7 @@ const SUBSCRIBED: CollectionName[] = [
   "applications",
 ];
 
-/** How many days of the activity feed the admin panel keeps live. */
+/** How many days of the activity feed the both-hostels view keeps live. */
 export const ACTIVITY_DAYS = 14;
 
 const collections = new Map<CollectionName, Map<string, DocData>>();
@@ -521,7 +521,7 @@ function activityCutoff(): string {
 }
 
 /**
- * Records a change for the admin panel's live activity feed.
+ * Records a change for the live activity feed of the both-hostels view.
  *
  * One document per day holds that day's events as a map, so the feed costs a
  * handful of documents rather than one per change. Best-effort: a failure

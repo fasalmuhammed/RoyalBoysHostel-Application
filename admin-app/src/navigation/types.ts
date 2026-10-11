@@ -48,7 +48,6 @@ export type RootStackParamList = {
   Notifications: undefined;
   Search: undefined;
 
-  AdminPanel: undefined;
   Staff: undefined;
 
   Admissions: undefined;

@@ -17,7 +17,6 @@ import MoreScreen from "@/screens/MoreScreen";
 import SettingsScreen from "@/screens/SettingsScreen";
 import ReportsScreen from "@/screens/ReportsScreen";
 import NotificationsScreen from "@/screens/NotificationsScreen";
-import AdminPanelScreen from "@/screens/AdminPanelScreen";
 import StaffScreen from "@/screens/StaffScreen";
 import AdmissionsScreen from "@/screens/admissions/AdmissionsScreen";
 import AdmissionReviewScreen from "@/screens/admissions/AdmissionReviewScreen";
@@ -222,11 +221,6 @@ function MainStack() {
         options={{ ...detailOptions, title: "Search" }}
       />
 
-      <Stack.Screen
-        name="AdminPanel"
-        component={AdminPanelScreen}
-        options={{ ...detailOptions, title: "Admin panel" }}
-      />
       <Stack.Screen
         name="Admissions"
         component={AdmissionsScreen}

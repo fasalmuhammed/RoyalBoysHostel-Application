@@ -25,7 +25,7 @@ const AUTO_LOCK_MS = 2 * 60 * 1000;
 
 /** What the signed-in login may do, as the server decides it. */
 export interface Access {
-  /** The admin: both hostels, the admin panel, staff, settings and backups. */
+  /** The admin: both hostels, the both-hostels view, logins and settings. */
   isOwner: boolean;
   /** Same as isOwner; kept for the screens that ask "may this person administer?". */
   canEdit: boolean;

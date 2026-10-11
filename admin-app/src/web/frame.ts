@@ -7,8 +7,8 @@ import { WEB_FRAME_WIDTH } from "@/constants/theme";
  * Width of the column the app is drawn in on a wide screen.
  *
  * The app is laid out for phones, so on a laptop it sits in a phone-width
- * column. The admin panel is the exception: it lists every record and asks
- * for a wide column while it is on screen.
+ * column. The dashboard's "Both hostels" view is the exception: it lists every
+ * record and asks for a wide column while it is on screen.
  */
 export const WIDE_FRAME_WIDTH = 1180;
 
@@ -34,12 +34,12 @@ export function useFrameWidth(): number {
   return isWide ? WIDE_FRAME_WIDTH : WEB_FRAME_WIDTH;
 }
 
-/** Called by a screen that wants the wide column while it is focused. */
-export function useWideFrame(): void {
+/** Called by a screen that wants the wide column while it is focused and `on` is true. */
+export function useWideFrame(on = true): void {
   useFocusEffect(
     useCallback(() => {
-      setWide(true);
+      setWide(on);
       return () => setWide(false);
-    }, [])
+    }, [on])
   );
 }
