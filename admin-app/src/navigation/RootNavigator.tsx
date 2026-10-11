@@ -4,6 +4,7 @@ import { NavigationContainer, DefaultTheme } from "@react-navigation/native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { Ionicons } from "@expo/vector-icons";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { colors, font, fontSize, spacing } from "@/constants/theme";
 import { useApp } from "@/context/AppContext";
@@ -17,6 +18,7 @@ import SettingsScreen from "@/screens/SettingsScreen";
 import ReportsScreen from "@/screens/ReportsScreen";
 import NotificationsScreen from "@/screens/NotificationsScreen";
 import AdminPanelScreen from "@/screens/AdminPanelScreen";
+import StaffScreen from "@/screens/StaffScreen";
 import SearchScreen from "@/screens/SearchScreen";
 import ChangePinScreen from "@/screens/ChangePinScreen";
 
@@ -74,7 +76,7 @@ const TAB_ICONS: Record<keyof MainTabParamList, keyof typeof Ionicons.glyphMap> 
 
 /**
  * The active tab is marked by a filled icon as well as colour, so the current
- * position is still readable to someone who cannot separate the violet from
+ * position is still readable to someone who cannot separate the blue from
  * the grey.
  */
 const TAB_ICONS_ACTIVE: Record<keyof MainTabParamList, keyof typeof Ionicons.glyphMap> = {
@@ -86,6 +88,7 @@ const TAB_ICONS_ACTIVE: Record<keyof MainTabParamList, keyof typeof Ionicons.gly
 };
 
 function MainTabs() {
+  const insets = useSafeAreaInsets();
   return (
     <Tab.Navigator
       screenOptions={({ route }) => ({
@@ -96,12 +99,14 @@ function MainTabs() {
           backgroundColor: colors.surface,
           borderTopColor: colors.border,
           borderTopWidth: StyleSheet.hairlineWidth,
-          // Height comes from the safe-area-aware default; only the breathing
-          // room around the icons is set here, so a gesture-bar phone and a
-          // button-navigation phone both sit correctly.
-          paddingTop: 8,
+          // Tall enough for the icon and its label, plus whatever the phone
+          // reserves at the bottom (gesture bar or navigation buttons).
+          height: 68 + insets.bottom,
+          paddingTop: 6,
+          paddingBottom: 6 + insets.bottom,
         },
         tabBarLabelStyle: { fontSize: fontSize.xs, fontFamily: font.semibold },
+        tabBarLabel: route.name === "Dashboard" ? "Home" : route.name === "Inmates" ? "Inmates" : route.name,
         tabBarIcon: ({ color, size, focused }) => (
           <Ionicons
             name={focused ? TAB_ICONS_ACTIVE[route.name] : TAB_ICONS[route.name]}
@@ -218,6 +223,11 @@ function MainStack() {
         name="AdminPanel"
         component={AdminPanelScreen}
         options={{ ...detailOptions, title: "Admin panel" }}
+      />
+      <Stack.Screen
+        name="Staff"
+        component={StaffScreen}
+        options={{ ...detailOptions, title: "Logins" }}
       />
       <Stack.Screen
         name="Reports"

@@ -12,6 +12,8 @@
  */
 import { Platform } from "react-native";
 import { FirebaseApp, FirebaseOptions, initializeApp } from "firebase/app";
+import { connectFunctionsEmulator, getFunctions, httpsCallable } from "firebase/functions";
+import { EmailAuthProvider, reauthenticateWithCredential, updatePassword } from "firebase/auth";
 import {
   Auth,
   User,
@@ -335,6 +337,10 @@ export interface FirebaseBackend {
   signIn(username: string, password: string): Promise<Session>;
   signOut(): Promise<void>;
   onSession(listener: (session: Session | null) => void): () => void;
+  /** Asks the server to do something the app may not do itself (managing logins). */
+  call<T = unknown>(name: string, data: Record<string, unknown>): Promise<T>;
+  /** Changes the signed-in login's own password, after proving the current one. */
+  changePassword(current: string, next: string): Promise<void>;
 }
 
 export class LoginError extends Error {}
@@ -362,6 +368,9 @@ export function createFirebaseBackend(options: BackendOptions): FirebaseBackend 
     connectAuthEmulator(auth, `http://${options.emulatorHost}:9099`, { disableWarnings: true });
     connectFirestoreEmulator(firestore, options.emulatorHost, 8080);
   }
+  // Mumbai, where the server functions run.
+  const functions = getFunctions(app, "asia-south1");
+  if (options.emulatorHost) connectFunctionsEmulator(functions, options.emulatorHost, 5001);
 
   const db = makeDb(firestore);
   let current: Session | null = null;
@@ -460,6 +469,32 @@ export function createFirebaseBackend(options: BackendOptions): FirebaseBackend 
     storage,
     ready: () => whenReady,
     session: () => current,
+    async call<T>(name: string, data: Record<string, unknown>): Promise<T> {
+      try {
+        const result = await httpsCallable(functions, name)(data);
+        return result.data as T;
+      } catch (error) {
+        const { code = "", message = "" } = error as { code?: string; message?: string };
+        if (code.includes("unavailable") || code.includes("internal") || code.includes("deadline")) {
+          throw new Error("Could not reach the server. Check the internet connection and try again.");
+        }
+        // The server words its refusals for the person reading them.
+        throw new Error(message || "That could not be done. Try again.");
+      }
+    },
+    async changePassword(currentPassword: string, next: string): Promise<void> {
+      const user = auth.currentUser;
+      if (!user || !user.email) throw new LoginError("Log in again first.");
+      try {
+        await reauthenticateWithCredential(user, EmailAuthProvider.credential(user.email, currentPassword));
+      } catch (error) {
+        const code = (error as { code?: string }).code ?? "";
+        if (code.includes("network")) throw new LoginError("No internet connection. Check it and try again.");
+        if (code.includes("too-many-requests")) throw new LoginError("Too many attempts. Wait a few minutes and try again.");
+        throw new LoginError("The current password is not right.");
+      }
+      await updatePassword(user, next);
+    },
     async signIn(username, password) {
       let credential;
       try {

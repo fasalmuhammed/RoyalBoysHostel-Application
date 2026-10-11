@@ -50,10 +50,10 @@ export default function App() {
    * this is brief, and matching the splash colour makes the handoff invisible.
    *
    * `fontError` counts as ready on purpose -- a font that fails to load must
-   * never leave the admin staring at a blank violet screen.
+   * never leave the admin staring at a blank coloured screen.
    */
   if (!fontsLoaded && !fontError) {
-    return <View style={{ flex: 1, backgroundColor: colors.primary }} />;
+    return <View style={{ flex: 1, backgroundColor: colors.primaryDark }} />;
   }
 
   return (

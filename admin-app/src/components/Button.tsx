@@ -77,17 +77,22 @@ const styles = StyleSheet.create({
   base: {
     paddingVertical: spacing.md - 2,
     paddingHorizontal: spacing.md,
-    borderRadius: radius.md,
+    borderRadius: radius.md + 2,
     alignItems: "center",
     justifyContent: "center",
-    minHeight: HIT_TARGET + 4,
+    minHeight: HIT_TARGET + 8,
   },
   compact: { paddingVertical: spacing.sm, minHeight: HIT_TARGET - 6, paddingHorizontal: spacing.md },
   content: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
-  primary: { backgroundColor: colors.primary, ...shadow.card },
+  primary: {
+    backgroundColor: colors.primary,
+    ...shadow.card,
+    shadowColor: colors.primary,
+    shadowOpacity: 0.28,
+  },
   // A hairline neutral border reads as a secondary action; a heavy coloured
   // outline competes with the primary button sitting next to it.
-  secondary: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.borderStrong },
+  secondary: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border },
   ghost: { backgroundColor: "transparent" },
   danger: { backgroundColor: colors.danger },
   disabled: { opacity: 0.45 },

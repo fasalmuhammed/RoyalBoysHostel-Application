@@ -7,9 +7,9 @@ import type { CompositeScreenProps } from "@react-navigation/native";
 import type { BottomTabScreenProps } from "@react-navigation/bottom-tabs";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 
-import { colors, fontSize, radius, spacing, type } from "@/constants/theme";
+import { Tone, colors, fontSize, radius, shadow, spacing, toneColor, type } from "@/constants/theme";
 import { useApp } from "@/context/AppContext";
-import { formatDateTime } from "@/utils/format";
+import { initials } from "@/utils/format";
 import type { MainTabParamList, RootStackParamList } from "@/navigation/types";
 
 type Props = CompositeScreenProps<
@@ -18,47 +18,76 @@ type Props = CompositeScreenProps<
 >;
 
 export default function MoreScreen({ navigation }: Props) {
-  const { settings, lock, activeBranch, clearBranch, access, user, signOut } = useApp();
+  const { lock, activeBranch, branches, chooseBranch, access, user, signOut, hasPin } = useApp();
   // A manager works in one hostel; only the admin can switch.
-  const canSwitch = !access.branchId;
+  const canSwitch = !access.branchId && branches.length > 1;
+  /** With two hostels, "Switch" simply goes to the other one. */
+  const switchBranch = () => {
+    const index = branches.findIndex((b) => b.id === activeBranch?.id);
+    const next = branches[(index + 1) % branches.length];
+    if (next) void chooseBranch(next.id);
+  };
+  const displayName = user?.name || user?.username || "";
 
   return (
     <SafeAreaView style={styles.screen} edges={["top", "left", "right"]}>
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <Text style={styles.title}>More</Text>
 
-        <Pressable style={styles.branchCard} onPress={clearBranch} disabled={!canSwitch}>
-          <View style={styles.branchBadge}>
-            <Text style={styles.branchBadgeText}>{activeBranch?.code ?? "?"}</Text>
-          </View>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.branchLabel}>Operating</Text>
-            <Text style={styles.branchName} numberOfLines={1}>
-              {activeBranch?.name ?? "No branch selected"}
-            </Text>
-          </View>
-          {canSwitch ? (
-            <View style={styles.switchPill}>
-              <Ionicons name="swap-horizontal" size={14} color={colors.primary} />
-              <Text style={styles.switchPillText}>Switch</Text>
+        <View style={styles.profile}>
+          <View style={styles.profileTop}>
+            <View style={styles.profileAvatar}>
+              <Text style={styles.profileInitials}>{initials(displayName || "?")}</Text>
             </View>
-          ) : null}
-        </Pressable>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.profileName} numberOfLines={1}>
+                {displayName}
+              </Text>
+              <Text style={styles.profileRole} numberOfLines={1}>
+                {access.isOwner ? "Admin · both hostels" : "Branch manager"}
+              </Text>
+            </View>
+          </View>
+          <Pressable style={styles.branchRow} onPress={switchBranch} disabled={!canSwitch}>
+            <Ionicons name="business-outline" size={17} color={colors.goldLight} />
+            <View style={{ flex: 1 }}>
+              <Text style={styles.branchLabel}>Operating</Text>
+              <Text style={styles.branchName} numberOfLines={1}>
+                {activeBranch?.name ?? "No hostel selected"}
+              </Text>
+            </View>
+            {canSwitch ? (
+              <View style={styles.switchPill}>
+                <Ionicons name="swap-horizontal" size={14} color={colors.primaryDark} />
+                <Text style={styles.switchPillText}>Switch</Text>
+              </View>
+            ) : null}
+          </Pressable>
+        </View>
 
         {access.canEdit ? (
           <View style={styles.group}>
             <Row
+              tone="info"
               icon="speedometer-outline"
               label="Admin panel"
               sublabel="Every record across both hostels, live"
               onPress={() => navigation.navigate("AdminPanel")}
+            />
+            <Row
+              icon="people-circle-outline"
+              label="Logins"
+              sublabel="Manager logins, passwords and access"
+              onPress={() => navigation.navigate("Staff")}
               last
             />
           </View>
         ) : null}
 
+        <Text style={styles.groupLabel}>DAY TO DAY</Text>
         <View style={styles.group}>
           <Row
+            tone="danger"
             icon="alarm-outline"
             label="Dues & collections"
             sublabel="Who owes what, today and this week"
@@ -77,6 +106,7 @@ export default function MoreScreen({ navigation }: Props) {
             onPress={() => navigation.navigate("Notifications")}
           />
           <Row
+            tone="warning"
             icon="construct-outline"
             label="Complaints"
             sublabel="Track maintenance issues to resolved"
@@ -89,6 +119,7 @@ export default function MoreScreen({ navigation }: Props) {
             onPress={() => navigation.navigate("Notices")}
           />
           <Row
+            tone="success"
             icon="logo-whatsapp"
             label="WhatsApp messages"
             sublabel="Announcements and fee reminders"
@@ -103,15 +134,18 @@ export default function MoreScreen({ navigation }: Props) {
           />
         </View>
 
+        <Text style={styles.groupLabel}>THIS DEVICE</Text>
         <View style={styles.group}>
           <Row
+            tone="neutral"
             icon="settings-outline"
             label="Settings"
             sublabel={access.isOwner ? "Hostel details, PIN and app lock" : "PIN and app lock"}
             onPress={() => navigation.navigate("Settings")}
           />
-          <Row icon="lock-closed-outline" label="Lock the app now" onPress={lock} />
+          {hasPin ? <Row tone="neutral" icon="lock-closed-outline" label="Lock the app now" onPress={lock} /> : null}
           <Row
+            tone="danger"
             icon="log-out-outline"
             label="Log out"
             sublabel={user ? `Signed in as ${user.name || user.username}` : undefined}
@@ -135,32 +169,36 @@ function Row({
   sublabel,
   onPress,
   last,
-  warn,
+  tone,
 }: {
   icon: keyof typeof Ionicons.glyphMap;
   label: string;
   sublabel?: string;
   onPress: () => void;
   last?: boolean;
-  warn?: boolean;
+  /** Colours the icon tile; the default is the brand blue. */
+  tone?: Tone;
 }) {
+  const tint = tone ? toneColor[tone] : { fg: colors.primary, bg: colors.primaryLight };
   return (
     <Pressable
       onPress={onPress}
-      style={({ pressed }) => [styles.row, !last && styles.rowBorder, pressed && styles.rowPressed]}
+      style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
     >
-      <View style={[styles.rowIcon, warn && { backgroundColor: colors.warningBg }]}>
-        <Ionicons name={icon} size={19} color={warn ? colors.warning : colors.primary} />
+      <View style={[styles.rowIcon, { backgroundColor: tint.bg }]}>
+        <Ionicons name={icon} size={19} color={tint.fg} />
       </View>
-      <View style={{ flex: 1 }}>
-        <Text style={styles.rowLabel}>{label}</Text>
-        {sublabel ? (
-          <Text style={[styles.rowSublabel, warn && { color: colors.warning }]} numberOfLines={1}>
-            {sublabel}
-          </Text>
-        ) : null}
+      <View style={[styles.rowBody, !last && styles.rowBorder]}>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.rowLabel}>{label}</Text>
+          {sublabel ? (
+            <Text style={styles.rowSublabel} numberOfLines={1}>
+              {sublabel}
+            </Text>
+          ) : null}
+        </View>
+        <Ionicons name="chevron-forward" size={17} color={colors.textFaint} />
       </View>
-      <Ionicons name="chevron-forward" size={17} color={colors.textFaint} />
     </Pressable>
   );
 }
@@ -168,40 +206,63 @@ function Row({
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.background },
   content: { padding: spacing.lg, paddingBottom: spacing.xl * 2 },
-  title: { ...type.title, color: colors.text, marginBottom: spacing.lg },
-  branchCard: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.md,
-    backgroundColor: colors.surface,
-    borderRadius: radius.lg,
+  title: { ...type.title, color: colors.text, marginBottom: spacing.md },
+
+  profile: {
+    backgroundColor: colors.primaryDark,
+    borderRadius: radius.xl,
     padding: spacing.md,
     marginBottom: spacing.lg,
+    gap: spacing.md,
+    ...shadow.card,
   },
-  branchBadge: {
-    width: 44,
-    height: 44,
-    borderRadius: radius.md,
-    backgroundColor: colors.primaryDark,
+  profileTop: { flexDirection: "row", alignItems: "center", gap: spacing.md },
+  profileAvatar: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: colors.glass,
+    borderWidth: 1,
+    borderColor: colors.glassBorder,
     alignItems: "center",
     justifyContent: "center",
   },
-  branchBadgeText: { color: colors.goldLight, ...type.section },
-  branchLabel: { fontSize: fontSize.xs, color: colors.textMuted },
-  branchName: { ...type.bodyStrong, color: colors.text, marginTop: 1 },
+  profileInitials: { ...type.section, color: colors.goldLight },
+  profileName: { ...type.section, color: colors.onDark },
+  profileRole: { ...type.support, color: colors.onDarkMuted, marginTop: 1 },
+  branchRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm + 2,
+    backgroundColor: colors.glass,
+    borderRadius: radius.md,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm + 2,
+  },
+  branchLabel: { fontSize: fontSize.xs, color: colors.onDarkMuted },
+  branchName: { ...type.bodyStrong, color: colors.onDark, marginTop: 1 },
   switchPill: {
     flexDirection: "row",
     alignItems: "center",
     gap: spacing.xs,
-    backgroundColor: colors.primaryLight,
+    backgroundColor: colors.surface,
     borderRadius: radius.pill,
-    paddingHorizontal: spacing.sm + 2,
-    paddingVertical: 5,
+    paddingHorizontal: spacing.sm + 4,
+    paddingVertical: 6,
   },
-  switchPillText: { ...type.label, color: colors.primary },
+  switchPillText: { ...type.label, color: colors.primaryDark },
+
+  groupLabel: {
+    ...type.label,
+    color: colors.textFaint,
+    marginBottom: spacing.sm,
+    marginLeft: spacing.xs,
+  },
   group: {
     backgroundColor: colors.surface,
     borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
     marginBottom: spacing.lg,
     overflow: "hidden",
   },
@@ -209,16 +270,23 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: spacing.md,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.md - 2,
+    paddingLeft: spacing.md,
+  },
+  rowBody: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    paddingRight: spacing.md,
+    paddingVertical: spacing.md - 1,
+    minHeight: 60,
   },
   rowBorder: { borderBottomWidth: 1, borderBottomColor: colors.border },
   rowPressed: { backgroundColor: colors.surfaceAlt },
   rowIcon: {
     width: 38,
     height: 38,
-    borderRadius: radius.sm,
-    backgroundColor: colors.primaryLight,
+    borderRadius: radius.md,
     alignItems: "center",
     justifyContent: "center",
   },
@@ -229,6 +297,6 @@ const styles = StyleSheet.create({
     color: colors.textFaint,
     textAlign: "center",
     lineHeight: 17,
-    marginTop: spacing.md,
+    marginTop: spacing.sm,
   },
 });

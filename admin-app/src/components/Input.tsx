@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import {
+  Platform,
   Pressable,
   StyleSheet,
   Text,
@@ -132,7 +133,7 @@ const styles = StyleSheet.create({
   label: {
     ...type.support,
     fontFamily: type.bodyStrong.fontFamily,
-    color: colors.textMuted,
+    color: colors.text,
     marginBottom: spacing.xs + 2,
   },
   required: { color: colors.danger },
@@ -143,10 +144,10 @@ const styles = StyleSheet.create({
     // on every field makes a form look like a spreadsheet.
     borderWidth: 1,
     borderColor: colors.border,
-    borderRadius: radius.md,
+    borderRadius: radius.md + 2,
     backgroundColor: colors.surface,
     paddingHorizontal: spacing.md,
-    minHeight: HIT_TARGET + 6,
+    minHeight: HIT_TARGET + 8,
   },
   fieldMultiline: { alignItems: "flex-start", paddingVertical: spacing.sm },
   fieldFocused: { borderColor: colors.primary, borderWidth: 1.5 },
@@ -157,6 +158,8 @@ const styles = StyleSheet.create({
     ...type.body,
     color: colors.text,
     paddingVertical: spacing.sm + 2,
+    // The field draws its own focus border; a browser adds a second ring.
+    ...(Platform.OS === "web" ? ({ outlineStyle: "none" } as object) : null),
   },
   inputMultiline: { minHeight: 96, textAlignVertical: "top" },
   error: { ...type.support, color: colors.danger, marginTop: spacing.xs },

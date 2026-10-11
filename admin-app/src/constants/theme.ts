@@ -1,7 +1,7 @@
 import { Dimensions, PixelRatio, Platform } from "react-native";
 
 /**
- * Design tokens. Palette follows the approved mockup: a violet primary on a
+ * Design tokens. A royal-blue primary and a navy header on a cool
  * near-white canvas, with semantic tones reused for every status pill so a
  * colour always means the same thing across Students / Rooms / Fees.
  *
@@ -62,40 +62,47 @@ export function scaleSpace(size: number): number {
   return PixelRatio.roundToNearestPixel(size * spaceFactor);
 }
 export const colors = {
-  /** Violet from the approved mockup: buttons, links, active tabs. */
-  primary: "#6D4AFC",
-  /** Deeper violet for hero panels, the greeting banner and the splash. */
-  primaryDark: "#5433E0",
+  /** Royal blue: buttons, links, active tabs. */
+  primary: "#2F55E8",
+  /** Deep navy for the dashboard header, hero panels and the splash. */
+  primaryDark: "#0F1B45",
+  /** A step lighter than the navy, for shapes drawn on top of it. */
+  primaryDeep: "#1B2C6B",
   /** Tint behind icons and chips. */
-  primaryLight: "#EEE9FF",
+  primaryLight: "#EAF0FF",
   primaryOn: "#FFFFFF",
+  /** Text on the navy header. */
+  onDark: "#FFFFFF",
+  onDarkMuted: "rgba(255, 255, 255, 0.68)",
+  /** Translucent fill for buttons and tracks sitting on the navy. */
+  glass: "rgba(255, 255, 255, 0.12)",
+  glassBorder: "rgba(255, 255, 255, 0.16)",
 
   /** Gold from the app icon, kept for branch badges and other brand accents. */
   gold: "#B98A32",
-  goldLight: "#E7BF75",
+  goldLight: "#F0C97A",
   goldBg: "#FBF2E0",
 
-  background: "#F6F6F9",
+  background: "#F3F5FA",
   surface: "#FFFFFF",
-  surfaceAlt: "#FAFAFD",
+  surfaceAlt: "#F8FAFD",
 
-  text: "#14142B",
-  textMuted: "#6E6D8A",
-  textFaint: "#9B9AB0",
-  border: "#E9E8F0",
-  borderStrong: "#D8D6E4",
+  text: "#0F172A",
+  textMuted: "#5A6478",
+  textFaint: "#97A1B4",
+  border: "#E5E9F1",
+  borderStrong: "#CFD6E3",
 
-  success: "#16A34A",
-  successBg: "#E8F7EE",
+  success: "#0E9F6E",
+  successBg: "#E3F7EF",
   warning: "#D97706",
   warningBg: "#FDF3E3",
   danger: "#DC2626",
   dangerBg: "#FDECEC",
-  /** Blue reads clearly again now the primary is violet rather than navy. */
-  info: "#2563EB",
-  infoBg: "#E8F0FE",
+  info: "#0284C7",
+  infoBg: "#E3F3FC",
 
-  overlay: "rgba(20, 20, 43, 0.45)",
+  overlay: "rgba(15, 23, 42, 0.5)",
 } as const;
 
 export const spacing = {
@@ -223,21 +230,21 @@ export const type = {
 export const shadow = {
   /** Barely-there lift for list rows and inline surfaces. */
   subtle: {
-    shadowColor: "#14142B",
+    shadowColor: "#0F1B45",
     shadowOpacity: 0.04,
     shadowRadius: 6,
     shadowOffset: { width: 0, height: 2 },
     elevation: 1,
   },
   card: {
-    shadowColor: "#14142B",
-    shadowOpacity: 0.06,
+    shadowColor: "#0F1B45",
+    shadowOpacity: 0.07,
     shadowRadius: 12,
     shadowOffset: { width: 0, height: 4 },
     elevation: 2,
   },
   raised: {
-    shadowColor: "#14142B",
+    shadowColor: "#0F1B45",
     shadowOpacity: 0.12,
     shadowRadius: 18,
     shadowOffset: { width: 0, height: 8 },
@@ -253,5 +260,5 @@ export const toneColor: Record<Tone, { fg: string; bg: string }> = {
   warning: { fg: colors.warning, bg: colors.warningBg },
   danger: { fg: colors.danger, bg: colors.dangerBg },
   info: { fg: colors.info, bg: colors.infoBg },
-  neutral: { fg: colors.textMuted, bg: "#F0EFF5" },
+  neutral: { fg: colors.textMuted, bg: "#EEF1F6" },
 };

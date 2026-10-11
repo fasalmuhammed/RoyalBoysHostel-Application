@@ -1,13 +1,14 @@
 import React from "react";
 import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { StatusBar } from "expo-status-bar";
+import { useIsFocused } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
 import type { CompositeScreenProps } from "@react-navigation/native";
 import type { BottomTabScreenProps } from "@react-navigation/bottom-tabs";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 
 import { Badge, Card } from "@/components/Base";
-import { SegmentedTabs } from "@/components/Controls";
 import Avatar from "@/components/Avatar";
 import {
   HIT_TARGET,
@@ -37,7 +38,9 @@ type Props = CompositeScreenProps<
 const DUE_PREVIEW = 4;
 
 export default function DashboardScreen({ navigation }: Props) {
-  const { settings, activeBranch, access, branches, chooseBranch } = useApp();
+  const { settings, activeBranch, access, branches, chooseBranch, user } = useApp();
+  const insets = useSafeAreaInsets();
+  const focused = useIsFocused();
   const period = currentPeriod();
 
   const { data, loading, reload } = useAsyncData(async () => {
@@ -53,44 +56,69 @@ export default function DashboardScreen({ navigation }: Props) {
   const symbol = settings.currencySymbol;
 
   return (
-    <SafeAreaView style={styles.screen} edges={["top", "left", "right"]}>
+    <View style={styles.screen}>
+      {/* White clock and battery icons while the navy header is on screen. */}
+      {focused ? <StatusBar style="light" /> : null}
       <ScrollView
-        contentContainerStyle={styles.content}
+        contentContainerStyle={styles.scroll}
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl refreshing={loading && !!data} onRefresh={reload} tintColor={colors.primary} />
         }
       >
-        <View style={styles.header}>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.greeting}>{greeting()}</Text>
-            <Text style={styles.branchName} numberOfLines={1}>
-              {activeBranch?.name ?? settings.hostelName}
-            </Text>
-          </View>
-          <IconButton
-            icon="notifications-outline"
-            label="Notifications"
-            onPress={() => navigation.navigate("Notifications")}
-          />
-          <IconButton
-            icon="search-outline"
-            label="Search"
-            onPress={() => navigation.navigate("Search")}
-          />
-        </View>
+        <View style={[styles.hero, { paddingTop: insets.top + spacing.md }]}>
+          <View style={styles.heroGlowA} />
+          <View style={styles.heroGlowB} />
 
-        {/* The admin runs both hostels and switches between them here; a manager has only their own. */}
-        {access.isOwner && branches.length > 1 ? (
-          <View style={styles.branchSwitch}>
-            <SegmentedTabs
-              options={branches.map((branch) => ({ key: branch.id, label: branch.shortName || branch.name }))}
-              value={activeBranch?.id ?? branches[0].id}
-              onChange={(branchId) => void chooseBranch(branchId)}
+          <View style={styles.header}>
+            <View style={styles.brandBadge}>
+              <Text style={styles.brandBadgeText}>{activeBranch?.code ?? "R"}</Text>
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.greeting} numberOfLines={1}>
+                {greeting()}
+                {user?.name ? `, ${user.name.split(" ")[0]}` : ""}
+              </Text>
+              <Text style={styles.branchName} numberOfLines={1}>
+                {activeBranch?.name ?? settings.hostelName}
+              </Text>
+            </View>
+            <IconButton
+              icon="notifications-outline"
+              label="Notifications"
+              onPress={() => navigation.navigate("Notifications")}
+            />
+            <IconButton
+              icon="search-outline"
+              label="Search"
+              onPress={() => navigation.navigate("Search")}
             />
           </View>
-        ) : null}
 
+          {/* The admin runs both hostels and switches between them here; a manager has only their own. */}
+          {access.isOwner && branches.length > 1 ? (
+            <View style={styles.branchSwitch}>
+              {branches.map((branch) => {
+                const active = branch.id === activeBranch?.id;
+                return (
+                  <Pressable
+                    key={branch.id}
+                    onPress={() => void chooseBranch(branch.id)}
+                    style={[styles.branchOption, active && styles.branchOptionActive]}
+                    accessibilityRole="button"
+                    accessibilityState={{ selected: active }}
+                  >
+                    <Text style={[styles.branchOptionText, active && styles.branchOptionTextActive]} numberOfLines={1}>
+                      {branch.shortName || branch.name}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+          ) : null}
+        </View>
+
+        <View style={styles.content}>
         {loading && !data ? (
           <DashboardSkeleton />
         ) : (
@@ -110,6 +138,23 @@ export default function DashboardScreen({ navigation }: Props) {
                 />
               </FadeIn>
             ) : null}
+
+            <FadeIn index={2}>
+              <View style={styles.quickCard}>
+                <QuickActionTile label="Add inmate" icon="person-add" tint={colors.primary} bg={colors.primaryLight} onPress={() => navigation.navigate("InmateForm")} />
+                <QuickActionTile label="Add room" icon="bed" tint={colors.info} bg={colors.infoBg} onPress={() => navigation.navigate("RoomForm")} />
+                <QuickActionTile label="Dues" icon="alarm" tint={colors.danger} bg={colors.dangerBg} onPress={() => navigation.navigate("Dues")} />
+                <QuickActionTile label="WhatsApp" icon="logo-whatsapp" tint={colors.success} bg={colors.successBg} onPress={() => navigation.navigate("Messages")} />
+                <QuickActionTile label="Complaints" icon="construct" tint={colors.warning} bg={colors.warningBg} onPress={() => navigation.navigate("Complaints")} />
+                <QuickActionTile label="Notice" icon="megaphone" tint={colors.gold} bg={colors.goldBg} onPress={() => navigation.navigate("NoticeForm")} />
+                <QuickActionTile label="Reports" icon="bar-chart" tint={colors.info} bg={colors.infoBg} onPress={() => navigation.navigate("Reports")} />
+                {access.isOwner ? (
+                  <QuickActionTile label="Admin panel" icon="speedometer" tint={colors.primary} bg={colors.primaryLight} onPress={() => navigation.navigate("AdminPanel")} />
+                ) : (
+                  <QuickActionTile label="Notices" icon="newspaper" tint={colors.primary} bg={colors.primaryLight} onPress={() => navigation.navigate("Notices")} />
+                )}
+              </View>
+            </FadeIn>
 
             <FadeIn index={3}>
               <OccupancyCard
@@ -142,45 +187,6 @@ export default function DashboardScreen({ navigation }: Props) {
                 onPress={() => navigation.navigate("Tabs", { screen: "Fees" })}
               />
             </FadeIn>
-
-            <SectionHeading title="Quick actions" />
-            <View style={styles.quickGrid}>
-              <QuickActionTile
-                label="Add inmate"
-                icon="person-add-outline"
-                onPress={() => navigation.navigate("InmateForm")}
-              />
-              <QuickActionTile
-                label="Add room"
-                icon="add-circle-outline"
-                onPress={() => navigation.navigate("RoomForm")}
-              />
-              <QuickActionTile
-                label="Dues"
-                icon="alarm-outline"
-                onPress={() => navigation.navigate("Dues")}
-              />
-              <QuickActionTile
-                label="Complaints"
-                icon="construct-outline"
-                onPress={() => navigation.navigate("Complaints")}
-              />
-              <QuickActionTile
-                label="Notice"
-                icon="megaphone-outline"
-                onPress={() => navigation.navigate("NoticeForm")}
-              />
-              <QuickActionTile
-                label="WhatsApp"
-                icon="logo-whatsapp"
-                onPress={() => navigation.navigate("Messages")}
-              />
-              <QuickActionTile
-                label="Reports"
-                icon="bar-chart-outline"
-                onPress={() => navigation.navigate("Reports")}
-              />
-            </View>
 
             {data && data.due.length > 0 ? (
               <>
@@ -234,8 +240,9 @@ export default function DashboardScreen({ navigation }: Props) {
             ) : null}
           </>
         )}
+        </View>
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 }
 
@@ -258,7 +265,7 @@ function IconButton({
       accessibilityRole="button"
       accessibilityLabel={label}
     >
-      <Ionicons name={icon} size={19} color={colors.text} />
+      <Ionicons name={icon} size={19} color={colors.onDark} />
     </PressableScale>
   );
 }
@@ -468,10 +475,14 @@ function FooterStat({
 function QuickActionTile({
   label,
   icon,
+  tint,
+  bg,
   onPress,
 }: {
   label: string;
   icon: keyof typeof Ionicons.glyphMap;
+  tint: string;
+  bg: string;
   onPress: () => void;
 }) {
   return (
@@ -482,8 +493,8 @@ function QuickActionTile({
       accessibilityRole="button"
       accessibilityLabel={label}
     >
-      <View style={styles.quickTileIcon}>
-        <Ionicons name={icon} size={20} color={colors.primary} />
+      <View style={[styles.quickTileIcon, { backgroundColor: bg }]}>
+        <Ionicons name={icon} size={21} color={tint} />
       </View>
       <Text style={styles.quickTileLabel} numberOfLines={2}>
         {label}
@@ -496,15 +507,9 @@ function QuickActionTile({
 function DashboardSkeleton() {
   return (
     <View style={{ gap: spacing.md }}>
-      <Skeleton height={64} style={{ borderRadius: radius.lg }} />
+      <Skeleton height={176} style={{ borderRadius: radius.lg }} />
       <Skeleton height={168} style={{ borderRadius: radius.lg }} />
       <Skeleton height={168} style={{ borderRadius: radius.lg }} />
-      <Skeleton height={20} width="40%" />
-      <View style={styles.quickGrid}>
-        {Array.from({ length: 6 }).map((_, index) => (
-          <Skeleton key={index} height={92} style={styles.quickTileSkeleton} />
-        ))}
-      </View>
     </View>
   );
 }
@@ -517,33 +522,87 @@ function greeting(): string {
 }
 
 const styles = StyleSheet.create({
-  branchSwitch: { marginBottom: spacing.md },
   screen: { flex: 1, backgroundColor: colors.background },
+  scroll: { paddingBottom: spacing.xl * 2 },
   content: {
     paddingHorizontal: spacing.lg,
-    paddingTop: spacing.sm,
-    paddingBottom: spacing.xl * 2,
+    // The first card rides up over the bottom edge of the header.
+    marginTop: -spacing.xl,
     // A tablet's content column stays readable instead of stretching edge to edge.
     ...(layout.isTablet ? { maxWidth: 720, width: "100%" as const, alignSelf: "center" as const } : null),
   },
 
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.sm,
-    marginBottom: spacing.lg,
+  hero: {
+    backgroundColor: colors.primaryDark,
+    paddingHorizontal: spacing.lg,
+    paddingBottom: spacing.xl + spacing.lg,
+    borderBottomLeftRadius: radius.xl + 6,
+    borderBottomRightRadius: radius.xl + 6,
+    overflow: "hidden",
   },
-  greeting: { ...type.support, color: colors.textMuted },
-  branchName: { ...type.title, color: colors.text, marginTop: 2 },
-  iconButton: {
+  // Two soft shapes give the flat navy some depth without a gradient library.
+  heroGlowA: {
+    position: "absolute",
+    width: 260,
+    height: 260,
+    borderRadius: 130,
+    backgroundColor: colors.primary,
+    opacity: 0.35,
+    top: -130,
+    right: -70,
+  },
+  heroGlowB: {
+    position: "absolute",
+    width: 200,
+    height: 200,
+    borderRadius: 100,
+    backgroundColor: colors.primaryDeep,
+    bottom: -110,
+    left: -60,
+  },
+  header: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
+  brandBadge: {
     width: HIT_TARGET,
     height: HIT_TARGET,
     borderRadius: radius.md,
-    backgroundColor: colors.surface,
+    backgroundColor: colors.glass,
+    borderWidth: 1,
+    borderColor: colors.glassBorder,
     alignItems: "center",
     justifyContent: "center",
-    ...shadow.subtle,
+    marginRight: spacing.xs,
   },
+  brandBadgeText: { ...type.section, color: colors.goldLight },
+  greeting: { ...type.support, color: colors.onDarkMuted },
+  branchName: { ...type.section, color: colors.onDark, marginTop: 1 },
+  iconButton: {
+    width: HIT_TARGET - 4,
+    height: HIT_TARGET - 4,
+    borderRadius: radius.md,
+    backgroundColor: colors.glass,
+    borderWidth: 1,
+    borderColor: colors.glassBorder,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  branchSwitch: {
+    flexDirection: "row",
+    backgroundColor: colors.glass,
+    borderRadius: radius.md + 2,
+    padding: 4,
+    marginTop: spacing.md + 2,
+  },
+  branchOption: {
+    flex: 1,
+    minHeight: HIT_TARGET - 6,
+    borderRadius: radius.md - 1,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: spacing.sm,
+  },
+  branchOptionActive: { backgroundColor: colors.surface, ...shadow.subtle },
+  branchOptionText: { ...type.bodyStrong, fontSize: fontSize.sm, color: colors.onDarkMuted },
+  branchOptionTextActive: { color: colors.primaryDark },
 
   sectionHeading: {
     flexDirection: "row",
@@ -605,27 +664,29 @@ const styles = StyleSheet.create({
   footerValue: { ...type.metricSmall },
   footerLabel: { ...type.caption, color: colors.textMuted, marginTop: 1 },
 
-  quickGrid: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },
-  quickTile: {
-    // Three per row: two gaps of `spacing.sm` shared across the row, with a
-    // little slack so rounding never spills a tile onto its own line.
-    width: "31.5%",
-    minHeight: 92,
-    alignItems: "center",
-    justifyContent: "center",
-    gap: spacing.xs + 2,
+  quickCard: {
+    flexDirection: "row",
+    flexWrap: "wrap",
     backgroundColor: colors.surface,
     borderRadius: radius.lg,
-    paddingVertical: spacing.md - 2,
+    borderWidth: 1,
+    borderColor: colors.border,
+    paddingVertical: spacing.sm,
     paddingHorizontal: spacing.xs,
-    ...shadow.subtle,
+    marginBottom: spacing.md,
+    ...shadow.card,
   },
-  quickTileSkeleton: { width: "31.5%", borderRadius: radius.lg },
+  quickTile: {
+    width: "25%",
+    alignItems: "center",
+    gap: spacing.xs + 2,
+    paddingVertical: spacing.sm + 2,
+    paddingHorizontal: 2,
+  },
   quickTileIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: radius.md,
-    backgroundColor: colors.primaryLight,
+    width: 48,
+    height: 48,
+    borderRadius: radius.lg,
     alignItems: "center",
     justifyContent: "center",
   },
