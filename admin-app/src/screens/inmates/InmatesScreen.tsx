@@ -16,13 +16,17 @@ import { useApp } from "@/context/AppContext";
 import { useAsyncData, useDebounced } from "@/utils/hooks";
 import { listInmates, InmateFilter, inmateCounts, InmateWithRoom } from "@/services/inmates";
 import { formatInmateId } from "@/services/branches";
-import { formatMoney } from "@/utils/format";
+import { formatDateTime, formatMoney } from "@/utils/format";
+import { Application, listApplications } from "@/services/admissions";
 import type { MainTabParamList, RootStackParamList } from "@/navigation/types";
 
 type Props = CompositeScreenProps<
   BottomTabScreenProps<MainTabParamList, "Inmates">,
   NativeStackScreenProps<RootStackParamList>
 >;
+
+/** The register's filters, plus the applications still waiting for approval. */
+type ListFilter = InmateFilter | "pending";
 
 /** What an empty result means depends on why the list is empty. */
 function emptyCopy(filter: InmateFilter, search: string) {
@@ -56,18 +60,27 @@ function emptyCopy(filter: InmateFilter, search: string) {
 }
 
 export default function InmatesScreen({ navigation, route }: Props) {
-  const { settings } = useApp();
+  const { settings, dataVersion } = useApp();
   const [search, setSearch] = useState("");
-  const [filter, setFilter] = useState<InmateFilter>(route.params?.filter ?? "active");
+  const [filter, setFilter] = useState<ListFilter>(route.params?.filter ?? "active");
+  const pendingShown = filter === "pending";
+  const inmateFilter: InmateFilter = pendingShown ? "active" : filter;
   const debouncedSearch = useDebounced(search);
 
   const { data: counts } = useAsyncData(() => inmateCounts(), []);
   const { data: inmates, loading } = useAsyncData(
-    () => listInmates(debouncedSearch, filter),
-    [debouncedSearch, filter]
+    () => listInmates(debouncedSearch, inmateFilter),
+    [debouncedSearch, inmateFilter]
+  );
+  // Students who sent the QR form and are not on the register yet.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const applications = React.useMemo(() => listApplications(), [dataVersion]);
+  const term = debouncedSearch.trim().toLowerCase();
+  const pending = applications.filter(
+    (a) => !term || a.fullName.toLowerCase().includes(term) || a.phone.includes(term)
   );
 
-  const empty = emptyCopy(filter, debouncedSearch);
+  const empty = emptyCopy(inmateFilter, debouncedSearch);
   const resultCount = inmates?.length ?? 0;
 
   return (
@@ -96,11 +109,12 @@ export default function InmatesScreen({ navigation, route }: Props) {
           onChangeText={setSearch}
           placeholder="Search by name, inmate id or phone"
         />
-        <SegmentedTabs<InmateFilter>
+        <SegmentedTabs<ListFilter>
           value={filter}
           onChange={setFilter}
           options={[
             { key: "active", label: "Active", count: counts?.active },
+            { key: "pending", label: "Pending", count: applications.length },
             { key: "unassigned", label: "No room", count: counts?.unassigned },
             { key: "left", label: "Left", count: counts?.left },
             { key: "all", label: "All", count: counts?.total },
@@ -108,7 +122,43 @@ export default function InmatesScreen({ navigation, route }: Props) {
         />
       </View>
 
-      {loading && !inmates ? (
+      {pendingShown ? (
+        <FlatList
+          data={pending}
+          keyExtractor={(item) => item.id}
+          contentContainerStyle={styles.list}
+          keyboardShouldPersistTaps="handled"
+          ListHeaderComponent={
+            pending.length > 0 ? (
+              <View style={styles.pendingHead}>
+                <Text style={styles.pendingHint}>Sent with the QR form. Open one to check and admit.</Text>
+                <Button title="By room" icon="bed-outline" variant="secondary" compact onPress={() => navigation.navigate("Admissions")} />
+              </View>
+            ) : null
+          }
+          ListEmptyComponent={
+            <EmptyState
+              icon="file-tray-outline"
+              title={term ? "No matches" : "No applications pending"}
+              message={
+                term
+                  ? `No pending application matches "${debouncedSearch}".`
+                  : "When a student scans the hostel's QR code and sends their details, they appear here for approval."
+              }
+              action={
+                term ? undefined : (
+                  <Button title="Show the QR code" icon="qr-code-outline" compact onPress={() => navigation.navigate("JoinQr")} />
+                )
+              }
+            />
+          }
+          renderItem={({ item, index }) => (
+            <FadeIn index={index}>
+              <PendingRow application={item} onPress={() => navigation.navigate("AdmissionReview", { applicationId: item.id })} />
+            </FadeIn>
+          )}
+        />
+      ) : loading && !inmates ? (
         <SkeletonList />
       ) : (
         <FlatList
@@ -224,7 +274,32 @@ function InmateRow({
   );
 }
 
+function PendingRow({ application, onPress }: { application: Application; onPress: () => void }) {
+  return (
+    <Card onPress={onPress} style={styles.pendingRow}>
+      <Avatar name={application.fullName} photoFile={application.photoFile} size={46} />
+      <View style={{ flex: 1, gap: 2 }}>
+        <Text style={styles.pendingName} numberOfLines={1}>{application.fullName}</Text>
+        <Text style={styles.pendingMeta} numberOfLines={1}>
+          {application.phone} · sent {formatDateTime(application.createdAt)}
+        </Text>
+      </View>
+      <Badge label="PENDING" tone="warning" />
+    </Card>
+  );
+}
+
 const styles = StyleSheet.create({
+  pendingHead: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.md,
+    marginBottom: spacing.md,
+  },
+  pendingHint: { ...type.support, color: colors.textMuted, flex: 1 },
+  pendingRow: { flexDirection: "row", alignItems: "center", gap: spacing.md },
+  pendingName: { ...type.bodyStrong, color: colors.text },
+  pendingMeta: { ...type.support, color: colors.textMuted },
   screen: { flex: 1, backgroundColor: colors.background },
   header: {
     flexDirection: "row",

@@ -80,14 +80,14 @@ export default function MoreScreen({ navigation }: Props) {
           </View>
         ) : null}
 
-        <Text style={styles.groupLabel}>ADMISSIONS</Text>
+        <Text style={styles.groupLabel}>NEW STUDENTS</Text>
         <View style={styles.group}>
           <Row
             icon="person-add-outline"
-            label="Admissions"
+            label="Applications"
             sublabel={
               waiting > 0
-                ? `${waiting} ${waiting === 1 ? "form is" : "forms are"} waiting for approval`
+                ? `${waiting} pending for approval`
                 : "Forms students sent with the QR code"
             }
             tone={waiting > 0 ? "warning" : undefined}
@@ -122,13 +122,6 @@ export default function MoreScreen({ navigation }: Props) {
             label="Notifications"
             sublabel="What needs your attention"
             onPress={() => navigation.navigate("Notifications")}
-          />
-          <Row
-            tone="warning"
-            icon="construct-outline"
-            label="Complaints"
-            sublabel="Track maintenance issues to resolved"
-            onPress={() => navigation.navigate("Complaints")}
           />
           <Row
             icon="megaphone-outline"

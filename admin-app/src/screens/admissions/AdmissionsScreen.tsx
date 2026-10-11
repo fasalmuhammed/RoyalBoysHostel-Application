@@ -72,7 +72,7 @@ export default function AdmissionsScreen({ navigation }: Props) {
         ) : total === 0 ? (
           <EmptyState
             icon="qr-code-outline"
-            title="No forms waiting"
+            title="No applications pending"
             message="When a student scans the hostel's QR code and sends their details, the form appears here for you to approve."
             action={<Button title="Show the QR code" icon="qr-code-outline" compact onPress={() => navigation.navigate("JoinQr")} />}
           />

@@ -218,13 +218,6 @@ export default function RoomDetailScreen({ navigation, route }: Props) {
 
         <SectionTitle title="Manage" />
         <Button
-          title="Raise a complaint for this room"
-          variant="secondary"
-          icon="construct-outline"
-          onPress={() => navigation.navigate("ComplaintForm", { roomId })}
-          style={{ marginBottom: spacing.sm }}
-        />
-        <Button
           title="Edit room"
           variant="secondary"
           icon="create-outline"

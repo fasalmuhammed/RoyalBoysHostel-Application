@@ -44,8 +44,6 @@ import ComposeScreen from "@/screens/messages/ComposeScreen";
 import SendQueueScreen from "@/screens/messages/SendQueueScreen";
 import TemplatesScreen from "@/screens/messages/TemplatesScreen";
 
-import ComplaintsScreen from "@/screens/complaints/ComplaintsScreen";
-import ComplaintFormScreen from "@/screens/complaints/ComplaintFormScreen";
 import NoticesScreen from "@/screens/notices/NoticesScreen";
 import NoticeFormScreen from "@/screens/notices/NoticeFormScreen";
 
@@ -203,12 +201,6 @@ function MainStack() {
       />
       <Stack.Screen name="NoticeForm" component={NoticeFormScreen} options={detailOptions} />
 
-      <Stack.Screen
-        name="Complaints"
-        component={ComplaintsScreen}
-        options={{ ...detailOptions, title: "Complaints" }}
-      />
-      <Stack.Screen name="ComplaintForm" component={ComplaintFormScreen} options={detailOptions} />
 
       <Stack.Screen
         name="Notifications"
@@ -224,12 +216,12 @@ function MainStack() {
       <Stack.Screen
         name="Admissions"
         component={AdmissionsScreen}
-        options={{ ...detailOptions, title: "Admissions" }}
+        options={{ ...detailOptions, title: "Applications" }}
       />
       <Stack.Screen
         name="AdmissionReview"
         component={AdmissionReviewScreen}
-        options={{ ...detailOptions, title: "Review form" }}
+        options={{ ...detailOptions, title: "Application" }}
       />
       <Stack.Screen
         name="JoinQr"

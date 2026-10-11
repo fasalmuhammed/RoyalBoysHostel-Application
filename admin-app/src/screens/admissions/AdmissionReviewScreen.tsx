@@ -50,7 +50,7 @@ export default function AdmissionReviewScreen({ navigation, route }: Props) {
           icon="checkmark-done-outline"
           title="Already handled"
           message="This form was approved or rejected, here or on another device."
-          action={<Button title="Back to admissions" compact onPress={() => navigation.goBack()} />}
+          action={<Button title="Back to applications" compact onPress={() => navigation.goBack()} />}
         />
       </SafeAreaView>
     );

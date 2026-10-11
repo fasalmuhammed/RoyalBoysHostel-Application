@@ -128,7 +128,7 @@ export default function JoinQrScreen(_: Props) {
           <CalloutText>
             Each hostel has its own code. Print it and put it up at the office. A student who scans it fills in their
             details, photo and both sides of their Aadhaar card. Nothing is added to the records until you approve it
-            under Admissions.
+            under Applications.
           </CalloutText>
         </Callout>
       </ScrollView>

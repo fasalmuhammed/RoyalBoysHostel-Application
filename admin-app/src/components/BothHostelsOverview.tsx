@@ -10,7 +10,7 @@ import { SearchBar, SegmentedTabs } from "@/components/Controls";
 import { colors, font, fontSize, radius, spacing, type, Tone } from "@/constants/theme";
 import { useApp } from "@/context/AppContext";
 import type { RootStackParamList } from "@/navigation/types";
-import type { Branch, Complaint, Inmate, Notice } from "@/types";
+import type { Branch, Inmate, Notice } from "@/types";
 import { ActivityEvent, currentUserId, list, recentActivity } from "@/store/cloud";
 import {
   allBills,
@@ -33,14 +33,12 @@ import { formatDate, formatDateTime, formatMoney, formatPeriod, toPeriod } from 
 import { capability } from "@/web/runtime";
 import type { MessageBatchSummary } from "@/types";
 
-type Tab = "activity" | "inmates" | "rooms" | "fees" | "payments" | "complaints" | "notices" | "messages";
+type Tab = "activity" | "inmates" | "rooms" | "fees" | "payments" | "notices" | "messages";
 
 /** Lists are capped on screen; the search narrows anything larger. */
 const ROW_LIMIT = 200;
 
 const FEE_TONE: Record<string, Tone> = { paid: "success", partial: "warning", unpaid: "danger" };
-const COMPLAINT_TONE: Record<string, Tone> = { open: "danger", in_progress: "warning", resolved: "success" };
-const COMPLAINT_LABEL: Record<string, string> = { open: "Open", in_progress: "In progress", resolved: "Resolved" };
 
 const ACTION_LABEL: Record<ActivityEvent["action"], string> = {
   created: "Added",
@@ -104,7 +102,6 @@ interface BranchSummary {
   billed: number;
   collected: number;
   outstanding: number;
-  openComplaints: number;
 }
 
 /**
@@ -117,7 +114,6 @@ function buildModel() {
   const inmates = allInmates();
   const rooms = allRooms();
   const bills = allBills();
-  const complaints = list<Complaint>("complaints");
   const notices = list<Notice>("notices");
   const occupancy = occupancyByRoom();
   const owed = outstandingByStudent();
@@ -135,7 +131,6 @@ function buildModel() {
       billed: thisMonth.reduce((sum, bill) => sum + bill.total, 0),
       collected: thisMonth.reduce((sum, bill) => sum + bill.amountPaid, 0),
       outstanding: branchBills.reduce((sum, bill) => sum + Math.max(bill.total - bill.amountPaid, 0), 0),
-      openComplaints: complaints.filter((c) => c.branchId === branch.id && c.status !== "resolved").length,
     };
   });
 
@@ -167,14 +162,6 @@ function buildModel() {
     .flatMap(({ bill, inmate, branch }) => bill.payments.map((payment) => ({ payment, bill, inmate, branch })))
     .sort((a, b) => compareRaw(b.payment.paidOn, a.payment.paidOn) || b.payment.createdAt - a.payment.createdAt);
 
-  const complaintRows = [...complaints]
-    .sort((a, b) => Number(a.status === "resolved") - Number(b.status === "resolved") || b.createdAt - a.createdAt)
-    .map((complaint) => ({
-      complaint,
-      branch: branchById(complaint.branchId),
-      roomLabel: roomLabelOf(roomById(complaint.roomId)),
-    }));
-
   const noticeRows = [...notices]
     .sort((a, b) => Number(Boolean(b.pinned)) - Number(Boolean(a.pinned)) || compareRaw(b.postedOn, a.postedOn))
     .map((notice) => ({ notice, branch: branchById(notice.branchId) }));
@@ -187,9 +174,8 @@ function buildModel() {
       billed: sum.billed + s.billed,
       collected: sum.collected + s.collected,
       outstanding: sum.outstanding + s.outstanding,
-      openComplaints: sum.openComplaints + s.openComplaints,
     }),
-    { active: 0, beds: 0, occupied: 0, billed: 0, collected: 0, outstanding: 0, openComplaints: 0 }
+    { active: 0, beds: 0, occupied: 0, billed: 0, collected: 0, outstanding: 0 }
   );
 
   return {
@@ -200,7 +186,6 @@ function buildModel() {
     roomRows,
     billRows,
     paymentRows,
-    complaintRows,
     noticeRows,
     activity: recentActivity(),
   };
@@ -279,9 +264,6 @@ export default function BothHostelsOverview() {
       ({ payment, inmate }) =>
         !term || contains(inmate.fullName, term) || contains(payment.reference, term) || contains(payment.method, term)
     ),
-    complaints: model.complaintRows.filter(
-      ({ complaint }) => !term || contains(complaint.title, term) || contains(complaint.description, term)
-    ),
     notices: model.noticeRows.filter(({ notice }) => !term || contains(notice.title, term) || contains(notice.body, term)),
     messages: batches.filter((batch) => !term || contains(batch.preview, term)),
   };
@@ -292,7 +274,6 @@ export default function BothHostelsOverview() {
     { key: "rooms", label: "Rooms", count: model.roomRows.length },
     { key: "fees", label: "Bills", count: model.billRows.length },
     { key: "payments", label: "Payments", count: model.paymentRows.length },
-    { key: "complaints", label: "Complaints", count: model.complaintRows.length },
     { key: "notices", label: "Notices", count: model.noticeRows.length },
     { key: "messages", label: "WhatsApp", count: batches.length },
   ];
@@ -324,7 +305,6 @@ export default function BothHostelsOverview() {
               [`Billed ${formatPeriod(model.period)}`, money(model.totals.billed)],
               ["Collected", money(model.totals.collected)],
               ["Outstanding (all bills)", money(model.totals.outstanding)],
-              ["Open complaints", String(model.totals.openComplaints)],
             ]}
             highlight
           />
@@ -338,7 +318,6 @@ export default function BothHostelsOverview() {
                 [`Billed ${formatPeriod(model.period)}`, money(summary.billed)],
                 ["Collected", money(summary.collected)],
                 ["Outstanding (all bills)", money(summary.outstanding)],
-                ["Open complaints", String(summary.openComplaints)],
               ]}
             />
           ))}
@@ -470,30 +449,6 @@ export default function BothHostelsOverview() {
                     </Text>
                   </View>
                   <Badge label={branch?.code ?? "?"} tone="info" />
-                </Card>
-              ))
-            : null}
-
-          {tab === "complaints"
-            ? filtered.complaints.slice(0, ROW_LIMIT).map(({ complaint, branch, roomLabel }) => (
-                <Card
-                  key={complaint.id}
-                  style={styles.row}
-                  onPress={() =>
-                    open(complaint.branchId, () => navigation.navigate("ComplaintForm", { complaintId: complaint.id }))
-                  }
-                >
-                  <View style={styles.rowIcon}>
-                    <Ionicons name="construct-outline" size={18} color={colors.primary} />
-                  </View>
-                  <View style={styles.rowBody}>
-                    <Text style={styles.rowTitle} numberOfLines={1}>{complaint.title}</Text>
-                    <Text style={styles.rowMeta} numberOfLines={1}>
-                      {[roomLabel ? `Room ${roomLabel}` : null, formatDate(complaint.raisedOn)].filter(Boolean).join(" · ")}
-                    </Text>
-                  </View>
-                  <Badge label={branch?.code ?? "?"} tone="info" />
-                  <Badge label={COMPLAINT_LABEL[complaint.status] ?? complaint.status} tone={COMPLAINT_TONE[complaint.status] ?? "neutral"} />
                 </Card>
               ))
             : null}

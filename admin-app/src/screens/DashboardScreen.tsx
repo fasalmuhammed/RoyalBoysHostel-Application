@@ -169,7 +169,7 @@ export default function DashboardScreen({ navigation }: Props) {
                   tone="warning"
                   icon="person-add-outline"
                   title={`${data.waiting} ${data.waiting === 1 ? "student is" : "students are"} waiting for approval`}
-                  body="Check the form and Aadhaar photos, then admit."
+                  body="Open the application, check the Aadhaar photos, then admit."
                   onPress={() => navigation.navigate("Admissions")}
                 />
               </FadeIn>
@@ -181,8 +181,15 @@ export default function DashboardScreen({ navigation }: Props) {
                 <QuickActionTile label="Add room" icon="bed" tint={colors.info} bg={colors.infoBg} onPress={() => navigation.navigate("RoomForm")} />
                 <QuickActionTile label="Dues" icon="alarm" tint={colors.danger} bg={colors.dangerBg} onPress={() => navigation.navigate("Dues")} />
                 <QuickActionTile label="WhatsApp" icon="logo-whatsapp" tint={colors.success} bg={colors.successBg} onPress={() => navigation.navigate("Messages")} />
-                <QuickActionTile label="Complaints" icon="construct" tint={colors.warning} bg={colors.warningBg} onPress={() => navigation.navigate("Complaints")} />
-                <QuickActionTile label="Admissions" icon="qr-code" tint={colors.gold} bg={colors.goldBg} onPress={() => navigation.navigate("Admissions")} />
+                <QuickActionTile
+                  label="Applications"
+                  icon="file-tray-full"
+                  tint={colors.warning}
+                  bg={colors.warningBg}
+                  count={data?.waiting}
+                  onPress={() => navigation.navigate("Admissions")}
+                />
+                <QuickActionTile label="QR code" icon="qr-code" tint={colors.gold} bg={colors.goldBg} onPress={() => navigation.navigate("JoinQr")} />
                 <QuickActionTile label="Reports" icon="bar-chart" tint={colors.info} bg={colors.infoBg} onPress={() => navigation.navigate("Reports")} />
                 {access.isOwner ? (
                   <QuickActionTile label="Logins" icon="people-circle" tint={colors.primary} bg={colors.primaryLight} onPress={() => navigation.navigate("Staff")} />
@@ -513,12 +520,15 @@ function QuickActionTile({
   icon,
   tint,
   bg,
+  count,
   onPress,
 }: {
   label: string;
   icon: keyof typeof Ionicons.glyphMap;
   tint: string;
   bg: string;
+  /** A red number on the corner when something is waiting. */
+  count?: number;
   onPress: () => void;
 }) {
   return (
@@ -527,10 +537,15 @@ function QuickActionTile({
       scaleTo={0.94}
       style={styles.quickTile}
       accessibilityRole="button"
-      accessibilityLabel={label}
+      accessibilityLabel={count ? `${label}, ${count} waiting` : label}
     >
       <View style={[styles.quickTileIcon, { backgroundColor: bg }]}>
         <Ionicons name={icon} size={21} color={tint} />
+        {count ? (
+          <View style={styles.quickTileCount}>
+            <Text style={styles.quickTileCountText}>{count > 99 ? "99+" : count}</Text>
+          </View>
+        ) : null}
       </View>
       <Text style={styles.quickTileLabel} numberOfLines={2}>
         {label}
@@ -735,6 +750,21 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
+  quickTileCount: {
+    position: "absolute",
+    top: -5,
+    right: -7,
+    minWidth: 20,
+    height: 20,
+    borderRadius: 10,
+    paddingHorizontal: 5,
+    backgroundColor: colors.danger,
+    borderWidth: 2,
+    borderColor: colors.surface,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  quickTileCountText: { ...type.caption, fontSize: 10, lineHeight: 13, color: colors.primaryOn },
   quickTileLabel: { ...type.caption, color: colors.text, textAlign: "center" },
 
   dueCard: { flexDirection: "row", alignItems: "center", gap: spacing.sm + 4 },
