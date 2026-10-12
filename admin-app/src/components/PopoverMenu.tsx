@@ -1,5 +1,5 @@
 import React, { useCallback, useRef, useState } from "react";
-import { Dimensions, Modal, Pressable, StyleSheet, Text, View } from "react-native";
+import { Dimensions, Modal, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 
 import Glass from "./Glass";
@@ -69,7 +69,10 @@ export default function PopoverMenu({
   const left = Math.min(Math.max(wanted, EDGE), screen.width - MENU_WIDTH - EDGE);
   const below = anchor.y + anchor.height + 8;
   // Opens upwards when there is no room underneath.
-  const roomBelow = screen.height - below > items.length * 58 + (title ? 36 : 0) + 24;
+  const needed = items.length * 58 + (title ? 36 : 0) + 24;
+  // Below when it fits, or when there is more room below than above anyway.
+  const roomBelow = screen.height - below > needed || screen.height - below >= anchor.y;
+  const maxHeight = Math.max(160, (roomBelow ? screen.height - below : anchor.y - 8) - 24);
   const position = roomBelow ? { top: below } : { bottom: screen.height - anchor.y + 8 };
 
   return (
@@ -78,6 +81,7 @@ export default function PopoverMenu({
       <View style={{ position: "absolute", width: MENU_WIDTH, left, ...position }}>
         <Glass thick radius={20} intensity={60} style={styles.menu}>
           {title ? <Text style={styles.title}>{title}</Text> : null}
+          <ScrollView style={{ maxHeight: maxHeight - (title ? 36 : 0) }} showsVerticalScrollIndicator={false}>
           {items.map((item, index) => {
             const tint = item.destructive ? colors.danger : colors.text;
             return (
@@ -102,6 +106,7 @@ export default function PopoverMenu({
               </Pressable>
             );
           })}
+          </ScrollView>
         </Glass>
       </View>
     </Modal>
