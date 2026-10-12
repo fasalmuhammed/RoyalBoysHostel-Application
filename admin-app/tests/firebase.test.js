@@ -244,8 +244,36 @@ async function managerScope(a) {
   const mBill = await m.fees.createFee(bill(mine, "2026-05"));
   await m.fees.recordPayment(mBill, 1000, "cash", "2026-05-02", "", "");
   check("manager can bill and collect in their own branch", (await m.fees.getFee(mBill)).amountPaid === 1000);
-  await m.inmates.deleteInmate(mine);
-  check("manager can delete an inmate of their branch", (await m.inmates.getInmate(mine)) === null);
+  check("manager cannot delete a bill", await rejects(m.fees.deleteFee(mBill), /Only the admin/));
+  {
+    // Nor by going round the app: the server itself refuses a year of bills with a month taken out.
+    const { doc: docRef, getDoc: readDoc, setDoc: writeDoc } = require("firebase/firestore");
+    const yearRef = docRef(m.backend.firestore, "fees", `${mine}_2026`);
+    const year = (await readDoc(yearRef)).data();
+    const refused = await writeDoc(yearRef, { ...year, bills: {} }).then(() => false, () => true);
+    check("the server refuses a manager removing a bill", refused);
+    await settle(600);
+    check("and the bill is still there", (await a.fees.getFee(mBill)) !== null);
+    const edited = await writeDoc(yearRef, { ...year, bills: { ...year.bills, "2026-05": { ...year.bills["2026-05"], note: "edited" } } }).then(() => true, () => false);
+    check("a manager can still change a bill", edited);
+  }
+  const extra = await m.fees.createFee(bill(mine, "2026-06"));
+  await a.fees.deleteFee(extra);
+  check("the admin can delete a bill", (await a.fees.getFee(extra)) === null && (await a.fees.getFee(mBill)) !== null);
+  check("manager cannot delete an inmate", await rejects(m.inmates.deleteInmate(mine), /Only the admin/));
+  {
+    // Nor by going round the app.
+    const { doc: docRef, deleteDoc } = require("firebase/firestore");
+    const gone = await deleteDoc(docRef(m.backend.firestore, "inmates", mine)).then(() => true, () => false);
+    const billsGone = await deleteDoc(docRef(m.backend.firestore, "fees", `${mine}_2026`)).then(() => true, () => false);
+    check("the server refuses a manager deleting an inmate or their bills", !gone && !billsGone);
+    await settle(600);
+    check("and the inmate is still there", (await a.inmates.getInmate(mine)) !== null);
+  }
+  await m.inmates.markLeft(mine);
+  check("manager can mark an inmate as left instead", (await m.inmates.getInmate(mine)).status === "left");
+  await a.inmates.deleteInmate(mine);
+  check("the admin can delete an inmate", (await a.inmates.getInmate(mine)) === null);
 
   check("manager cannot move an inmate to the other branch", await rejects(m.inmates.moveToBranch(tInmate, K), /not allowed/));
   check("manager cannot change hostel settings", await rejects(m.settings.saveSettings({ hostelName: "Hacked" }), /not allowed/));

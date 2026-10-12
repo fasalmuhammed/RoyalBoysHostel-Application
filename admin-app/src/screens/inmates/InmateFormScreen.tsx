@@ -8,6 +8,7 @@ import {
   Pressable,
   ScrollView,
   StyleSheet,
+  Switch,
   Text,
   View,
 } from "react-native";
@@ -57,6 +58,8 @@ const EMPTY: InmateInput = {
   emergencyPhone: "",
   bloodGroup: "",
   institution: "",
+  termsAcceptedAt: null,
+  termsVersion: "",
   idProof: "",
   photoFile: null,
   idProofFile: null,
@@ -135,6 +138,8 @@ export default function InmateFormScreen({ navigation, route }: Props) {
   const labelFor = (kind: PhotoKind): string =>
     kind === "photo" ? "inmate photo" : kind === "idProof" ? "Aadhaar front photo" : "Aadhaar back photo";
 
+  // Once recorded (on the QR form or here), acceptance of the rules stays as it is.
+  const [termsLocked, setTermsLocked] = useState(false);
   const { data: rooms } = useAsyncData(() => listRooms(), []);
   /**
    * The hostel this inmate belongs to: their own when editing; otherwise the
@@ -156,6 +161,7 @@ export default function InmateFormScreen({ navigation, route }: Props) {
     (async () => {
       const inmate = await getInmate(studentId);
       if (!inmate) return;
+      setTermsLocked(Boolean(inmate.termsAcceptedAt));
       setForm({
         admissionNo: inmate.admissionNo,
         fullName: inmate.fullName,
@@ -169,6 +175,8 @@ export default function InmateFormScreen({ navigation, route }: Props) {
         emergencyPhone: inmate.emergencyPhone ?? "",
         bloodGroup: inmate.bloodGroup ?? "",
         institution: inmate.institution ?? "",
+        termsAcceptedAt: inmate.termsAcceptedAt ?? null,
+        termsVersion: inmate.termsVersion ?? "",
         idProof: inmate.idProof,
         photoFile: inmate.photoFile,
         idProofFile: inmate.idProofFile,
@@ -674,6 +682,29 @@ export default function InmateFormScreen({ navigation, route }: Props) {
             multiline
             icon="location-outline"
           />
+          <View style={styles.termsRow}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.termsLabel}>Accepted the hostel rules</Text>
+              <Text style={styles.termsHint}>
+                {termsLocked
+                  ? "Already recorded for this inmate."
+                  : "Switch on once they have read and signed the rules and regulations."}
+              </Text>
+            </View>
+            <Switch
+              value={Boolean(form.termsAcceptedAt)}
+              disabled={termsLocked}
+              onValueChange={(on) =>
+                setForm((current) => ({
+                  ...current,
+                  termsAcceptedAt: on ? Date.now() : null,
+                  termsVersion: on ? "signed copy" : "",
+                }))
+              }
+              trackColor={{ true: colors.success, false: colors.borderStrong }}
+              thumbColor={colors.surface}
+            />
+          </View>
           <Text style={styles.fieldLabel}>Aadhaar card</Text>
           <Text style={styles.documentHint}>Both sides are required. Make sure all text is clear and readable.</Text>
           <View style={styles.documentRow}>
@@ -784,6 +815,17 @@ export default function InmateFormScreen({ navigation, route }: Props) {
 }
 
 const styles = StyleSheet.create({
+  termsRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.md,
+    backgroundColor: colors.surface,
+    borderRadius: radius.md,
+    padding: spacing.md,
+    marginBottom: spacing.md,
+  },
+  termsLabel: { ...type.bodyStrong, color: colors.text },
+  termsHint: { ...type.support, color: colors.textMuted, marginTop: 2 },
   screen: { flex: 1, backgroundColor: colors.background },
   content: { padding: spacing.lg, paddingBottom: spacing.xl * 2 },
   photoBlock: { alignItems: "center", marginBottom: spacing.lg },

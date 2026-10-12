@@ -1,5 +1,5 @@
-import React from "react";
-import { Alert, ScrollView, StyleSheet, Text, View } from "react-native";
+import React, { useState } from "react";
+import { Alert, Modal, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import * as Print from "expo-print";
 import * as Sharing from "expo-sharing";
@@ -12,7 +12,8 @@ import Avatar from "@/components/Avatar";
 import { colors, radius, scaleFont, spacing, type } from "@/constants/theme";
 import { useApp } from "@/context/AppContext";
 import { useAsyncData } from "@/utils/hooks";
-import { deleteFee, deletePayment, getFee, listPayments } from "@/services/fees";
+import { deleteFee, deletePayment, dueLabel, getFee, listPayments, promiseDateProblem, setPromiseDate } from "@/services/fees";
+import PromiseDateField from "@/components/PromiseDateField";
 import { formatDate, formatMoney, formatPeriod } from "@/utils/format";
 import { receiptHtml } from "@/utils/receipt";
 import type { RootStackParamList } from "@/navigation/types";
@@ -21,7 +22,12 @@ type Props = NativeStackScreenProps<RootStackParamList, "FeeDetail">;
 
 export default function FeeDetailScreen({ navigation, route }: Props) {
   const { feeId } = route.params;
-  const { settings, invalidate, activeBranch, allHostels } = useApp();
+  const { settings, invalidate, activeBranch, allHostels, access } = useApp();
+  // Changing the day the balance is promised for.
+  const [promiseOpen, setPromiseOpen] = useState(false);
+  const [promiseDraft, setPromiseDraft] = useState("");
+  const [promiseError, setPromiseError] = useState<string | null>(null);
+  const [promiseSaving, setPromiseSaving] = useState(false);
 
   const { data, loading, reload } = useAsyncData(async () => {
     const [fee, payments] = await Promise.all([getFee(feeId), listPayments(feeId)]);
@@ -40,6 +46,7 @@ export default function FeeDetailScreen({ navigation, route }: Props) {
   }
 
   const payments = data?.payments ?? [];
+  const promiseBroken = Boolean(fee.promisedDate) && promiseDateProblem(fee.promisedDate) !== null;
   const symbol = settings.currencySymbol;
 
   const shareReceipt = async () => {
@@ -63,6 +70,28 @@ export default function FeeDetailScreen({ navigation, route }: Props) {
       }
     } catch {
       Alert.alert("Could not create the receipt", "Please try again.");
+    }
+  };
+
+  const openPromise = () => {
+    setPromiseDraft(fee.promisedDate && !promiseDateProblem(fee.promisedDate) ? fee.promisedDate : "");
+    setPromiseError(null);
+    setPromiseOpen(true);
+  };
+
+  const savePromise = async (next: string | null) => {
+    const problem = next === null ? null : promiseDateProblem(next);
+    setPromiseError(problem);
+    if (problem) return;
+    setPromiseSaving(true);
+    try {
+      await setPromiseDate(feeId, next);
+      invalidate();
+      setPromiseOpen(false);
+    } catch (e) {
+      setPromiseError(e instanceof Error ? e.message : "Could not save. Try again.");
+    } finally {
+      setPromiseSaving(false);
     }
   };
 
@@ -174,6 +203,16 @@ export default function FeeDetailScreen({ navigation, route }: Props) {
           <DetailRow label="Paid" value={formatMoney(fee.amountPaid, symbol)} tone="success" />
           <Divider />
           <DetailRow label="Due date" value={formatDate(fee.dueDate)} />
+          {fee.promisedDate ? (
+            <>
+              <Divider />
+              <DetailRow
+                label="Balance promised by"
+                value={formatDate(fee.promisedDate)}
+                tone={promiseBroken ? "danger" : "warning"}
+              />
+            </>
+          ) : null}
           {fee.note ? (
             <>
               <Divider />
@@ -210,6 +249,31 @@ export default function FeeDetailScreen({ navigation, route }: Props) {
           ))
         )}
 
+        {fee.balance > 0.01 && fee.amountPaid > 0.009 ? (
+          <View style={[styles.promiseCard, promiseBroken && styles.promiseCardBroken]}>
+            <Ionicons name={promiseBroken ? "alert-circle-outline" : "time-outline"} size={20} color={promiseBroken ? colors.danger : colors.warning} />
+            <View style={{ flex: 1 }}>
+              <Text style={styles.promiseTitle}>
+                {fee.promisedDate
+                  ? promiseBroken
+                    ? "The promised date has passed"
+                    : `${formatMoney(fee.balance, symbol)} ${dueLabel(fee)}`
+                  : "No date set for the balance"}
+              </Text>
+              <Text style={styles.promiseHint}>
+                {fee.promisedDate
+                  ? promiseBroken
+                    ? `${formatMoney(fee.balance, symbol)} was promised for ${formatDate(fee.promisedDate)}.`
+                    : "It will show in the dues list again on that day."
+                  : "Set the day they will pay the rest."}
+              </Text>
+            </View>
+            <Pressable onPress={openPromise} hitSlop={8} accessibilityRole="button">
+              <Text style={styles.promiseAction}>{fee.promisedDate ? "Change" : "Set date"}</Text>
+            </Pressable>
+          </View>
+        ) : null}
+
         <SectionTitle title="Actions" />
         <Button
           title="Download Receipt"
@@ -233,19 +297,72 @@ export default function FeeDetailScreen({ navigation, route }: Props) {
           onPress={() => navigation.navigate("FeeForm", { feeId })}
           style={{ marginTop: spacing.sm }}
         />
-        <Button
-          title="Delete bill"
-          variant="danger"
-          icon="trash-outline"
-          onPress={onDeleteBill}
-          style={{ marginTop: spacing.sm }}
-        />
+        {access.isOwner ? (
+          <Button
+            title="Delete bill"
+            variant="danger"
+            icon="trash-outline"
+            onPress={onDeleteBill}
+            style={{ marginTop: spacing.sm }}
+          />
+        ) : null}
       </ScrollView>
+      <Modal visible={promiseOpen} transparent animationType="fade" onRequestClose={() => setPromiseOpen(false)} statusBarTranslucent>
+        <View style={styles.sheetStage}>
+          <Pressable style={styles.sheetBackdrop} onPress={() => setPromiseOpen(false)} />
+          <View style={styles.sheet}>
+            <Text style={styles.sheetTitle}>When will they pay the balance?</Text>
+            <Text style={styles.sheetSub}>
+              {formatMoney(fee.balance, symbol)} is left on this bill for {fee.studentName}.
+            </Text>
+            <PromiseDateField
+              value={promiseDraft}
+              onChange={(iso) => {
+                setPromiseDraft(iso);
+                setPromiseError(null);
+              }}
+              error={promiseError ?? undefined}
+            />
+            <Button title="Save date" onPress={() => void savePromise(promiseDraft)} loading={promiseSaving} />
+            {fee.promisedDate ? (
+              <Button title="Remove the promised date" variant="ghost" onPress={() => void savePromise(null)} disabled={promiseSaving} />
+            ) : null}
+            <Button title="Cancel" variant="ghost" onPress={() => setPromiseOpen(false)} disabled={promiseSaving} />
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
+  promiseCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm + 2,
+    backgroundColor: colors.warningBg,
+    borderRadius: radius.lg,
+    padding: spacing.md,
+    marginBottom: spacing.md,
+  },
+  promiseCardBroken: { backgroundColor: colors.dangerBg },
+  promiseTitle: { ...type.bodyStrong, color: colors.text },
+  promiseHint: { ...type.support, color: colors.textMuted, marginTop: 1 },
+  promiseAction: { ...type.bodyStrong, color: colors.primary },
+  sheetStage: { flex: 1, justifyContent: "flex-end" },
+  sheetBackdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: colors.overlay },
+  sheet: {
+    backgroundColor: colors.background,
+    borderRadius: radius.xl,
+    padding: spacing.lg,
+    paddingBottom: spacing.md,
+    width: "100%",
+    maxWidth: 540,
+    alignSelf: "center",
+    margin: spacing.sm + 2,
+  },
+  sheetTitle: { ...type.section, color: colors.text },
+  sheetSub: { ...type.support, color: colors.textMuted, marginTop: 2, marginBottom: spacing.md },
   screen: { flex: 1, backgroundColor: colors.background },
   content: { padding: spacing.lg, paddingBottom: spacing.xl * 2 },
   studentCard: { flexDirection: "row", alignItems: "center", gap: spacing.md },

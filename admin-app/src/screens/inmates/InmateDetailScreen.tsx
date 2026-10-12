@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Alert, Image, Linking, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Alert, Image, Linking, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
@@ -12,12 +12,14 @@ import { FadeIn, PressableScale } from "@/components/Motion";
 import { useApp } from "@/context/AppContext";
 import { useAsyncData } from "@/utils/hooks";
 import { deleteInmate, getInmate, markLeft, reinstate } from "@/services/inmates";
-import { listFeesForStudent } from "@/services/fees";
+import { dueLabel, listFeesForStudent } from "@/services/fees";
 import { savePhotoToDevice, usePhotoUri } from "@/services/photos";
 import PhotoViewer, { ViewedPhoto } from "@/components/PhotoViewer";
+import { toWhatsAppNumber } from "@/utils/validate";
+import PopoverMenu, { usePopoverMenu } from "@/components/PopoverMenu";
 import { ReportKind, shareInmateReport } from "@/services/inmateReport";
 import { formatInmateId } from "@/services/branches";
-import { formatDate, formatMoney, formatPeriod, relativeDays } from "@/utils/format";
+import { formatDate, formatDateTime, formatMoney, formatPeriod, relativeDays } from "@/utils/format";
 import type { RootStackParamList } from "@/navigation/types";
 
 type Props = NativeStackScreenProps<RootStackParamList, "InmateDetail">;
@@ -33,6 +35,8 @@ export default function InmateDetailScreen({ navigation, route }: Props) {
 
   // The report being prepared, if any (it can take a few seconds with photos).
   const [reporting, setReporting] = useState<ReportKind | null>(null);
+  // The admin chooses between the two reports; a manager has only the standard one.
+  const reportMenu = usePopoverMenu();
   // Which photo is open full screen, if any.
   const [viewing, setViewing] = useState<ViewedPhoto | null>(null);
 
@@ -54,9 +58,21 @@ export default function InmateDetailScreen({ navigation, route }: Props) {
   const fees = data?.fees ?? [];
   const outstanding = fees.reduce((sum, fee) => sum + Math.max(fee.balance, 0), 0);
   const oldestDue = fees
-    .filter((fee) => fee.balance > 0.01 && fee.dueDate)
-    .sort((a, b) => a.dueDate.localeCompare(b.dueDate))[0];
+    .filter((fee) => fee.balance > 0.01 && fee.chaseDate)
+    .sort((a, b) => a.chaseDate.localeCompare(b.chaseDate))[0];
   const symbol = settings.currencySymbol;
+
+  /** Opens their WhatsApp chat as it is, to read back through it or type freely. */
+  const openChat = (number: string) => {
+    const whatsapp = toWhatsAppNumber(number, settings.countryCode);
+    if (!whatsapp) {
+      Alert.alert("Check the mobile number", "This inmate's number does not look like a WhatsApp number.");
+      return;
+    }
+    Linking.openURL(`https://wa.me/${whatsapp}`).catch(() => {
+      Alert.alert("Could not open WhatsApp");
+    });
+  };
 
   const call = (number: string) => {
     if (!number.trim()) return;
@@ -135,6 +151,30 @@ export default function InmateDetailScreen({ navigation, route }: Props) {
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <FadeIn>
           <View style={styles.hero}>
+          <Pressable
+            ref={reportMenu.anchorRef}
+            onPress={() => (access.isOwner ? reportMenu.open() : void downloadReport("standard"))}
+            disabled={reporting !== null}
+            style={({ pressed }) => [styles.cornerButton, styles.cornerLeft, pressed && { opacity: 0.75 }]}
+            accessibilityRole="button"
+            accessibilityLabel="Download PDF report"
+          >
+            {reporting ? (
+              <ActivityIndicator size="small" color={colors.primary} />
+            ) : (
+              <Ionicons name="download-outline" size={17} color={colors.primary} />
+            )}
+            <Text style={styles.cornerButtonText}>PDF</Text>
+          </Pressable>
+          <Pressable
+            onPress={() => navigation.navigate("InmateForm", { studentId })}
+            style={({ pressed }) => [styles.cornerButton, styles.cornerRight, pressed && { opacity: 0.75 }]}
+            accessibilityRole="button"
+            accessibilityLabel="Edit inmate"
+          >
+            <Ionicons name="create-outline" size={17} color={colors.primary} />
+            <Text style={styles.cornerButtonText}>Edit</Text>
+          </Pressable>
             <Avatar name={inmate.fullName} photoFile={inmate.photoFile} size={84} />
             <Text style={styles.name} numberOfLines={2}>
               {inmate.fullName}
@@ -177,7 +217,7 @@ export default function InmateDetailScreen({ navigation, route }: Props) {
               </Text>
               {oldestDue ? (
                 <Text style={styles.balanceNote} numberOfLines={1}>
-                  Oldest bill due {relativeDays(oldestDue.dueDate)}
+                  {oldestDue.promisedDate ? "Balance" : "Oldest bill"} {dueLabel(oldestDue).replace(/^balance /, "")}
                 </Text>
               ) : null}
             </View>
@@ -201,14 +241,15 @@ export default function InmateDetailScreen({ navigation, route }: Props) {
           />
           <ActionButton
             icon="logo-whatsapp"
+            label="Chat"
+            disabled={!inmate.phone}
+            onPress={() => openChat(inmate.phone)}
+          />
+          <ActionButton
+            icon="chatbox-ellipses-outline"
             label="Message"
             disabled={!inmate.phone}
             onPress={() => navigation.navigate("Compose", { kind: "custom", studentIds: [studentId] })}
-          />
-          <ActionButton
-            icon="create-outline"
-            label="Edit"
-            onPress={() => navigation.navigate("InmateForm", { studentId })}
           />
           <ActionButton
             icon="receipt-outline"
@@ -228,8 +269,14 @@ export default function InmateDetailScreen({ navigation, route }: Props) {
           <DetailRow label="Guardian mobile" value={inmate.guardianPhone} />
           <Divider />
           <DetailRow label="Emergency contact" value={inmate.emergencyPhone} />
+          {inmate.termsAcceptedAt ? (
+            <>
+              <Divider />
+              <DetailRow label="Rules accepted" value={formatDateTime(inmate.termsAcceptedAt)} tone="success" />
+            </>
+          ) : null}
           <Divider />
-          <DetailRow label="College / company" value={inmate.institution} />
+          <DetailRow label={inmate.institutionType === "company" ? "Company" : inmate.institutionType === "college" ? "College" : "College / company"} value={inmate.institution} />
           <Divider />
           <DetailRow label="Blood group" value={inmate.bloodGroup} />
           <Divider />
@@ -309,32 +356,6 @@ export default function InmateDetailScreen({ navigation, route }: Props) {
           />
         </Card>
 
-        <SectionTitle title="Reports" />
-        <View style={styles.reportRow}>
-          <Button
-            title="Standard PDF"
-            icon="download-outline"
-            variant="secondary"
-            compact
-            onPress={() => downloadReport("standard")}
-            loading={reporting === "standard"}
-            disabled={reporting !== null}
-            style={styles.reportButton}
-          />
-          {access.isOwner ? (
-            <Button
-              title="Master PDF"
-              icon="download-outline"
-              variant="secondary"
-              compact
-              onPress={() => downloadReport("master")}
-              loading={reporting === "master"}
-              disabled={reporting !== null}
-              style={styles.reportButton}
-            />
-          ) : null}
-        </View>
-
         <SectionTitle
           title={`Bills (${fees.length})`}
           action={
@@ -393,15 +414,26 @@ export default function InmateDetailScreen({ navigation, route }: Props) {
             }}
           />
         )}
-        <Button
-          title="Delete permanently"
-          variant="danger"
-          icon="trash-outline"
-          onPress={onDelete}
-          style={{ marginTop: spacing.sm }}
-        />
+        {access.isOwner ? (
+          <Button
+            title="Delete permanently"
+            variant="danger"
+            icon="trash-outline"
+            onPress={onDelete}
+            style={{ marginTop: spacing.sm }}
+          />
+        ) : null}
       </ScrollView>
       <PhotoViewer photo={viewing} onClose={() => setViewing(null)} />
+      <PopoverMenu
+        {...reportMenu.props}
+        title="Download PDF"
+        items={[
+          { key: "standard", label: "Standard", sublabel: "Details and what they owe", icon: "document-text-outline" },
+          { key: "master", label: "Master", sublabel: "Everything, with Aadhaar and payments", icon: "shield-checkmark-outline" },
+        ]}
+        onSelect={(key) => void downloadReport(key as ReportKind)}
+      />
     </SafeAreaView>
   );
 }
@@ -468,12 +500,27 @@ function ActionButton({
 }
 
 const styles = StyleSheet.create({
-  reportRow: { flexDirection: "row", gap: spacing.sm, marginBottom: spacing.md },
-  reportButton: { flex: 1 },
+  cornerLeft: { left: 0 },
+  cornerRight: { right: 0 },
+  cornerButton: {
+    position: "absolute",
+    top: 0,
+    zIndex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.xs + 2,
+    minHeight: 38,
+    paddingHorizontal: spacing.sm + 4,
+    borderRadius: radius.pill,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  cornerButtonText: { ...type.bodyStrong, fontSize: type.support.fontSize, color: colors.primary },
   screen: { flex: 1, backgroundColor: colors.background },
   content: { padding: spacing.lg, paddingBottom: spacing.xl * 2 },
 
-  hero: { alignItems: "center", marginBottom: spacing.md },
+  hero: { alignItems: "center", marginBottom: spacing.md, alignSelf: "stretch" },
   name: { ...type.title, color: colors.text, marginTop: spacing.sm, textAlign: "center" },
   meta: { ...type.support, color: colors.textMuted, marginTop: 2 },
   heroBadges: {

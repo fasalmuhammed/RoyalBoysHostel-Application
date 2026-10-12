@@ -109,19 +109,40 @@ export default function RoomDetailScreen({ navigation, route }: Props) {
             />
           </View>
 
+          {/* One place per bed: the face of whoever has it, or an empty bed to fill. */}
           <View style={styles.bedRow}>
-            {Array.from({ length: room.capacity }).map((_, index) => (
-              <View
-                key={index}
-                style={[styles.bed, index < room.occupied ? styles.bedTaken : styles.bedFree]}
-              >
-                <Ionicons
-                  name="bed"
-                  size={16}
-                  color={index < room.occupied ? colors.primaryOn : colors.textFaint}
-                />
-              </View>
-            ))}
+            {Array.from({ length: Math.max(room.capacity, occupants.length) }).map((_, index) => {
+              const inmate = occupants[index];
+              return inmate ? (
+                <Pressable
+                  key={inmate.id}
+                  style={styles.bedSlot}
+                  onPress={() => navigation.navigate("InmateDetail", { studentId: inmate.id })}
+                  accessibilityRole="button"
+                  accessibilityLabel={`${inmate.fullName}, open`}
+                >
+                  <View style={styles.bedFace}>
+                    <Avatar name={inmate.fullName} photoFile={inmate.photoFile} size={50} />
+                  </View>
+                  <Text style={styles.bedName} numberOfLines={1}>
+                    {inmate.fullName.split(" ")[0]}
+                  </Text>
+                </Pressable>
+              ) : (
+                <Pressable
+                  key={`free-${index}`}
+                  style={styles.bedSlot}
+                  onPress={() => navigation.navigate("InmateForm", { presetRoomId: roomId })}
+                  accessibilityRole="button"
+                  accessibilityLabel="Free bed, add an inmate"
+                >
+                  <View style={styles.bedFree}>
+                    <Ionicons name="bed-outline" size={20} color={colors.textFaint} />
+                  </View>
+                  <Text style={[styles.bedName, { color: colors.textFaint }]}>Free</Text>
+                </Pressable>
+              );
+            })}
           </View>
         </View>
 
@@ -247,10 +268,22 @@ const styles = StyleSheet.create({
   heroTop: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between" },
   roomTitle: { ...type.title, color: colors.text },
   roomSubtitle: { ...type.support, color: colors.textMuted, marginTop: 2 },
-  bedRow: { flexDirection: "row", gap: spacing.sm, marginTop: spacing.md, flexWrap: "wrap" },
-  bed: { width: 38, height: 38, borderRadius: radius.sm, alignItems: "center", justifyContent: "center" },
-  bedTaken: { backgroundColor: colors.primary },
-  bedFree: { backgroundColor: colors.background, borderWidth: 1.5, borderColor: colors.border },
+  bedRow: { flexDirection: "row", gap: spacing.sm + 2, marginTop: spacing.md, flexWrap: "wrap" },
+  bedSlot: { width: 58, alignItems: "center", gap: 4 },
+  // A ring in the brand colour marks a taken bed.
+  bedFace: { padding: 2, borderRadius: 29, borderWidth: 2, borderColor: colors.primary },
+  bedFree: {
+    width: 58,
+    height: 58,
+    borderRadius: 29,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: colors.background,
+    borderWidth: 1.5,
+    borderColor: colors.borderStrong,
+    borderStyle: "dashed",
+  },
+  bedName: { ...type.caption, color: colors.text, maxWidth: 58 },
   addRow: { flexDirection: "row", gap: spacing.sm, marginBottom: spacing.md },
   empty: { ...type.support, color: colors.textMuted, textAlign: "center" },
   occupantRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm },

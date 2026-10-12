@@ -23,6 +23,7 @@ export interface Application {
   course: string;
   year: string;
   institution: string;
+  institutionType?: "college" | "company";
   guardianName: string;
   guardianPhone: string;
   emergencyPhone: string;
@@ -33,6 +34,9 @@ export interface Application {
   photoFile: string | null;
   idProofFile: string | null;
   idProofBackFile: string | null;
+  /** When the student ticked "I accept the rules" on the form. */
+  termsAcceptedAt?: number;
+  termsVersion?: string;
   createdAt: number;
 }
 
@@ -103,6 +107,7 @@ export async function approveApplication(id: string, options: ApproveOptions): P
     emergencyPhone: application.emergencyPhone,
     bloodGroup: application.bloodGroup,
     institution: application.institution,
+    institutionType: application.institutionType ?? "",
     email: application.email,
     course: application.course,
     year: application.year,
@@ -120,6 +125,8 @@ export async function approveApplication(id: string, options: ApproveOptions): P
     stayDays: null,
     joinedOn: options.joinedOn ?? toIsoDate(),
     leftOn: null,
+    termsAcceptedAt: application.termsAcceptedAt ?? null,
+    termsVersion: application.termsVersion ?? "",
     notes: "Registered with the QR form.",
   });
   await remove("applications", id);

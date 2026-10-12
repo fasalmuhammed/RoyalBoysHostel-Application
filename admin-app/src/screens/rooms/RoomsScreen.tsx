@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { FlatList, StyleSheet, Text, View } from "react-native";
+import { FlatList, Pressable, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import type { CompositeScreenProps } from "@react-navigation/native";
@@ -7,7 +7,8 @@ import type { BottomTabScreenProps } from "@react-navigation/bottom-tabs";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 
 import { Badge, Card, EmptyState } from "@/components/Base";
-import { Fab, SearchBar } from "@/components/Controls";
+import { Fab, SearchBar, SegmentedTabs } from "@/components/Controls";
+import PopoverMenu, { usePopoverMenu } from "@/components/PopoverMenu";
 import Button from "@/components/Button";
 import { colors, radius, spacing, type } from "@/constants/theme";
 import { AnimatedBar, FadeIn, SkeletonList, useCountUp } from "@/components/Motion";
@@ -24,6 +25,8 @@ type Props = CompositeScreenProps<
   NativeStackScreenProps<RootStackParamList>
 >;
 
+type Fill = "all" | "vacant" | "partial";
+
 /** Beyond this many beds the pips stop being scannable and become a count. */
 const MAX_PIPS = 10;
 
@@ -34,6 +37,37 @@ export default function RoomsScreen({ navigation }: Props) {
 
   const { data: totals } = useAsyncData(() => occupancyTotals(), []);
   const { data: rooms, loading } = useAsyncData(() => listRooms(debounced), [debounced]);
+
+  /**
+   * Two filters that work together.
+   *  - Room size, in a drop-down: every size, or single up to 7 sharing.
+   *  - How full, as buttons: all, vacant (nobody in the room yet) or partly
+   *    vacant (someone lives there and a bed is still free).
+   */
+  const [size, setSize] = useState(0);
+  const [fill, setFill] = useState<Fill>("all");
+  const sizeMenu = usePopoverMenu();
+
+  const all = rooms ?? [];
+  const sizeLabel = (beds: number) => (beds === 1 ? "Single room" : `${beds} sharing`);
+  // Single to 7 sharing always; a larger room, if the hostel has one, is added.
+  const sizes = [...new Set([1, 2, 3, 4, 5, 6, 7, ...all.map((room) => room.capacity)])].sort((x, y) => x - y);
+  const ofSize = size === 0 ? all : all.filter((room) => room.capacity === size);
+  const matches = (room: RoomWithOccupancy, how: Fill) =>
+    how === "all" ? true : how === "vacant" ? room.occupied === 0 : room.occupied > 0 && room.vacant > 0;
+  const fillOptions: { key: Fill; label: string; count: number }[] = [
+    { key: "all", label: "All", count: ofSize.length },
+    { key: "vacant", label: "Vacant", count: ofSize.filter((room) => matches(room, "vacant")).length },
+    { key: "partial", label: "Partly vacant", count: ofSize.filter((room) => matches(room, "partial")).length },
+  ];
+  const filtered = size !== 0 || fill !== "all";
+  const shown = ofSize
+    .filter((room) => matches(room, fill))
+    // Most free beds first, so the place for the next inmate is at the top;
+    // full rooms sink to the bottom. Ties keep the room-number order.
+    .map((room, index) => ({ room, index }))
+    .sort((x, y) => y.room.vacant - x.room.vacant || x.index - y.index)
+    .map((entry) => entry.room);
 
   const occupied = useCountUp(totals?.occupied ?? 0);
   const beds = totals?.beds ?? 0;
@@ -66,13 +100,44 @@ export default function RoomsScreen({ navigation }: Props) {
 
       <View style={styles.searchWrap}>
         <SearchBar value={search} onChangeText={setSearch} placeholder="Search room number" />
+        <View style={styles.filters}>
+          <Pressable
+            ref={sizeMenu.anchorRef}
+            onPress={sizeMenu.open}
+            style={[styles.sizePill, size !== 0 && styles.sizePillActive]}
+            accessibilityRole="button"
+            accessibilityLabel={`Room size: ${size === 0 ? "all sizes" : sizeLabel(size)}. Change`}
+          >
+            <Ionicons name="bed-outline" size={15} color={size !== 0 ? colors.primaryOn : colors.primary} />
+            <Text style={[styles.sizePillText, size !== 0 && { color: colors.primaryOn }]} numberOfLines={1}>
+              {size === 0 ? "All sizes" : sizeLabel(size)}
+            </Text>
+            <Ionicons name="chevron-down" size={14} color={size !== 0 ? colors.primaryOn : colors.textMuted} />
+          </Pressable>
+          <View style={{ flex: 1 }}>
+            <SegmentedTabs options={fillOptions} value={fill} onChange={setFill} />
+          </View>
+        </View>
+        <PopoverMenu
+          {...sizeMenu.props}
+          title="Room size"
+          items={[
+            { key: "0", label: "All sizes", sublabel: `${all.length} ${all.length === 1 ? "room" : "rooms"}` },
+            ...sizes.map((beds) => {
+              const count = all.filter((room) => room.capacity === beds).length;
+              return { key: String(beds), label: sizeLabel(beds), sublabel: count === 0 ? "None" : `${count} ${count === 1 ? "room" : "rooms"}` };
+            }),
+          ]}
+          selectedKey={String(size)}
+          onSelect={(key) => setSize(Number(key))}
+        />
       </View>
 
       {loading && !rooms ? (
         <SkeletonList />
       ) : (
         <FlatList
-          data={rooms ?? []}
+          data={shown}
           keyExtractor={(item) => item.id}
           contentContainerStyle={styles.list}
           keyboardShouldPersistTaps="handled"
@@ -81,15 +146,17 @@ export default function RoomsScreen({ navigation }: Props) {
           windowSize={9}
           ListEmptyComponent={
             <EmptyState
-              icon={search ? "search-outline" : "home-outline"}
-              title={search ? "No matching rooms" : "No rooms yet"}
+              icon={search ? "search-outline" : filtered ? "funnel-outline" : "home-outline"}
+              title={search ? "No matching rooms" : filtered ? "No rooms like that" : "No rooms yet"}
               message={
                 search
                   ? `Nothing matches "${search}".`
-                  : "Add your rooms first, then assign inmates to them."
+                  : filtered
+                    ? "No room matches the size and vacancy you picked. Try All sizes or All."
+                    : "Add your rooms first, then assign inmates to them."
               }
               action={
-                search ? undefined : (
+                search || filtered ? undefined : (
                   <Button
                     title="Add room"
                     icon="add-circle-outline"
@@ -194,6 +261,18 @@ function BedPips({ occupied, capacity }: { occupied: number; capacity: number })
 }
 
 const styles = StyleSheet.create({
+  filters: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
+  sizePill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    height: 36,
+    paddingHorizontal: spacing.sm + 4,
+    borderRadius: radius.pill,
+    backgroundColor: colors.primaryLight,
+  },
+  sizePillActive: { backgroundColor: colors.primary },
+  sizePillText: { ...type.bodyStrong, fontSize: type.support.fontSize, color: colors.primary },
   hostelSwitch: { marginHorizontal: spacing.lg, marginTop: spacing.sm },
   screen: { flex: 1, backgroundColor: colors.background },
   header: { paddingHorizontal: spacing.lg, paddingTop: spacing.sm },
@@ -214,8 +293,8 @@ const styles = StyleSheet.create({
   summaryOf: { ...type.support, color: colors.textMuted },
   summaryFoot: { ...type.caption, color: colors.textMuted },
 
-  searchWrap: { paddingHorizontal: spacing.lg, paddingTop: spacing.md },
-  list: { padding: spacing.lg, paddingBottom: 110 },
+  searchWrap: { paddingHorizontal: spacing.lg, paddingTop: spacing.md, gap: spacing.sm },
+  list: { padding: spacing.lg, paddingBottom: 190 },
 
   row: { gap: spacing.sm + 2 },
   rowTop: { flexDirection: "row", alignItems: "flex-start", gap: spacing.sm },

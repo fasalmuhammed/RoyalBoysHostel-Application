@@ -104,7 +104,7 @@ export default function ReportsScreen({}: Props) {
             <Ionicons
               name={busy === report.kind ? "hourglass-outline" : "download-outline"}
               size={19}
-              color={colors.textFaint}
+              color={colors.primary}
             />
           </Pressable>
         ))}

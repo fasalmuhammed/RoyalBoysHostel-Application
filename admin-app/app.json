@@ -20,8 +20,7 @@
       "bundleIdentifier": "com.hostelmanager.local",
       "infoPlist": {
         "NSCameraUsageDescription": "Take a photo of a student while adding them to the hostel register.",
-        "NSPhotoLibraryUsageDescription": "Choose an existing photo for a student's record.",
-        "NSFaceIDUsageDescription": "Unlock the hostel records with Face ID instead of your PIN."
+        "NSPhotoLibraryUsageDescription": "Choose an existing photo for a student's record."
       }
     },
     "android": {
@@ -32,8 +31,6 @@
       },
       "permissions": [
         "android.permission.CAMERA",
-        "android.permission.USE_BIOMETRIC",
-        "android.permission.USE_FINGERPRINT",
         "android.permission.POST_NOTIFICATIONS",
         "android.permission.VIBRATE"
       ],
@@ -50,19 +47,12 @@
         }
       ],
       [
-        "expo-local-authentication",
-        {
-          "faceIDPermission": "Unlock the hostel records with Face ID instead of your PIN."
-        }
-      ],
-      [
         "expo-notifications",
         {
           "icon": "./assets/notification-icon.png",
           "color": "#2F55E8"
         }
       ],
-      "expo-secure-store",
       "expo-font"
     ],
     "extra": {

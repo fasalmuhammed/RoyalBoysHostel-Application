@@ -13,10 +13,14 @@ const { getFirestore } = require("firebase-admin/firestore");
 const { getStorage } = require("firebase-admin/storage");
 
 const MAX_PHOTO_BYTES = 1200 * 1024;
-/** One phone or Wi-Fi network may send this many forms an hour. */
-const MAX_PER_HOUR = 8;
+/**
+ * One phone or Wi-Fi network may send this many forms an hour. Generous on
+ * purpose: when a hostel registers its existing students, they all send from
+ * the office Wi-Fi, which the server sees as a single place.
+ */
+const MAX_PER_HOUR = 80;
 /** A hostel never has this many forms waiting; beyond it, something is wrong. */
-const MAX_PENDING = 150;
+const MAX_PENDING = 300;
 const BLOOD_GROUPS = ["", "A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"];
 
 class FormError extends Error {}
@@ -67,7 +71,13 @@ async function hostelInfo(branchId) {
     .map((doc) => {
       const room = doc.data();
       const label = [room.block, room.roomNumber].filter(Boolean).join("-");
-      return { id: doc.id, label, free: Math.max(0, (Number(room.capacity) || 0) - (taken.get(doc.id) ?? 0)) };
+      return {
+        id: doc.id,
+        label,
+        free: Math.max(0, (Number(room.capacity) || 0) - (taken.get(doc.id) ?? 0)),
+        // Shown to the student in rule 1 ("your hostel fee is ...").
+        rent: Number(room.rent) || 0,
+      };
     })
     .sort((a, b) => a.label.localeCompare(b.label, undefined, { numeric: true }));
   return { branch: { id: branch.id, name: branch.data().name }, rooms: list };
@@ -98,21 +108,31 @@ async function saveApplication(body) {
   const email = text(body.email, "Email", { max: 120 });
   if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new FormError("That email address looks wrong.");
 
+  // The form will not send without the box ticked; this is the server's own check.
+  if (body.acceptTerms !== true) throw new FormError("Tick the box to accept the rules and regulations.");
+
+  // A college student gives college, course and year; someone working gives their company.
+  const company = body.institutionType === "company";
+
   const application = {
     branchId: info.branch.id,
     status: "pending",
     fullName: text(body.fullName, "Your name", { max: 80, required: true }),
     phone: phone(body.phone, "Your mobile", true),
     email,
-    course: text(body.course, "Course", { max: 80 }),
-    year: text(body.year, "Year", { max: 20 }),
-    institution: text(body.institution, "College / company", { max: 100 }),
+    institutionType: company ? "company" : "college",
+    institution: text(body.institution, company ? "Company name" : "College name", { max: 100, required: true }),
+    course: company ? "" : text(body.course, "Course", { max: 80, required: true }),
+    year: company ? "" : text(body.year, "Year", { max: 20, required: true }),
     guardianName: text(body.guardianName, "Guardian name", { max: 80, required: true }),
     guardianPhone: phone(body.guardianPhone, "Guardian mobile", true),
     emergencyPhone: phone(body.emergencyPhone, "Emergency contact number", true),
     address: text(body.address, "Address", { max: 400, required: true }),
     bloodGroup,
     roomId: roomId || null,
+    // When they accepted the rules, and which wording of them.
+    termsAcceptedAt: Date.now(),
+    termsVersion: text(body.termsVersion, "Rules version", { max: 20 }) || "unknown",
   };
   const photos = {
     photoFile: ["profile", jpeg(body.photo, "Your photo")],
@@ -121,6 +141,21 @@ async function saveApplication(body) {
   };
 
   const db = getFirestore();
+
+  // One form per person: a second one from the same mobile number is a double
+  // tap or a retry, and someone already living here needs the office, not a form.
+  const lastTen = (value) => String(value ?? "").replace(/\D/g, "").slice(-10);
+  const [sameNumber, residents] = await Promise.all([
+    db.collection("applications").where("branchId", "==", info.branch.id).where("phone", "==", application.phone).limit(1).get(),
+    db.collection("inmates").where("branchId", "==", info.branch.id).get(),
+  ]);
+  if (!sameNumber.empty) {
+    throw new FormError("Your details were already sent from this mobile number. The hostel office will confirm your admission.");
+  }
+  if (residents.docs.some((doc) => doc.data().status === "active" && lastTen(doc.data().phone) === application.phone)) {
+    throw new FormError("This mobile number is already registered at this hostel. Please speak to the hostel office.");
+  }
+
   const pending = await db.collection("applications").where("branchId", "==", info.branch.id).count().get();
   if (pending.data().count >= MAX_PENDING) {
     throw new FormError("Registration is paused for now. Please tell the hostel office.");

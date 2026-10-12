@@ -82,8 +82,10 @@ hosting/         the student registration page
 
 ## Good to know
 
-- **Monthly bills raise themselves** when the app is opened in a new month.
-  There is no "raise bills" button.
+- **Monthly bills raise themselves.** A server job (`functions/billing.js`) runs
+  every morning at 00:15 India time and raises any bill missing for the
+  month; the app does the same when it is opened. There is no "raise bills"
+  button. A bill is due on the day of the month the inmate joined.
 - **Without internet** the app shows what it last loaded. A save is kept and
   sent when the connection returns, as long as the app stays open.
 - **Photos are shrunk before upload** (profile about 640px, documents about

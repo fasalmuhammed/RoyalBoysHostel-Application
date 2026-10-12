@@ -52,7 +52,6 @@ export type RootStackParamList = {
   JoinQr: undefined;
   Reports: undefined;
   Settings: undefined;
-  ChangePin: undefined;
 };
 
 declare global {

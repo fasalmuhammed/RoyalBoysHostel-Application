@@ -122,10 +122,14 @@ export default function AdmissionReviewScreen({ navigation, route }: Props) {
           <Divider />
           <DetailRow label="Email" value={application.email} />
           <Divider />
-          <DetailRow label="College / company" value={application.institution} />
+          <DetailRow label={application.institutionType === "company" ? "Company" : application.institutionType === "college" ? "College" : "College / company"} value={application.institution} />
           <Divider />
-          <DetailRow label="Course" value={[application.course, application.year].filter(Boolean).join(" · ")} />
-          <Divider />
+          {application.institutionType === "company" ? null : (
+            <>
+              <DetailRow label="Course" value={[application.course, application.year].filter(Boolean).join(" · ")} />
+              <Divider />
+            </>
+          )}
           <DetailRow label="Blood group" value={application.bloodGroup} />
           <Divider />
           <DetailRow label="Address" value={application.address} />
@@ -138,6 +142,12 @@ export default function AdmissionReviewScreen({ navigation, route }: Props) {
           <DetailRow label="Guardian mobile" value={application.guardianPhone} />
           <Divider />
           <DetailRow label="Emergency contact" value={application.emergencyPhone} />
+          <Divider />
+          <DetailRow
+            label="Rules and regulations"
+            value={application.termsAcceptedAt ? `Accepted ${formatDateTime(application.termsAcceptedAt)}` : "Not recorded"}
+            tone={application.termsAcceptedAt ? "success" : undefined}
+          />
         </Card>
 
         <SectionTitle title="Aadhaar card" />

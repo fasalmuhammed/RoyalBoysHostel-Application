@@ -2,11 +2,13 @@ import React, { useState } from "react";
 import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
+import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
 
 import Button from "@/components/Button";
 import Input from "@/components/Input";
-import { colors, fontSize, radius, shadow, spacing, type } from "@/constants/theme";
+import { LiquidBlobs, Surface } from "@/components/Liquid";
+import { colors, fontSize, gradients, radius, shadow, spacing, type } from "@/constants/theme";
 import { useApp } from "@/context/AppContext";
 
 /**
@@ -15,7 +17,7 @@ import { useApp } from "@/context/AppContext";
  * which login it is.
  */
 export default function LoginScreen() {
-  const { signIn, settings } = useApp();
+  const { signIn, settings, loginNotice } = useApp();
   const insets = useSafeAreaInsets();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -48,8 +50,8 @@ export default function LoginScreen() {
         contentContainerStyle={styles.scroll}
       >
         <View style={[styles.hero, { paddingTop: insets.top + spacing.xl + spacing.md }]}>
-          <View style={styles.glowA} />
-          <View style={styles.glowB} />
+          <LinearGradient colors={[...gradients.hero]} start={gradients.heroStart} end={gradients.heroEnd} style={StyleSheet.absoluteFill} />
+          <LiquidBlobs />
           <View style={styles.logo}>
             <Ionicons name="business" size={30} color={colors.goldLight} />
           </View>
@@ -57,9 +59,15 @@ export default function LoginScreen() {
           <Text style={styles.subtitle}>Hostel management</Text>
         </View>
 
-        <View style={styles.card}>
+        <Surface style={styles.card} distance={28}>
           <Text style={styles.cardTitle}>Welcome back</Text>
           <Text style={styles.cardSubtitle}>Log in to open the hostel records.</Text>
+          {loginNotice ? (
+            <View style={styles.notice}>
+              <Ionicons name="time-outline" size={16} color={colors.info} />
+              <Text style={styles.noticeText}>{loginNotice}</Text>
+            </View>
+          ) : null}
 
           <Input
             label="User ID"
@@ -93,7 +101,7 @@ export default function LoginScreen() {
           </View>
 
           <Button title="Log in" icon="log-in-outline" onPress={onSubmit} loading={busy} />
-        </View>
+        </Surface>
 
         <View style={styles.note}>
           <Ionicons name="help-circle-outline" size={16} color={colors.textMuted} />
@@ -113,7 +121,7 @@ const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.background },
   scroll: { paddingBottom: spacing.xl * 2 },
   hero: {
-    backgroundColor: colors.primaryDark,
+    backgroundColor: colors.primary,
     alignItems: "center",
     paddingHorizontal: spacing.lg,
     // Room for the card to ride up over the bottom edge.
@@ -127,8 +135,8 @@ const styles = StyleSheet.create({
     width: 280,
     height: 280,
     borderRadius: 140,
-    backgroundColor: colors.primary,
-    opacity: 0.35,
+    backgroundColor: "#FFFFFF",
+    opacity: 0.14,
     top: -140,
     right: -80,
   },
@@ -137,7 +145,8 @@ const styles = StyleSheet.create({
     width: 220,
     height: 220,
     borderRadius: 110,
-    backgroundColor: colors.primaryDeep,
+    backgroundColor: "#FFFFFF",
+    opacity: 0.1,
     bottom: -120,
     left: -70,
   },
@@ -167,6 +176,15 @@ const styles = StyleSheet.create({
   },
   cardTitle: { ...type.title, color: colors.text },
   cardSubtitle: { ...type.body, color: colors.textMuted, marginTop: 2, marginBottom: spacing.lg },
+  notice: {
+    flexDirection: "row",
+    gap: spacing.sm,
+    backgroundColor: colors.infoBg,
+    borderRadius: radius.md,
+    padding: spacing.sm + 2,
+    marginBottom: spacing.md,
+  },
+  noticeText: { ...type.support, color: colors.text, flex: 1 },
   // Sits inside the password field, level with what is typed.
   eye: { position: "absolute", right: spacing.md, top: 38 },
 

@@ -1,7 +1,16 @@
 import { FeeRecord, FeeRecordWithInmate, FeeStatus, Inmate, Payment, PaymentMethod } from "@/types";
 import { newId } from "@/utils/id";
-import { daysUntil, formatMoney, formatPeriod, toIsoDate, toPeriod } from "@/utils/format";
-import { fresh, logActivity, patch, put, remove, runThrottled, withLock } from "@/store/cloud";
+import {
+  daysUntil,
+  formatDate,
+  formatMoney,
+  formatPeriod,
+  parseIsoDate,
+  relativeDays,
+  toIsoDate,
+  toPeriod,
+} from "@/utils/format";
+import { fresh, logActivity, patch, put, remove, runThrottled, withLock, limitedToBranch } from "@/store/cloud";
 import {
   BillDoc,
   BillEntry,
@@ -38,6 +47,37 @@ function statusOf(bill: Pick<FeeRecord, "total" | "amountPaid">): FeeStatus {
   return "unpaid";
 }
 
+/** The promise on a bill, if one stands: only an unsettled bill can have one. */
+function promiseOn(bill: Pick<FeeRecord, "total" | "amountPaid" | "promisedDate">): string {
+  return bill.promisedDate && bill.amountPaid < bill.total - 0.01 ? bill.promisedDate : "";
+}
+
+/** Why a promised date cannot be used, or null when it is fine. */
+export function promiseDateProblem(iso: string | null | undefined): string | null {
+  if (!iso) return "Choose the date they will pay the balance.";
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(iso) || Number.isNaN(parseIsoDate(iso).getTime()) || toIsoDate(parseIsoDate(iso)) !== iso) {
+    return "Enter the date as YYYY-MM-DD, for example " + toIsoDate() + ".";
+  }
+  const days = daysUntil(iso);
+  if (days < 0) return "That date has already passed. Choose today or a later date.";
+  if (days > 180) return "That is more than six months away. Choose a nearer date.";
+  return null;
+}
+
+/**
+ * How a bill's deadline reads in a list: "due in 3 days", or -- for a
+ * part-paid bill with a promise -- "balance promised tomorrow".
+ */
+export function dueLabel(fee: Pick<FeeRecordWithInmate, "dueDate" | "promisedDate" | "balance">): string {
+  if (fee.balance <= 0.01) return "";
+  if (fee.promisedDate) {
+    return daysUntil(fee.promisedDate) < 0
+      ? `promised ${relativeDays(fee.promisedDate)}, not paid`
+      : `balance promised ${relativeDays(fee.promisedDate)}`;
+  }
+  return fee.dueDate ? `due ${relativeDays(fee.dueDate)}` : "no due date";
+}
+
 /** A bill joined with the inmate it belongs to. Bills whose inmate is gone are hidden. */
 function withStudent(bill: BillEntry, inmate: Inmate): FeeRecordWithInmate {
   const { docId: _docId, payments: _payments, ...record } = bill;
@@ -51,6 +91,8 @@ function withStudent(bill: BillEntry, inmate: Inmate): FeeRecordWithInmate {
     roomLabel: roomLabelOf(roomById(inmate.roomId)),
     status: statusOf(bill),
     balance: bill.total - bill.amountPaid,
+    promisedDate: promiseOn(bill),
+    chaseDate: promiseOn(bill) || bill.dueDate,
   };
 }
 
@@ -254,7 +296,13 @@ export async function updateFee(id: string, input: FeeInput): Promise<void> {
   });
 }
 
+/** Thrown when a manager tries something only the admin may do. */
+export class AdminOnlyError extends Error {}
+
 export async function deleteFee(id: string): Promise<void> {
+  // A deleted bill is money no longer asked for, so only the admin removes
+  // one. The server refuses a manager as well (see firestore.rules).
+  if (limitedToBranch()) throw new AdminOnlyError("Only the admin can delete a bill.");
   const current = billById(id);
   if (!current) return;
   await withLock("fees", current.docId, async () => {
@@ -428,9 +476,19 @@ export async function recordPayment(
   method: PaymentMethod,
   paidOn: string,
   reference: string,
-  note: string
+  note: string,
+  /**
+   * For a part payment: the day the inmate promised the rest. The bill then
+   * leaves the dues list until that day. Ignored when the payment settles
+   * the bill, which clears any earlier promise.
+   */
+  promisedDate: string | null = null
 ): Promise<void> {
   if (amount <= 0) throw new OverpaymentError("Enter an amount greater than zero.");
+  if (promisedDate) {
+    const problem = promiseDateProblem(promisedDate);
+    if (problem) throw new OverpaymentError(problem);
+  }
 
   const current = billById(feeRecordId);
   if (!current) throw new OverpaymentError("That invoice no longer exists.");
@@ -449,11 +507,15 @@ export async function recordPayment(
 
     const paymentId = newId();
     const now = Date.now();
+    const settles = amount >= balance - 0.01;
     await patch("fees", current.docId, {
       ...ownerOf(current.docId),
       bills: {
         [bill.period]: {
           updatedAt: now,
+          // Settled: no promise left. Part paid with a date: that is the new
+          // promise. Part paid without one: any earlier promise stands.
+          ...(settles ? { promisedDate: "" } : promisedDate ? { promisedDate } : {}),
           payments: {
             [paymentId]: { id: paymentId, amount, method, paidOn, reference, note, createdAt: now },
           },
@@ -467,6 +529,33 @@ export async function recordPayment(
     entity: "payment",
     entityId: feeRecordId,
     label: `${formatMoney(amount, (await loadSettings()).currencySymbol)} from ${billLabel(current.studentId, current.period)}`,
+    branchId: inmateById(current.studentId)?.branchId ?? null,
+  });
+}
+
+/**
+ * Changes the day a part-paid bill's balance is promised for -- the inmate
+ * rang to ask for more time -- or, with null, removes the promise so the bill
+ * goes back to its original due date.
+ */
+export async function setPromiseDate(feeRecordId: string, promisedDate: string | null): Promise<void> {
+  if (promisedDate) {
+    const problem = promiseDateProblem(promisedDate);
+    if (problem) throw new OverpaymentError(problem);
+  }
+  const current = billById(feeRecordId);
+  if (!current) throw new OverpaymentError("That invoice no longer exists.");
+  await withLock("fees", current.docId, async () => {
+    await patch("fees", current.docId, {
+      ...ownerOf(current.docId),
+      bills: { [current.period]: { updatedAt: Date.now(), promisedDate: promisedDate ?? "" } },
+    });
+  });
+  logActivity({
+    action: "updated",
+    entity: "bill",
+    entityId: feeRecordId,
+    label: `${billLabel(current.studentId, current.period)}: ${promisedDate ? `balance promised for ${formatDate(promisedDate)}` : "promise removed"}`,
     branchId: inmateById(current.studentId)?.branchId ?? null,
   });
 }
@@ -492,10 +581,13 @@ export async function deletePayment(paymentId: string): Promise<void> {
     if (!doc || !bill || !bill.payments?.[paymentId]) return;
     const payments = { ...bill.payments };
     delete payments[paymentId];
+    // A promise is about the balance of a part payment. With no payment left
+    // on the bill there is no part payment, so the bill is due as it was.
+    const promisedDate = Object.keys(payments).length > 0 ? (bill.promisedDate ?? "") : "";
     await put("fees", current.docId, {
       ...doc,
       ...ownerOf(current.docId),
-      bills: { ...doc.bills, [bill.period]: { ...bill, payments, updatedAt: Date.now() } },
+      bills: { ...doc.bills, [bill.period]: { ...bill, payments, promisedDate, updatedAt: Date.now() } },
     });
   });
 
@@ -530,9 +622,9 @@ export async function feeTotals(period: string | null = null): Promise<FeeTotals
   return totals;
 }
 
-/** `ORDER BY dueDate ASC, fullName COLLATE NOCASE`. */
+/** By the date to collect on, then by name. */
 const byDueThenName = (a: FeeRecordWithInmate, b: FeeRecordWithInmate) =>
-  compareRaw(a.dueDate, b.dueDate) || compareText(a.studentName, b.studentName);
+  compareRaw(a.chaseDate, b.chaseDate) || compareText(a.studentName, b.studentName);
 
 /**
  * Unsettled invoices whose due date falls on or before `throughDate`, oldest
@@ -542,8 +634,9 @@ export async function listDueForReminder(throughDate: string): Promise<FeeRecord
   return joined(
     (bill, inmate) =>
       bill.amountPaid < bill.total - 0.01 &&
-      bill.dueDate !== "" &&
-      bill.dueDate <= throughDate &&
+      // A promise moves the bill out of the queue until its date arrives.
+      (promiseOn(bill) || bill.dueDate) !== "" &&
+      (promiseOn(bill) || bill.dueDate) <= throughDate &&
       inmate.status === "active" &&
       inActiveBranch(inmate.branchId)
   ).sort(byDueThenName);
@@ -561,7 +654,7 @@ export async function listAllDues(): Promise<FeeRecordWithInmate[]> {
   return joined(
     (bill, inmate) =>
       bill.amountPaid < bill.total - 0.01 && inmate.status === "active" && inActiveBranch(inmate.branchId)
-  ).sort((a, b) => Number(a.dueDate === "") - Number(b.dueDate === "") || byDueThenName(a, b));
+  ).sort((a, b) => Number(a.chaseDate === "") - Number(b.chaseDate === "") || byDueThenName(a, b));
 }
 
 /** Buckets a collection round is actually organised around. */
@@ -577,7 +670,7 @@ export interface DueGroup {
 }
 
 const BUCKET_META: Record<DueBucket, { title: string; subtitle: string }> = {
-  overdue: { title: "Overdue", subtitle: "Past the due date and still unpaid" },
+  overdue: { title: "Overdue", subtitle: "Past the due or promised date and still unpaid" },
   today: { title: "Due today", subtitle: "Collect or remind them today" },
   tomorrow: { title: "Due tomorrow", subtitle: "Worth a heads-up now" },
   week: { title: "Due this week", subtitle: "Within the next 7 days" },
@@ -605,7 +698,7 @@ export function groupDues(fees: FeeRecordWithInmate[]): DueGroup[] {
   for (const fee of fees) {
     // A bill with no deadline cannot be chased on a date; treat it as later
     // rather than silently dropping it from the round.
-    const days = fee.dueDate ? daysUntil(fee.dueDate) : Number.POSITIVE_INFINITY;
+    const days = fee.chaseDate ? daysUntil(fee.chaseDate) : Number.POSITIVE_INFINITY;
     if (days < 0) buckets.overdue.push(fee);
     else if (days === 0) buckets.today.push(fee);
     else if (days === 1) buckets.tomorrow.push(fee);

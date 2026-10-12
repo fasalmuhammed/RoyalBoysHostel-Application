@@ -2,16 +2,18 @@ import React from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
+import { LinearGradient } from "expo-linear-gradient";
 import Constants from "expo-constants";
 import type { CompositeScreenProps } from "@react-navigation/native";
 import type { BottomTabScreenProps } from "@react-navigation/bottom-tabs";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 
-import { Tone, colors, fontSize, radius, shadow, spacing, toneColor, type } from "@/constants/theme";
+import { Tone, colors, gradients, fontSize, radius, shadow, spacing, toneColor, type } from "@/constants/theme";
 import { useApp } from "@/context/AppContext";
 import { initials } from "@/utils/format";
 import { countApplications } from "@/services/admissions";
 import HostelSwitch from "@/components/HostelSwitch";
+import { LiquidBlobs } from "@/components/Liquid";
 import type { MainTabParamList, RootStackParamList } from "@/navigation/types";
 
 type Props = CompositeScreenProps<
@@ -20,7 +22,7 @@ type Props = CompositeScreenProps<
 >;
 
 export default function MoreScreen({ navigation }: Props) {
-  const { lock, activeBranch, allHostels, access, user, signOut, hasPin } = useApp();
+  const { activeBranch, allHostels, access, user, signOut } = useApp();
   const displayName = user?.name || user?.username || "";
   // Recounted on every live refresh (the context re-renders this screen).
   const waiting = countApplications();
@@ -31,6 +33,8 @@ export default function MoreScreen({ navigation }: Props) {
         <Text style={styles.title}>More</Text>
 
         <View style={styles.profile}>
+          <LinearGradient colors={[...gradients.hero]} start={gradients.heroStart} end={gradients.heroEnd} style={StyleSheet.absoluteFill} />
+          <LiquidBlobs scale={0.7} />
           <View style={styles.profileTop}>
             <View style={styles.profileAvatar}>
               <Text style={styles.profileInitials}>{initials(displayName || "?")}</Text>
@@ -138,14 +142,15 @@ export default function MoreScreen({ navigation }: Props) {
 
         <Text style={styles.groupLabel}>THIS DEVICE</Text>
         <View style={styles.group}>
-          <Row
-            tone="neutral"
-            icon="settings-outline"
-            label="Settings"
-            sublabel={access.isOwner ? "Hostel details, PIN and app lock" : "PIN and app lock"}
-            onPress={() => navigation.navigate("Settings")}
-          />
-          {hasPin ? <Row tone="neutral" icon="lock-closed-outline" label="Lock the app now" onPress={lock} /> : null}
+          {access.isOwner ? (
+            <Row
+              tone="neutral"
+              icon="settings-outline"
+              label="Settings"
+              sublabel="Hostel name, country code and currency"
+              onPress={() => navigation.navigate("Settings")}
+            />
+          ) : null}
           <Row
             tone="danger"
             icon="log-out-outline"
@@ -207,12 +212,13 @@ function Row({
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.background },
-  content: { padding: spacing.lg, paddingBottom: spacing.xl * 2 },
+  content: { padding: spacing.lg, paddingBottom: 130 },
   title: { ...type.title, color: colors.text, marginBottom: spacing.md },
 
   profile: {
-    backgroundColor: colors.primaryDark,
+    backgroundColor: colors.primary,
     borderRadius: radius.xl,
+    overflow: "hidden",
     padding: spacing.md,
     marginBottom: spacing.lg,
     gap: spacing.md,
@@ -263,8 +269,6 @@ const styles = StyleSheet.create({
   group: {
     backgroundColor: colors.surface,
     borderRadius: radius.lg,
-    borderWidth: 1,
-    borderColor: colors.border,
     marginBottom: spacing.lg,
     overflow: "hidden",
   },
@@ -283,7 +287,7 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.md - 1,
     minHeight: 60,
   },
-  rowBorder: { borderBottomWidth: 1, borderBottomColor: colors.border },
+  rowBorder: { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.borderStrong },
   rowPressed: { backgroundColor: colors.surfaceAlt },
   rowIcon: {
     width: 38,

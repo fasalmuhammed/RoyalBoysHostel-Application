@@ -22,7 +22,7 @@ export default function SyncBanner() {
     : syncProblem;
 
   return (
-    <View pointerEvents="none" style={[styles.wrap, { bottom: insets.bottom + 80 }]}>
+    <View pointerEvents="none" style={[styles.wrap, { bottom: insets.bottom + 104 }]}>
       <View style={[styles.pill, !waiting && styles.pillProblem]}>
         <Ionicons name={waiting ? "cloud-offline-outline" : "sync-outline"} size={16} color={colors.onDark} />
         <Text style={styles.text} numberOfLines={3}>{text}</Text>

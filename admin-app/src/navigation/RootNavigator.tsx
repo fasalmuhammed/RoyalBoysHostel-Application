@@ -4,13 +4,12 @@ import { NavigationContainer, DefaultTheme } from "@react-navigation/native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { Ionicons } from "@expo/vector-icons";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+import GlassTabBar from "@/components/GlassTabBar";
 
 import { colors, font, fontSize, spacing } from "@/constants/theme";
 import { useApp } from "@/context/AppContext";
 import { Loading } from "@/components/Base";
 
-import LockScreen from "@/screens/LockScreen";
 import BranchPickerScreen from "@/screens/BranchPickerScreen";
 import DashboardScreen from "@/screens/DashboardScreen";
 import MoreScreen from "@/screens/MoreScreen";
@@ -22,7 +21,6 @@ import AdmissionsScreen from "@/screens/admissions/AdmissionsScreen";
 import AdmissionReviewScreen from "@/screens/admissions/AdmissionReviewScreen";
 import JoinQrScreen from "@/screens/admissions/JoinQrScreen";
 import SearchScreen from "@/screens/SearchScreen";
-import ChangePinScreen from "@/screens/ChangePinScreen";
 
 import InmatesScreen from "@/screens/inmates/InmatesScreen";
 import InmateFormScreen from "@/screens/inmates/InmateFormScreen";
@@ -66,56 +64,9 @@ const navTheme = {
   },
 };
 
-const TAB_ICONS: Record<keyof MainTabParamList, keyof typeof Ionicons.glyphMap> = {
-  Dashboard: "grid-outline",
-  Inmates: "people-outline",
-  Rooms: "bed-outline",
-  Fees: "wallet-outline",
-  More: "ellipsis-horizontal",
-};
-
-/**
- * The active tab is marked by a filled icon as well as colour, so the current
- * position is still readable to someone who cannot separate the blue from
- * the grey.
- */
-const TAB_ICONS_ACTIVE: Record<keyof MainTabParamList, keyof typeof Ionicons.glyphMap> = {
-  Dashboard: "grid",
-  Inmates: "people",
-  Rooms: "bed",
-  Fees: "wallet",
-  More: "ellipsis-horizontal",
-};
-
 function MainTabs() {
-  const insets = useSafeAreaInsets();
   return (
-    <Tab.Navigator
-      screenOptions={({ route }) => ({
-        headerShown: false,
-        tabBarActiveTintColor: colors.primary,
-        tabBarInactiveTintColor: colors.textFaint,
-        tabBarStyle: {
-          backgroundColor: colors.surface,
-          borderTopColor: colors.border,
-          borderTopWidth: StyleSheet.hairlineWidth,
-          // Tall enough for the icon and its label, plus whatever the phone
-          // reserves at the bottom (gesture bar or navigation buttons).
-          height: 68 + insets.bottom,
-          paddingTop: 6,
-          paddingBottom: 6 + insets.bottom,
-        },
-        tabBarLabelStyle: { fontSize: fontSize.xs, fontFamily: font.semibold },
-        tabBarLabel: route.name === "Dashboard" ? "Home" : route.name === "Inmates" ? "Inmates" : route.name,
-        tabBarIcon: ({ color, size, focused }) => (
-          <Ionicons
-            name={focused ? TAB_ICONS_ACTIVE[route.name] : TAB_ICONS[route.name]}
-            size={size - 2}
-            color={color}
-          />
-        ),
-      })}
-    >
+    <Tab.Navigator tabBar={(props) => <GlassTabBar {...props} />} screenOptions={{ headerShown: false, animation: "fade" }}>
       <Tab.Screen name="Dashboard" component={DashboardScreen} />
       <Tab.Screen name="Inmates" component={InmatesScreen} />
       <Tab.Screen name="Rooms" component={RoomsScreen} />
@@ -128,10 +79,13 @@ function MainTabs() {
 const detailOptions = {
   headerShown: true,
   headerBackTitle: "Back",
+  headerTitleAlign: "center" as const,
+  headerTintColor: colors.primary,
+  headerStyle: { backgroundColor: colors.background },
   // Slide from the right on both platforms so a push always reads as "deeper
   // in", and the gesture back matches it.
   animation: "slide_from_right" as const,
-  headerTitleStyle: { fontFamily: font.semibold, fontSize: fontSize.md },
+  headerTitleStyle: { fontFamily: font.semibold, fontSize: fontSize.md + 2, color: colors.text },
   headerShadowVisible: false,
 };
 
@@ -239,11 +193,6 @@ function MainStack() {
         options={{ ...detailOptions, title: "Reports" }}
       />
       <Stack.Screen name="Settings" component={SettingsScreen} options={detailOptions} />
-      <Stack.Screen
-        name="ChangePin"
-        component={ChangePinScreen}
-        options={{ ...detailOptions, title: "Change PIN" }}
-      />
     </Stack.Navigator>
   );
 }
@@ -265,10 +214,9 @@ function StartupError({ message }: { message: string }) {
  * Chooses the top-level flow.
  *
  * Login comes first: nothing is loaded until the server knows who is asking.
- * The PIN lock is this device's own quick re-lock on top of that.
  */
 export default function RootNavigator() {
-  const { ready, startupError, user, hasPin, locked, activeBranch } = useApp();
+  const { ready, startupError, user, activeBranch } = useApp();
 
   if (!ready) {
     return (
@@ -284,8 +232,6 @@ export default function RootNavigator() {
     <NavigationContainer theme={navTheme}>
       {!user ? (
         <LoginScreen />
-      ) : hasPin && locked ? (
-        <LockScreen />
       ) : !activeBranch ? (
         // Nothing in the app is meaningful until a branch is chosen: every
         // list, total and new record is scoped to one.

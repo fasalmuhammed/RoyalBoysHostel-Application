@@ -50,6 +50,12 @@ export interface Inmate {
   bloodGroup?: string;
   /** College or company. Optional. */
   institution?: string;
+  /** Which of the two `institution` names; blank on older records. */
+  institutionType?: "college" | "company" | "";
+  /** When they accepted the hostel's rules on the registration form; null if added by staff. */
+  termsAcceptedAt?: number | null;
+  /** Which wording of the rules that was. */
+  termsVersion?: string;
   /** Legacy free-text field (e.g. "Aadhaar last 4 digits"). Kept for old records; no longer editable. */
   idProof: string;
   /** Filename (not a full URI) inside the app's photos directory. */
@@ -129,12 +135,19 @@ export interface FeeRecord {
   amountPaid: number;
   /** ISO yyyy-mm-dd. */
   dueDate: string;
+  /** ISO yyyy-mm-dd the balance of a part-paid bill was promised for; empty when none. */
+  promisedDate?: string;
   note: string;
   createdAt: number;
   updatedAt: number;
 }
 
 export interface FeeRecordWithInmate extends FeeRecord {
+  /**
+   * The date to collect on: the promised date while a promise stands,
+   * otherwise the due date. Dues lists and reminders go by this.
+   */
+  chaseDate: string;
   studentName: string;
   admissionNo: string;
   studentPhone: string;

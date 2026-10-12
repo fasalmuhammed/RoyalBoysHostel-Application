@@ -20,7 +20,6 @@ import { formatInmateId, getBranch } from "./branches";
 import { readPhotoBase64 } from "./photos";
 import { loadSettings } from "./settings";
 import { formatDate, formatDateTime, formatMoney, formatPeriod } from "@/utils/format";
-import { registerDownloadName } from "@/web/shims/sharing";
 
 export type ReportKind = "standard" | "master";
 
@@ -109,8 +108,10 @@ export function inmateReportHtml(data: ReportData): string {
   const personal = rows([
     ["Mobile", or(inmate.phone)],
     ["Email", or(inmate.email)],
-    ["College / company", or(inmate.institution)],
-    ["Course", or([inmate.course, inmate.year].filter(Boolean).join(" · "))],
+    [inmate.institutionType === "company" ? "Company" : inmate.institutionType === "college" ? "College" : "College / company", or(inmate.institution)],
+    ...(inmate.institutionType === "company"
+      ? []
+      : ([["Course", or([inmate.course, inmate.year].filter(Boolean).join(" · "))]] as [string, string][])),
     ["Blood group", or(inmate.bloodGroup)],
     ["Address", or(inmate.address)],
   ]);
@@ -138,7 +139,9 @@ export function inmateReportHtml(data: ReportData): string {
     const billRows = fees
       .map(
         (fee) => `<tr>
-          <td><b>${esc(formatPeriod(fee.period))}</b>${fee.note ? `<br><span class="note">${esc(fee.note)}</span>` : ""}</td>
+          <td><b>${esc(formatPeriod(fee.period))}</b>${fee.note ? `<br><span class="note">${esc(fee.note)}</span>` : ""}${
+            fee.promisedDate ? `<br><span class="note">Balance promised by ${esc(formatDate(fee.promisedDate))}</span>` : ""
+          }</td>
           <td class="num">${money(fee.rent)}</td>
           <td class="num">${money(fee.electricity + fee.water + fee.other)}</td>
           <td class="num">${fee.discount ? `-${money(fee.discount)}` : "&mdash;"}</td>
@@ -179,6 +182,7 @@ export function inmateReportHtml(data: ReportData): string {
       <h2>RECORD</h2>
       ${rows([
         ["Added to the register", esc(formatDateTime(inmate.createdAt))],
+        ["Rules and regulations", inmate.termsAcceptedAt ? `Accepted ${esc(formatDateTime(inmate.termsAcceptedAt))}` : "Not recorded"],
         ["Last changed", esc(formatDateTime(inmate.updatedAt))],
         ["Notes", inmate.notes ? `<span class="note">${esc(inmate.notes)}</span>` : "&mdash;"],
       ])}
@@ -247,7 +251,11 @@ export async function shareInmateReport(studentId: string, kind: ReportKind, mad
 
   const { uri } = await Print.printToFileAsync({ html });
   const title = `${inmate.fullName} - ${master ? "master report" : "report"}`;
-  if (Platform.OS === "web") registerDownloadName(uri, `${title}.pdf`);
+  if (Platform.OS === "web") {
+    // Browser only: gives the download a readable file name.
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    require("@/web/shims/sharing").registerDownloadName(uri, `${title}.pdf`);
+  }
   if (!(await Sharing.isAvailableAsync())) throw new Error("This device cannot save or share files.");
   await Sharing.shareAsync(uri, { mimeType: "application/pdf", dialogTitle: title, UTI: "com.adobe.pdf" });
 }

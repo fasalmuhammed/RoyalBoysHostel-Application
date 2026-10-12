@@ -150,3 +150,6 @@ exports.staff = onCall(async (request) => {
 
 // Student registration (the QR form) lives in its own file.
 exports.join = require("./join").join;
+
+// Monthly bills, raised every morning whether or not anyone opens the app.
+exports.monthlyBills = require("./billing").monthlyBills;

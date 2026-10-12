@@ -4,60 +4,65 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="robots" content="noindex">
-<meta name="theme-color" content="#0F1B45">
+<meta name="theme-color" content="#0A84FF">
 <title>Hostel registration</title>
 <style>
   :root {
-    --primary: #2F55E8; --navy: #0F1B45; --deep: #1B2C6B; --tint: #EAF0FF;
-    --bg: #F3F5FA; --surface: #fff; --text: #0F172A; --muted: #5A6478; --faint: #97A1B4;
-    --border: #E5E9F1; --danger: #DC2626; --danger-bg: #FDECEC; --success: #0E9F6E; --success-bg: #E3F7EF;
-    --gold: #F0C97A;
+    --primary: #007AFF; --tint: #E5F1FF; --bg: #F2F2F7; --surface: #fff; --fill: rgba(118,118,128,.12);
+    --text: #0B0B0F; --muted: #6C6C70; --faint: #AEAEB2; --border: #E5E5EA; --sep: rgba(60,60,67,.2);
+    --danger: #FF3B30; --danger-bg: #FFECEA; --success: #1F9D45; --success-bg: #E3F8E9;
   }
   * { box-sizing: border-box; }
   html { -webkit-text-size-adjust: 100%; }
   body {
-    margin: 0; background: var(--bg); color: var(--text);
-    font: 16px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    margin: 0; background: var(--bg); color: var(--text); -webkit-font-smoothing: antialiased;
+    font: 16px/1.45 -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   }
+  /* A wash of colour for the glass to sit on. */
   .hero {
-    background: var(--navy); color: #fff; text-align: center; position: relative; overflow: hidden;
-    padding: calc(env(safe-area-inset-top) + 36px) 20px 72px; border-radius: 0 0 28px 28px;
+    background: linear-gradient(135deg, #0A84FF 0%, #5E5CE6 55%, #AF52DE 100%); color: #fff; text-align: center;
+    position: relative; overflow: hidden; padding: calc(env(safe-area-inset-top) + 40px) 20px 84px;
+    border-radius: 0 0 34px 34px;
   }
-  .hero::before, .hero::after { content: ""; position: absolute; border-radius: 50%; }
-  .hero::before { width: 280px; height: 280px; background: var(--primary); opacity: .35; top: -140px; right: -80px; }
-  .hero::after { width: 220px; height: 220px; background: var(--deep); bottom: -120px; left: -70px; }
+  .hero::before, .hero::after { content: ""; position: absolute; border-radius: 50%; background: #fff; }
+  .hero::before { width: 300px; height: 300px; opacity: .14; top: -150px; right: -90px; }
+  .hero::after { width: 230px; height: 230px; opacity: .1; bottom: -130px; left: -80px; }
   .hero > * { position: relative; z-index: 1; }
   .logo {
-    width: 60px; height: 60px; border-radius: 20px; margin: 0 auto 14px; display: grid; place-items: center;
-    background: rgba(255,255,255,.12); border: 1px solid rgba(255,255,255,.16);
+    width: 64px; height: 64px; border-radius: 22px; margin: 0 auto 14px; display: grid; place-items: center;
+    background: rgba(255,255,255,.18); border: 1px solid rgba(255,255,255,.34);
+    -webkit-backdrop-filter: blur(20px) saturate(180%); backdrop-filter: blur(20px) saturate(180%);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.5);
   }
-  .hero h1 { margin: 0; font-size: 22px; font-weight: 800; letter-spacing: -.3px; }
-  .hero p { margin: 4px 0 0; color: rgba(255,255,255,.7); font-size: 14px; }
-  main { max-width: 560px; margin: -48px auto 0; padding: 0 16px 48px; position: relative; }
+  .hero h1 { margin: 0; font-size: 28px; font-weight: 700; letter-spacing: -.4px; }
+  .hero p { margin: 4px 0 0; color: rgba(255,255,255,.78); font-size: 15px; }
+  main { max-width: 560px; margin: -56px auto 0; padding: 0 16px 24px; position: relative; }
   .card {
-    background: var(--surface); border: 1px solid var(--border); border-radius: 20px; padding: 20px;
-    margin-bottom: 16px; box-shadow: 0 4px 16px rgba(15,27,69,.07);
+    background: var(--surface); border-radius: 24px; padding: 20px; margin-bottom: 16px;
+    box-shadow: 0 6px 24px rgba(0,0,0,.06);
   }
-  .card h2 { margin: 0 0 4px; font-size: 17px; font-weight: 700; letter-spacing: -.2px; }
-  .card .sub { margin: 0 0 16px; color: var(--muted); font-size: 13px; }
+  .card h2 { margin: 0 0 4px; font-size: 20px; font-weight: 700; letter-spacing: -.3px; display: flex; align-items: center; }
+  .card .sub { margin: 0 0 16px; color: var(--muted); font-size: 14px; }
   .step {
-    display: inline-grid; place-items: center; width: 24px; height: 24px; border-radius: 8px; margin-right: 8px;
-    background: var(--tint); color: var(--primary); font-size: 13px; font-weight: 700; vertical-align: 1px;
+    display: inline-grid; place-items: center; width: 26px; height: 26px; border-radius: 50%; margin-right: 10px;
+    background: var(--primary); color: #fff; font-size: 14px; font-weight: 700; flex: none;
   }
   label.field { display: block; margin-bottom: 14px; }
-  .label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 6px; }
+  .label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 6px; color: var(--muted); }
   .label i { color: var(--danger); font-style: normal; }
   .label small { color: var(--faint); font-weight: 500; }
   input[type=text], input[type=tel], input[type=email], select, textarea {
-    width: 100%; min-height: 52px; padding: 12px 14px; border: 1px solid var(--border); border-radius: 14px;
-    background: #fff; color: var(--text); font: inherit; outline: none; -webkit-appearance: none; appearance: none;
+    width: 100%; min-height: 50px; padding: 12px 14px; border: 1.5px solid transparent; border-radius: 14px;
+    background: var(--fill); color: var(--text); font: inherit; outline: none; -webkit-appearance: none; appearance: none;
+    transition: border-color .15s, background .15s;
   }
+  ::placeholder { color: var(--faint); }
   select {
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='18' height='18' fill='none' stroke='%2397A1B4' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m4 7 5 5 5-5'/%3E%3C/svg%3E");
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='18' height='18' fill='none' stroke='%23AEAEB2' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m4 7 5 5 5-5'/%3E%3C/svg%3E");
     background-repeat: no-repeat; background-position: right 14px center; padding-right: 40px;
   }
   textarea { min-height: 96px; resize: vertical; }
-  input:focus, select:focus, textarea:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(47,85,232,.14); }
+  input:focus, select:focus, textarea:focus { border-color: var(--primary); background-color: #fff; }
   .bad input, .bad select, .bad textarea, .bad .drop { border-color: var(--danger); }
   .err { display: none; color: var(--danger); font-size: 13px; margin-top: 5px; }
   .bad .err { display: block; }
@@ -65,37 +70,88 @@
   .photos { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
   .drop {
     position: relative; display: grid; place-items: center; text-align: center; gap: 6px; cursor: pointer;
-    border: 1.5px dashed #CFD6E3; border-radius: 16px; background: #F8FAFD; min-height: 132px; padding: 12px;
+    border: 1.5px dashed #C7C7CC; border-radius: 18px; background: var(--fill); min-height: 132px; padding: 12px;
     color: var(--muted); font-size: 13px; overflow: hidden;
   }
   .drop.wide { min-height: 150px; }
   .drop svg { color: var(--primary); }
-  .drop b { color: var(--text); display: block; font-size: 14px; }
+  .drop b { color: var(--text); display: block; font-size: 15px; }
   .drop input { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%; }
   .drop img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+  .drop.has { border-style: solid; border-color: transparent; }
   .drop .done {
-    position: absolute; left: 8px; bottom: 8px; background: rgba(15,27,69,.82); color: #fff; font-size: 12px;
-    font-weight: 600; padding: 4px 9px; border-radius: 999px; display: none;
+    position: absolute; left: 8px; bottom: 8px; color: #fff; font-size: 12px; font-weight: 600; padding: 5px 11px;
+    border-radius: 999px; display: none; background: rgba(0,0,0,.42); border: 1px solid rgba(255,255,255,.3);
+    -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px);
   }
   .drop.has .done { display: block; }
   .drop.has .hint { visibility: hidden; }
-  .notice { display: flex; gap: 10px; padding: 12px 14px; border-radius: 14px; font-size: 13px; margin-bottom: 16px; }
-  .notice.info { background: var(--tint); color: #23366f; }
-  .notice.error { background: var(--danger-bg); color: #8f1d1d; }
-  button.primary {
-    width: 100%; min-height: 54px; border: 0; border-radius: 16px; background: var(--primary); color: #fff;
-    font: inherit; font-weight: 700; cursor: pointer; box-shadow: 0 8px 18px rgba(47,85,232,.28);
+  /* iOS segmented control */
+  .seg { display: flex; background: var(--fill); border-radius: 11px; padding: 2px; margin-bottom: 12px; }
+  .seg button {
+    flex: 1; border: 0; background: transparent; font: inherit; font-size: 14px; font-weight: 600; color: var(--text);
+    min-height: 34px; border-radius: 9px; cursor: pointer;
   }
-  button.primary:disabled { opacity: .55; box-shadow: none; }
+  .seg button[aria-selected="true"] { background: #fff; box-shadow: 0 2px 6px rgba(0,0,0,.12); }
+  .rules {
+    margin: 0 0 16px; padding: 14px 14px 14px 40px; max-height: 320px; overflow-y: auto; -webkit-overflow-scrolling: touch;
+    border-radius: 16px; background: var(--fill); font-size: 14px; line-height: 1.7;
+  }
+  .rules li { margin-bottom: 10px; padding-left: 2px; }
+  .rules li:last-child { margin-bottom: 0; }
+  .rules li::marker { color: var(--primary); font-weight: 700; }
+  .fill { font-weight: 700; }
+  .fill.filled { color: var(--primary); border-bottom: 1.5px solid var(--primary); padding: 0 2px; }
+  .accept {
+    display: flex; gap: 12px; align-items: flex-start; cursor: pointer; padding: 14px; border-radius: 16px;
+    background: var(--tint); border: 1.5px solid transparent;
+  }
+  .accept input { flex: none; width: 24px; height: 24px; margin: 0; accent-color: var(--primary); }
+  .accept b { display: block; font-size: 15px; font-weight: 600; }
+  .accept span span { display: block; color: var(--muted); font-size: 13px; margin-top: 4px; line-height: 1.6; }
+  .bad .accept { border-color: var(--danger); background: var(--danger-bg); }
+  .notice { display: flex; gap: 10px; padding: 12px 14px; border-radius: 16px; font-size: 13px; margin-bottom: 16px; }
+  .notice.info { background: transparent; color: var(--muted); text-align: center; display: block; padding: 0 12px; }
+  .notice.error { background: var(--danger-bg); color: #A1160E; }
+  /* The send button floats in a pane of glass; the form scrolls underneath it. */
+  .sendbar {
+    position: sticky; bottom: calc(env(safe-area-inset-bottom) + 12px); z-index: 5; padding: 8px; border-radius: 34px;
+    background: rgba(255,255,255,.72); border: 1px solid rgba(255,255,255,.85);
+    -webkit-backdrop-filter: blur(24px) saturate(180%); backdrop-filter: blur(24px) saturate(180%);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.75), 0 8px 32px rgba(15,23,42,.16);
+  }
+  button.primary {
+    width: 100%; min-height: 52px; border: 0; border-radius: 999px; background: var(--primary); color: #fff;
+    font: inherit; font-size: 17px; font-weight: 600; cursor: pointer;
+  }
+  button.primary:active { opacity: .85; }
+  button.primary:disabled { opacity: .55; }
+  /* Motion: light drifting in the header, cards surfacing, buttons that give under a finger. */
+  @keyframes drift-a { 0%, 100% { transform: translate(0, 0) scale(1); } 50% { transform: translate(-22px, 16px) scale(1.1); } }
+  @keyframes drift-b { 0%, 100% { transform: translate(0, 0) scale(1); } 50% { transform: translate(20px, -14px) scale(1.12); } }
+  @keyframes surface { from { opacity: 0; transform: translateY(18px) scale(.97); } to { opacity: 1; transform: none; } }
+  .hero::before { animation: drift-a 19s ease-in-out infinite; }
+  .hero::after { animation: drift-b 23s ease-in-out infinite; }
+  .card { animation: surface .5s cubic-bezier(.2, .9, .3, 1.15) both; }
+  form .card:nth-of-type(2) { animation-delay: .06s; }
+  form .card:nth-of-type(3) { animation-delay: .12s; }
+  form .card:nth-of-type(4) { animation-delay: .18s; }
+  button.primary, .seg button, .drop, .accept { transition: transform .18s cubic-bezier(.2, .9, .3, 1.3), background-color .2s, box-shadow .2s; }
+  button.primary:active { transform: scale(.97); }
+  .drop:active, .accept:active { transform: scale(.985); }
+  .seg button[aria-selected="true"] { transition: background-color .25s, box-shadow .25s; }
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation: none !important; transition: none !important; }
+  }
   .hp { position: absolute; left: -5000px; width: 1px; height: 1px; overflow: hidden; }
-  .center { text-align: center; padding: 28px 20px; }
+  .center { text-align: center; padding: 32px 20px; }
   .tick {
-    width: 72px; height: 72px; border-radius: 24px; background: var(--success-bg); color: var(--success);
+    width: 76px; height: 76px; border-radius: 50%; background: var(--success-bg); color: var(--success);
     display: grid; place-items: center; margin: 0 auto 16px;
   }
-  .center h2 { font-size: 20px; margin-bottom: 6px; }
+  .center h2 { font-size: 22px; margin-bottom: 6px; justify-content: center; }
   .center p { color: var(--muted); margin: 0; }
-  .foot { text-align: center; color: var(--faint); font-size: 12px; }
+  .foot { text-align: center; color: var(--faint); font-size: 12px; margin-top: 18px; }
   [hidden] { display: none !important; }
   @media (max-width: 360px) { .row { grid-template-columns: 1fr; } }
 </style>
@@ -103,7 +159,7 @@
 <body>
 <header class="hero">
   <div class="logo">
-    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#F0C97A" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 21V5a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v16"/><path d="M16 9h2a2 2 0 0 1 2 2v10"/><path d="M2 21h20"/><path d="M8 7h4M8 11h4M8 15h4"/></svg>
+    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 21V5a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v16"/><path d="M16 9h2a2 2 0 0 1 2 2v10"/><path d="M2 21h20"/><path d="M8 7h4M8 11h4M8 15h4"/></svg>
   </div>
   <h1 id="hostel">Hostel registration</h1>
   <p>Fill in your details to register</p>
@@ -133,12 +189,20 @@
         <input type="tel" name="phone" inputmode="numeric" autocomplete="tel" maxlength="14" placeholder="10-digit number"><span class="err"></span></label>
       <label class="field" data-f="email"><span class="label">Email <small>(optional)</small></span>
         <input type="email" name="email" autocomplete="email" maxlength="120"><span class="err"></span></label>
-      <label class="field" data-f="institution"><span class="label">College / company <small>(optional)</small></span>
+      <div class="field">
+        <span class="label">You are a</span>
+        <div class="seg" id="instSeg" role="tablist" aria-label="Student or working">
+          <button type="button" role="tab" data-type="college" aria-selected="true">College student</button>
+          <button type="button" role="tab" data-type="company" aria-selected="false">Working at a company</button>
+        </div>
+        <input type="hidden" name="institutionType" value="college">
+      </div>
+      <label class="field" data-f="institution"><span class="label"><span id="instLabel">College name</span> <i>*</i></span>
         <input type="text" name="institution" maxlength="100"><span class="err"></span></label>
-      <div class="row">
-        <label class="field" data-f="course"><span class="label">Course <small>(optional)</small></span>
+      <div class="row" id="collegeOnly">
+        <label class="field" data-f="course"><span class="label">Course <i>*</i></span>
           <input type="text" name="course" maxlength="80" placeholder="e.g. B.Tech"><span class="err"></span></label>
-        <label class="field" data-f="year"><span class="label">Year <small>(optional)</small></span>
+        <label class="field" data-f="year"><span class="label">Year <i>*</i></span>
           <input type="text" name="year" maxlength="20" placeholder="e.g. 2nd"><span class="err"></span></label>
       </div>
       <div class="row">
@@ -199,11 +263,79 @@
       </div>
     </div>
 
+    <div class="card">
+      <h2><span class="step">4</span>Rules and regulations</h2>
+      <p class="sub">Read all 23 rules before you accept.</p>
+      <div class="seg" id="langSeg" role="tablist" aria-label="Language of the rules">
+        <button type="button" role="tab" data-lang="ml" aria-selected="true">മലയാളം</button>
+        <button type="button" role="tab" data-lang="en" aria-selected="false">English</button>
+      </div>
+      <!-- The hostel's printed rules. Version: see TERMS_VERSION in the script below and in functions/join.js. -->
+      <ol class="rules" id="rules-ml" lang="ml" tabindex="0" aria-label="Hostel rules and regulations">
+        <li>താങ്കളുടെ ഹോസ്റ്റൽ ഫീ <span class="fill" data-fill="fee">………………</span> തുകയാണ്. അതാത് മാസം കൃത്യമായി തന്നെ നൽകേണ്ടതാണ്. ഹോസ്റ്റൽ ഫീ മുഴുവനായും അടയ്ക്കാതെ താമസിക്കാൻ അനുവദിക്കുന്നതല്ല.</li>
+        <li>താങ്കളുടെ ഐഡി പ്രൂഫ് കോപ്പി, ഫോട്ടോ കോപ്പി, ഫോട്ടോ എന്നിവ നൽകേണ്ടതാണ്.</li>
+        <li>വാടക നിങ്ങളുടെ ഡ്യൂഡേറ്റിന് മുമ്പ് നൽകേണ്ടതാണ്. അല്ലാത്തപക്ഷം റൂം വെക്കേറ്റു ചെയ്യേണ്ടതാണ്.</li>
+        <li>ചില പ്രത്യേക സാഹചര്യങ്ങളിൽ പരിശോധന ആവശ്യമായി വന്നാൽ താങ്കളുടെ സാന്നിധ്യത്തിൽ ബാഗുകൾ പരിശോധിക്കുന്നതാണ്.</li>
+        <li>താങ്കൾക്ക് അനുവദിച്ചിട്ടുള്ള റൂമിൽ പ്രവേശിക്കാൻ പാടുള്ളൂ. പുറത്തുനിന്നും ആരേയും റൂമിൽ മാനേജ്മെന്റിന്റെ അനുവാദമില്ലാതെ പ്രവേശിപ്പിക്കരുത്.</li>
+        <li>പുകവലി, മദ്യപാനം, മറ്റു ലഹരി വസ്തുക്കൾ എന്നിവയുടെ ഉപയോഗം കർശനമായി നിരോധിച്ചിരിക്കുന്നു.</li>
+        <li>ഹോസ്റ്റലിൽ ഇരുന്നു മദ്യപിക്കുകയോ, മദ്യപിച്ചു ഹോസ്റ്റലിൽ വരുകയോ ചെയ്യുന്നവർക്കെതിരെ കർശന നടപടി (പുറത്താക്കുന്നതുൾപ്പെടെ) സ്വീകരിക്കുന്നതാണ്.</li>
+        <li>സ്വമേധയാ ഒഴിഞ്ഞുപോകുമ്പോൾ 15 ദിവസം മുമ്പ് അറിയിക്കേണ്ടതാണ്. അല്ലാത്തപക്ഷം Caution Deposit റീഫണ്ട് ചെയ്യുന്നതല്ല.</li>
+        <li>താങ്കളുടെകൂടെ ഗസ്റ്റ് ഉണ്ടെങ്കിൽ മാനേജ്മെന്റിനോട് അനുവാദം വാങ്ങുകയും ഗസ്റ്റ് ഫീ ………… നൽകേണ്ടതുമാണ്.</li>
+        <li>മാനേജ്മെന്റ് റൂം ഒഴിയാൻ പറഞ്ഞാൽ ഒഴിയാൻ നിങ്ങൾ ബാധ്യസ്ഥനാണ്. റൂം വെക്കേറ്റ് ചെയ്യാതെ വീട്ടിൽ പോയാൽ ഡ്യൂ ഡേറ്റിന് നിർബന്ധമായും ഫീസ് തരണം.</li>
+        <li>ഹോസ്റ്റലിലെ സാധനങ്ങൾക്കോ മറ്റു വസ്തുക്കൾക്കോ കേടുപാടുകൾ, നാശനഷ്ടങ്ങൾ ഉണ്ടായാൽ ആ വസ്തുക്കളുടെ വില അതാത് റൂം മേറ്റ്സിൽ നിന്നും ഈടാക്കുന്നതാണ്.</li>
+        <li>ഹോസ്റ്റലും, റൂമും വൃത്തിയായി സൂക്ഷിക്കേണ്ടതാണ്. പേപ്പർ, പ്ലാസ്റ്റിക് എന്നിവ വേസ്റ്റ് ബിന്നിൽ നിക്ഷേപിക്കേണ്ടതാണ്.</li>
+        <li>ഹോസ്റ്റലിന് പുറത്ത് കൂട്ടംകൂടുകയോ, റോഡിൽ നിന്ന് ഫോൺ ചെയ്യുകയോ സമീപവാസികൾക്ക് എന്തെങ്കിലും ബുദ്ധിമുട്ടുകളുണ്ടാക്കുന്ന പ്രവർത്തികൾ ആരിൽ നിന്ന് ഉണ്ടായാലും അവർക്കെതിരെ കർശന നടപടി സ്വീകരിക്കുന്നതാണ്.</li>
+        <li>ലാപ്ടോപ്, അയേൺ ബോക്സ്, എന്നിവ ഉപയോഗിക്കുന്നതിനുള്ള തുകയായി ……………… രൂപ ഓരോരുത്തരിൽ നിന്നും ഈടാക്കുന്നതാണ്.</li>
+        <li>അയേൺ ബോക്സ്, വാട്ടർ ഹീറ്റർ തുടങ്ങിയ ഇലക്ട്രിക് സാധനങ്ങൾ റൂമിൽ ഉപയോഗിക്കാൻ പാടുള്ളതല്ല.</li>
+        <li>വിലപിടിപ്പുള്ള സാധനങ്ങൾ സ്വന്തം ഉത്തരവാദിത്തിൽ സൂക്ഷിക്കേണ്ടതാണ്.</li>
+        <li>ഹോസ്റ്റലിലെ ഭക്ഷണ സമയത്തിനുള്ളിൽ തന്നെ മുഴുവൻ ആളുകളും ഭക്ഷണം കഴിക്കുക. സമയശേഷം യാതൊരു കാരണവശാലും ഭക്ഷണം നൽകുന്നതല്ല. (രാവിലെ ………… ഉച്ചയ്ക്ക് ………… രാത്രി …………)</li>
+        <li>നിങ്ങൾക്ക് ഇവിടെ എന്തെങ്കിലും അസൗകര്യങ്ങളോ പരാതികളോ ഉണ്ടെങ്കിൽ മാനേജ്മെന്റിനെ അറിയിക്കേണ്ടതാണ്.</li>
+        <li>ഹോസ്റ്റൽ ഫീ ആയി അടച്ച തുക റീ ഫണ്ട് ചെയ്യുന്നതല്ല ………… മാസമെങ്കിലും താമസിച്ചാൽ മാത്രമേ തിരിച്ചു തരുകയുള്ളൂ.</li>
+        <li>മേൽപറഞ്ഞ നിബന്ധനകൾക്ക് വിരുദ്ധമായി പ്രവർത്തിച്ചാൽ ഒരു മുന്നറിയിപ്പും ഇല്ലാതെ ഹോസ്റ്റലിൽ നിന്നും പുറത്താക്കുന്നതും യാതൊരു ഫീസും തിരിച്ചു നൽകുന്നതല്ല.</li>
+        <li>പൊതു അവധി ദിനങ്ങൾ മുൻകൂട്ടി അറിയിക്കുന്നത് പ്രകാരമുള്ള ദിവസങ്ങളിൽ ഹോസ്റ്റൽ അവധിയായിരിക്കും.</li>
+        <li>ഗേറ്റിന് വെളിയിൽ യാതൊരു കാരണവശാലും പാർക്കിംഗ് അനുവദിക്കുന്നതല്ല.</li>
+        <li>ഡ്യൂ ഡേറ്റ് കഴിഞ്ഞു നൽകുന്ന ദിവസങ്ങളിൽ ഡെയ്‌ലി റെന്റ് ഈടാക്കുന്നതാണ്.</li>
+      </ol>
+      <!-- English reading of the same rules; the Malayalam above is the hostel's own wording. -->
+      <ol class="rules" id="rules-en" lang="en" tabindex="0" aria-label="Hostel rules and regulations in English" hidden>
+        <li>Your hostel fee is <span class="fill" data-fill="fee">………………</span>. It must be paid on time every month. You will not be allowed to stay without paying the hostel fee in full.</li>
+        <li>You must give a copy of your ID proof, a photocopy and a photo.</li>
+        <li>Rent must be paid before your due date. Otherwise you must vacate the room.</li>
+        <li>In certain special situations, if a check becomes necessary, bags will be checked in your presence.</li>
+        <li>You may enter only the room allotted to you. Do not bring anyone from outside into the room without the management's permission.</li>
+        <li>Smoking, drinking alcohol and the use of other intoxicating substances are strictly prohibited.</li>
+        <li>Strict action (including expulsion) will be taken against anyone who drinks in the hostel or comes to the hostel drunk.</li>
+        <li>If you leave on your own, you must give 15 days' notice. Otherwise the caution deposit will not be refunded.</li>
+        <li>If you have a guest with you, you must get the management's permission and pay the guest fee of ………… .</li>
+        <li>If the management asks you to vacate the room, you are bound to do so. If you go home without vacating the room, the fee must still be paid on the due date.</li>
+        <li>If hostel equipment or other items are damaged or lost, their cost will be recovered from the room-mates of that room.</li>
+        <li>Keep the hostel and your room clean. Put paper and plastic in the waste bin.</li>
+        <li>Strict action will be taken against anyone who gathers in groups outside the hostel, makes phone calls from the road, or does anything that disturbs the neighbours.</li>
+        <li>A charge of ……………… rupees will be collected from each person for using a laptop or iron box.</li>
+        <li>Electrical appliances such as an iron box or water heater must not be used in the room.</li>
+        <li>Keep valuables at your own responsibility.</li>
+        <li>Everyone must eat within the hostel's meal times. Food will not be served after these times for any reason. (Morning ………… Noon ………… Night …………)</li>
+        <li>If you have any inconvenience or complaint here, inform the management.</li>
+        <li>The amount paid as hostel fee will not be refunded. It will be returned only if you have stayed at least ………… months.</li>
+        <li>If you act against the above rules, you will be expelled from the hostel without any warning and no fee will be refunded.</li>
+        <li>The hostel will be closed on public holidays, on the days announced in advance.</li>
+        <li>Parking outside the gate is not allowed for any reason.</li>
+        <li>For days paid after the due date, a daily rent will be charged.</li>
+      </ol>
+      <div class="field" data-f="acceptTerms" style="margin-bottom:0">
+        <label class="accept">
+          <input type="checkbox" name="acceptTerms" value="yes">
+          <span><b>I have read, understood and accept these rules and regulations.</b><span lang="ml">മേൽപറഞ്ഞ നിബന്ധനകളെല്ലാം വായിച്ചു മനസിലാക്കുകയും, അംഗീകരിക്കുകയും ചെയ്തിട്ടുള്ളതാണ്.</span></span>
+        </label>
+        <span class="err"></span>
+      </div>
+    </div>
+
     <div class="hp" aria-hidden="true"><label>Website <input type="text" name="website" tabindex="-1" autocomplete="off"></label></div>
 
     <div id="formError" class="notice error" hidden></div>
     <div class="notice info">Your details and Aadhaar photos are sent only to the hostel office and are used for your admission record.</div>
-    <button class="primary" type="submit" id="send">Send my details</button>
+    <div class="sendbar"><button class="primary" type="submit" id="send">Send my details</button></div>
   </form>
 
   <p class="foot">Royal Boys Hostel</p>
@@ -213,6 +345,8 @@
 (function () {
   "use strict";
   var API = "/api/join";
+  /** Which wording of the rules the student accepted; change it whenever the rules above change. */
+  var TERMS_VERSION = "2026-10";
   var branchId = new URLSearchParams(location.search).get("b") || "";
   var $ = function (id) { return document.getElementById(id); };
   var form = $("form");
@@ -295,6 +429,44 @@
     });
   });
 
+  // Rules: show one language at a time.
+  document.querySelectorAll("#langSeg button").forEach(function (button) {
+    button.addEventListener("click", function () {
+      document.querySelectorAll("#langSeg button").forEach(function (other) {
+        other.setAttribute("aria-selected", String(other === button));
+      });
+      $("rules-ml").hidden = button.dataset.lang !== "ml";
+      $("rules-en").hidden = button.dataset.lang !== "en";
+    });
+  });
+
+  // College student or working: each has its own fields.
+  document.querySelectorAll("#instSeg button").forEach(function (button) {
+    button.addEventListener("click", function () {
+      var company = button.dataset.type === "company";
+      document.querySelectorAll("#instSeg button").forEach(function (other) {
+        other.setAttribute("aria-selected", String(other === button));
+      });
+      form.elements.institutionType.value = button.dataset.type;
+      $("instLabel").textContent = company ? "Company name" : "College name";
+      $("collegeOnly").hidden = company;
+      ["institution", "course", "year"].forEach(function (field) { setError(field, ""); });
+    });
+  });
+
+  // The rules fill themselves in with what the student has entered, the way
+  // the blanks on the paper form are filled in by hand.
+  var roomRent = {};
+  function fillRules() {
+    var select = form.elements.roomId;
+    var rent = roomRent[select.value];
+    document.querySelectorAll('[data-fill="fee"]').forEach(function (blank) {
+      blank.textContent = rent ? "₹" + Number(rent).toLocaleString("en-IN") : "………………";
+      blank.classList.toggle("filled", !!rent);
+    });
+  }
+  form.elements.roomId.addEventListener("change", fillRules);
+
   var isPhone = function (value) { return /^[6-9]\d{9}$/.test(value.replace(/\D/g, "").replace(/^(91|0)(?=\d{10}$)/, "")); };
 
   function validate(values) {
@@ -302,6 +474,13 @@
     if (!values.fullName) problems.fullName = "Enter your full name.";
     if (!isPhone(values.phone)) problems.phone = "Enter a 10-digit mobile number.";
     if (values.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(values.email)) problems.email = "That email address looks wrong.";
+    if (values.institutionType === "company") {
+      if (!values.institution) problems.institution = "Enter the company you work at.";
+    } else {
+      if (!values.institution) problems.institution = "Enter your college.";
+      if (!values.course) problems.course = "Enter your course.";
+      if (!values.year) problems.year = "Enter your year.";
+    }
     if (!values.address) problems.address = "Enter your home address.";
     if (!values.guardianName) problems.guardianName = "Enter your guardian's name.";
     if (!isPhone(values.guardianPhone)) problems.guardianPhone = "Enter a 10-digit mobile number.";
@@ -309,6 +488,7 @@
     if (!photos.photo) problems.photo = "Add your photo.";
     if (!photos.idFront) problems.idFront = "Add the front side.";
     if (!photos.idBack) problems.idBack = "Add the back side.";
+    if (!form.elements.acceptTerms.checked) problems.acceptTerms = "Tick the box to accept the rules before you send.";
     return problems;
   }
 
@@ -330,7 +510,14 @@
     var button = $("send");
     button.disabled = true;
     button.textContent = "Sending…";
+    // A working person has no course or year, whatever was typed before switching.
+    if (values.institutionType === "company") {
+      values.course = "";
+      values.year = "";
+    }
     values.branchId = branchId;
+    values.acceptTerms = true;
+    values.termsVersion = TERMS_VERSION;
     values.photo = photos.photo;
     values.idFront = photos.idFront;
     values.idBack = photos.idBack;
@@ -371,8 +558,10 @@
         var option = document.createElement("option");
         option.value = room.id;
         option.textContent = "Room " + room.label;
+        roomRent[room.id] = room.rent;
         select.appendChild(option);
       });
+      fillRules();
       show("form");
     })
     .catch(function () {

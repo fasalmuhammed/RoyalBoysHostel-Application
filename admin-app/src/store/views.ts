@@ -34,6 +34,12 @@ export interface BillDoc {
   discount: number;
   total: number;
   dueDate: string;
+  /**
+   * Set when a bill is part-paid: the day the inmate promised the balance
+   * for. Until then the bill is not chased; on that day it is due again.
+   * Empty once the bill is settled or no promise was made.
+   */
+  promisedDate?: string;
   note: string;
   createdAt: number;
   updatedAt: number;
@@ -87,6 +93,7 @@ export function toBillEntry(docId: string, studentId: string, bill: BillDoc): Bi
     total: bill.total,
     amountPaid: sumPayments(bill.payments),
     dueDate: bill.dueDate,
+    promisedDate: bill.promisedDate ?? "",
     note: bill.note,
     createdAt: bill.createdAt,
     updatedAt: bill.updatedAt,

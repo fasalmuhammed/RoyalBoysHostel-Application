@@ -15,7 +15,7 @@ import { AnimatedBar, FadeIn, PressableScale, SkeletonList } from "@/components/
 import { useApp } from "@/context/AppContext";
 import HostelSwitch from "@/components/HostelSwitch";
 import { useAsyncData, useDebounced } from "@/utils/hooks";
-import { currentPeriod, FeeFilter, feeTotals, listFees } from "@/services/fees";
+import { currentPeriod, dueLabel, FeeFilter, feeTotals, listFees } from "@/services/fees";
 import type { FeeRecordWithInmate } from "@/types";
 import { formatMoney, formatPeriod, relativeDays, shiftPeriod } from "@/utils/format";
 import type { MainTabParamList, RootStackParamList } from "@/navigation/types";
@@ -207,7 +207,7 @@ function FeeRow({
   onPress: () => void;
 }) {
   const settled = fee.status === "paid";
-  const overdue = !settled && fee.dueDate !== "" && new Date(fee.dueDate) <= new Date();
+  const overdue = !settled && fee.chaseDate !== "" && new Date(fee.chaseDate) <= new Date();
 
   return (
     <Card style={styles.row} onPress={onPress}>
@@ -224,7 +224,7 @@ function FeeRow({
           {[
             fee.roomLabel ? `Room ${fee.roomLabel}` : null,
             showPeriod ? formatPeriod(fee.period) : null,
-            settled ? null : fee.dueDate ? `due ${relativeDays(fee.dueDate)}` : null,
+            settled ? null : dueLabel(fee),
           ]
             .filter(Boolean)
             .join(" · ")}
@@ -302,7 +302,7 @@ const styles = StyleSheet.create({
   summaryFoot: { ...type.caption, color: colors.textMuted },
 
   controls: { paddingHorizontal: spacing.lg, paddingTop: spacing.md, gap: spacing.sm },
-  list: { padding: spacing.lg, paddingBottom: 110 },
+  list: { padding: spacing.lg, paddingBottom: 190 },
 
   row: { flexDirection: "row", alignItems: "center", gap: spacing.sm + 4 },
   rowBody: { flex: 1, gap: 2 },

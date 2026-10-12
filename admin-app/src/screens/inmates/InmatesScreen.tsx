@@ -81,7 +81,15 @@ export default function InmatesScreen({ navigation, route }: Props) {
     (a) => !term || a.fullName.toLowerCase().includes(term) || a.phone.includes(term)
   );
 
-  const empty = emptyCopy(inmateFilter, debouncedSearch);
+  // "No inmates yet" is wrong once there is a register: they have simply all left.
+  const noneActive = inmateFilter === "active" && !debouncedSearch && (counts?.total ?? 0) > 0;
+  const empty = noneActive
+    ? {
+        icon: "people-outline" as const,
+        title: "No active inmates",
+        message: "Everyone on the register has left. They are under Left, with their fee history.",
+      }
+    : emptyCopy(inmateFilter, debouncedSearch);
   const resultCount = inmates?.length ?? 0;
 
   return (
@@ -323,7 +331,7 @@ const styles = StyleSheet.create({
   title: { ...type.title, color: colors.text },
   subtitle: { ...type.support, color: colors.textMuted, marginTop: 2 },
   controls: { paddingHorizontal: spacing.lg, paddingTop: spacing.md, gap: spacing.sm },
-  list: { padding: spacing.lg, paddingBottom: 110 },
+  list: { padding: spacing.lg, paddingBottom: 190 },
   resultCount: { ...type.caption, color: colors.textMuted, marginBottom: spacing.sm },
 
   row: { flexDirection: "row", alignItems: "center", gap: spacing.sm + 4 },
