@@ -3,7 +3,6 @@ import { Dimensions, Modal, Pressable, StyleSheet, Text, View } from "react-nati
 import { Ionicons } from "@expo/vector-icons";
 
 import Glass from "./Glass";
-import { FadeIn } from "./Motion";
 import { colors, spacing, type } from "@/constants/theme";
 
 export interface MenuItem {
@@ -71,10 +70,10 @@ export default function PopoverMenu({
   const position = roomBelow ? { top: below } : { bottom: screen.height - anchor.y + 8 };
 
   return (
-    <Modal visible transparent animationType="fade" onRequestClose={onClose} statusBarTranslucent>
+    <Modal visible transparent animationType="none" onRequestClose={onClose} statusBarTranslucent>
       <Pressable style={StyleSheet.absoluteFill} onPress={onClose} accessibilityLabel="Close menu" />
-      <FadeIn offsetY={roomBelow ? -8 : 8} style={{ position: "absolute", width: MENU_WIDTH, left, ...position }}>
-        <Glass radius={20} intensity={60} style={styles.menu}>
+      <View style={{ position: "absolute", width: MENU_WIDTH, left, ...position }}>
+        <Glass thick radius={20} intensity={60} style={styles.menu}>
           {title ? <Text style={styles.title}>{title}</Text> : null}
           {items.map((item, index) => {
             const tint = item.destructive ? colors.danger : colors.text;
@@ -101,7 +100,7 @@ export default function PopoverMenu({
             );
           })}
         </Glass>
-      </FadeIn>
+      </View>
     </Modal>
   );
 }

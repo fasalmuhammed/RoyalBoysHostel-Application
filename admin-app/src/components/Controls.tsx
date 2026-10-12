@@ -129,8 +129,8 @@ export function OptionPicker({
     <Modal visible={visible} animationType="fade" transparent onRequestClose={onClose} statusBarTranslucent>
       <View style={styles.sheetStage}>
       <Pressable style={styles.backdrop} onPress={onClose} />
-      <FadeIn offsetY={24} style={styles.sheetDock}>
-        <Glass radius={30} intensity={70} style={styles.sheet}>
+      <View style={styles.sheetDock}>
+        <Glass thick radius={30} intensity={70} style={styles.sheet}>
         <View style={styles.sheetHandle} />
         <Text style={styles.sheetTitle}>{title}</Text>
 
@@ -170,7 +170,7 @@ export function OptionPicker({
 
         <Button title="Cancel" variant="ghost" onPress={onClose} />
         </Glass>
-      </FadeIn>
+      </View>
       </View>
     </Modal>
   );

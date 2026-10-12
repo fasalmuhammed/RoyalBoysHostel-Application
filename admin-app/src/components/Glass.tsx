@@ -18,7 +18,7 @@ import { BlurView } from "expo-blur";
 export type GlassTone = "light" | "dark" | "tinted";
 
 const FILL: Record<GlassTone, string> = {
-  light: "rgba(255, 255, 255, 0.62)",
+  light: "rgba(255, 255, 255, 0.72)",
   dark: "rgba(255, 255, 255, 0.14)",
   tinted: "rgba(0, 122, 255, 0.78)",
 };
@@ -27,6 +27,11 @@ const FILL_SOLID: Record<GlassTone, string> = {
   light: "rgba(255, 255, 255, 0.9)",
   dark: "rgba(255, 255, 255, 0.2)",
   tinted: "rgba(0, 122, 255, 0.94)",
+};
+const THICK: Record<GlassTone, string> = {
+  light: "rgba(250, 250, 252, 0.94)",
+  dark: "rgba(30, 30, 36, 0.86)",
+  tinted: "rgba(0, 122, 255, 0.96)",
 };
 const RIM: Record<GlassTone, string> = {
   light: "rgba(255, 255, 255, 0.85)",
@@ -39,9 +44,15 @@ export default function Glass({
   tone = "light",
   radius = 24,
   intensity = 40,
+  thick = false,
   style,
   pointerEvents,
 }: PropsWithChildren<{
+  /**
+   * For panes that carry text over busy content (menus, sheets): nearly
+   * opaque, so they stay readable even where the browser cannot blur.
+   */
+  thick?: boolean;
   tone?: GlassTone;
   radius?: number;
   /** How strongly it blurs what is behind it. */
@@ -59,7 +70,7 @@ export default function Glass({
         style={[
           shape,
           {
-            backgroundColor: FILL[tone],
+            backgroundColor: thick ? THICK[tone] : FILL[tone],
             // The rim light: brighter along the top edge, a faint shade below.
             ...({
               backdropFilter: blur,
@@ -80,7 +91,7 @@ export default function Glass({
   // phones, so there the pane is simply more opaque.
   const blurred = Platform.OS === "ios";
   return (
-    <View pointerEvents={pointerEvents} style={[shape, styles.native, { backgroundColor: blurred ? FILL[tone] : FILL_SOLID[tone] }, style]}>
+    <View pointerEvents={pointerEvents} style={[shape, styles.native, { backgroundColor: thick ? THICK[tone] : blurred ? FILL[tone] : FILL_SOLID[tone] }, style]}>
       {blurred ? (
         <BlurView
           intensity={intensity}
