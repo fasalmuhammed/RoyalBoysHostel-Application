@@ -102,11 +102,6 @@
   .rules li::marker { color: var(--primary); font-weight: 700; }
   .fill { font-weight: 700; }
   .fill.filled { color: var(--primary); border-bottom: 1.5px solid var(--primary); padding: 0 2px; }
-  .signed { margin: 0 0 12px; display: grid; grid-template-columns: 1fr 1fr; gap: 1px; background: var(--sep); border-radius: 16px; overflow: hidden; }
-  .signed div { background: #fff; padding: 10px 14px; min-width: 0; }
-  .signed dt { font-size: 12px; color: var(--muted); }
-  .signed dt span { color: var(--faint); margin-left: 4px; }
-  .signed dd { margin: 2px 0 0; font-weight: 600; font-size: 15px; overflow-wrap: anywhere; }
   .accept {
     display: flex; gap: 12px; align-items: flex-start; cursor: pointer; padding: 14px; border-radius: 16px;
     background: var(--tint); border: 1.5px solid transparent;
@@ -253,7 +248,7 @@
 
     <div class="card">
       <h2><span class="step">4</span>Rules and regulations</h2>
-      <p class="sub">Read all 23 rules before you accept. നിബന്ധനകൾ മുഴുവൻ വായിക്കുക.</p>
+      <p class="sub">Read all 23 rules before you accept.</p>
       <div class="seg" id="langSeg" role="tablist" aria-label="Language of the rules">
         <button type="button" role="tab" data-lang="ml" aria-selected="true">മലയാളം</button>
         <button type="button" role="tab" data-lang="en" aria-selected="false">English</button>
@@ -310,12 +305,6 @@
         <li>Parking outside the gate is not allowed for any reason.</li>
         <li>For days paid after the due date, a daily rent will be charged.</li>
       </ol>
-      <dl class="signed">
-        <div><dt>Name <span lang="ml">പേര്</span></dt><dd id="signName">—</dd></div>
-        <div><dt>Room <span lang="ml">റൂം</span></dt><dd id="signRoom">Not allotted yet</dd></div>
-        <div><dt>Date <span lang="ml">തീയതി</span></dt><dd id="signDate"></dd></div>
-        <div><dt>Place <span lang="ml">സ്ഥലം</span></dt><dd id="signPlace"></dd></div>
-      </dl>
       <div class="field" data-f="acceptTerms" style="margin-bottom:0">
         <label class="accept">
           <input type="checkbox" name="acceptTerms" value="yes">
@@ -452,19 +441,13 @@
   // the blanks on the paper form are filled in by hand.
   var roomRent = {};
   function fillRules() {
-    var name = form.elements.fullName.value.trim();
     var select = form.elements.roomId;
-    var room = select.value ? select.options[select.selectedIndex].textContent : "";
     var rent = roomRent[select.value];
     document.querySelectorAll('[data-fill="fee"]').forEach(function (blank) {
-      blank.textContent = rent ? "₹" + Number(rent).toLocaleString("en-IN") + " a month" : "………………";
+      blank.textContent = rent ? "₹" + Number(rent).toLocaleString("en-IN") : "………………";
       blank.classList.toggle("filled", !!rent);
     });
-    $("signName").textContent = name || "—";
-    $("signRoom").textContent = room || "Not allotted yet";
-    $("signDate").textContent = new Date().toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric" });
   }
-  form.elements.fullName.addEventListener("input", fillRules);
   form.elements.roomId.addEventListener("change", fillRules);
 
   var isPhone = function (value) { return /^[6-9]\d{9}$/.test(value.replace(/\D/g, "").replace(/^(91|0)(?=\d{10}$)/, "")); };
@@ -561,7 +544,6 @@
         roomRent[room.id] = room.rent;
         select.appendChild(option);
       });
-      $("signPlace").textContent = result.body.branch.name;
       fillRules();
       show("form");
     })
