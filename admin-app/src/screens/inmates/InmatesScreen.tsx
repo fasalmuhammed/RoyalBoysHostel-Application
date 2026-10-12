@@ -7,7 +7,7 @@ import type { BottomTabScreenProps } from "@react-navigation/bottom-tabs";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 
 import { Badge, Card, EmptyState } from "@/components/Base";
-import { HeaderAction, SearchBar, SegmentedTabs } from "@/components/Controls";
+import { Fab, SearchBar, SegmentedTabs } from "@/components/Controls";
 import Button from "@/components/Button";
 import Avatar from "@/components/Avatar";
 import { HIT_TARGET, colors, radius, shadow, spacing, type } from "@/constants/theme";
@@ -94,7 +94,6 @@ export default function InmatesScreen({ navigation, route }: Props) {
 
   return (
     <SafeAreaView style={styles.screen} edges={["top", "left", "right"]}>
-      <HostelSwitch style={styles.hostelSwitch} />
       <View style={styles.header}>
         <View style={{ flex: 1 }}>
           <Text style={styles.title}>Inmates</Text>
@@ -102,7 +101,7 @@ export default function InmatesScreen({ navigation, route }: Props) {
             {counts ? `${counts.active} active · ${counts.total} on the register` : " "}
           </Text>
         </View>
-        <HeaderAction label="Add" onPress={() => navigation.navigate("InmateForm")} />
+        <HostelSwitch />
       </View>
 
       <View style={styles.controls}>
@@ -208,6 +207,7 @@ export default function InmatesScreen({ navigation, route }: Props) {
         />
       )}
 
+      <Fab label="Add" onPress={() => navigation.navigate("InmateForm")} />
     </SafeAreaView>
   );
 }
@@ -322,7 +322,7 @@ const styles = StyleSheet.create({
   title: { ...type.title, color: colors.text },
   subtitle: { ...type.support, color: colors.textMuted, marginTop: 2 },
   controls: { paddingHorizontal: spacing.lg, paddingTop: spacing.md, gap: spacing.sm },
-  list: { padding: spacing.lg, paddingBottom: 130 },
+  list: { padding: spacing.lg, paddingBottom: 190 },
   resultCount: { ...type.caption, color: colors.textMuted, marginBottom: spacing.sm },
 
   row: { flexDirection: "row", alignItems: "center", gap: spacing.sm + 4 },

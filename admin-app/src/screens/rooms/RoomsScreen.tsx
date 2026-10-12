@@ -7,7 +7,7 @@ import type { BottomTabScreenProps } from "@react-navigation/bottom-tabs";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 
 import { Badge, Card, EmptyState } from "@/components/Base";
-import { HeaderAction, SearchBar, SegmentedTabs } from "@/components/Controls";
+import { Fab, SearchBar, SegmentedTabs } from "@/components/Controls";
 import PopoverMenu, { usePopoverMenu } from "@/components/PopoverMenu";
 import Button from "@/components/Button";
 import { colors, radius, spacing, type } from "@/constants/theme";
@@ -75,7 +75,6 @@ export default function RoomsScreen({ navigation }: Props) {
 
   return (
     <SafeAreaView style={styles.screen} edges={["top", "left", "right"]}>
-      <HostelSwitch style={styles.hostelSwitch} />
       <View style={styles.header}>
         <View style={{ flex: 1 }}>
           <Text style={styles.title}>Rooms</Text>
@@ -83,7 +82,7 @@ export default function RoomsScreen({ navigation }: Props) {
             {totals ? `${totals.rooms} ${totals.rooms === 1 ? "room" : "rooms"}` : " "}
           </Text>
         </View>
-        <HeaderAction label="Add room" onPress={() => navigation.navigate("RoomForm")} />
+        <HostelSwitch />
       </View>
 
       <Card style={styles.summary}>
@@ -181,6 +180,7 @@ export default function RoomsScreen({ navigation }: Props) {
         />
       )}
 
+      <Fab label="Add room" onPress={() => navigation.navigate("RoomForm")} />
     </SafeAreaView>
   );
 }
@@ -296,7 +296,7 @@ const styles = StyleSheet.create({
   summaryFoot: { ...type.caption, color: colors.textMuted },
 
   searchWrap: { paddingHorizontal: spacing.lg, paddingTop: spacing.md, gap: spacing.sm },
-  list: { padding: spacing.lg, paddingBottom: 130 },
+  list: { padding: spacing.lg, paddingBottom: 190 },
 
   row: { gap: spacing.sm + 2 },
   rowTop: { flexDirection: "row", alignItems: "flex-start", gap: spacing.sm },

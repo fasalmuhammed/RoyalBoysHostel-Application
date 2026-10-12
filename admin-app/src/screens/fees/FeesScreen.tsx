@@ -56,23 +56,11 @@ export default function FeesScreen({ navigation, route }: Props) {
 
   return (
     <SafeAreaView style={styles.screen} edges={["top", "left", "right"]}>
-      <HostelSwitch style={styles.hostelSwitch} />
       <View style={styles.header}>
-        <View style={{ flex: 1 }}>
-          <Text style={styles.title}>Fees</Text>
-          <Text style={styles.subtitle}>
-            {period ? formatPeriod(period) : "All months"}
-          </Text>
-        </View>
-        <PressableScale
-          onPress={() => navigation.navigate("Dues")}
-          scaleTo={0.9}
-          style={styles.duesButton}
-          accessibilityRole="button"
-          accessibilityLabel="Dues and collections"
-        >
-          <Ionicons name="alarm-outline" size={19} color={colors.primary} />
-        </PressableScale>
+        <Text style={[styles.title, { flex: 1 }]}>Fees</Text>
+        <HostelSwitch />
+      </View>
+      <View style={styles.subHeader}>
         <PressableScale
           onPress={() => setPeriodPickerOpen(true)}
           scaleTo={0.95}
@@ -83,6 +71,16 @@ export default function FeesScreen({ navigation, route }: Props) {
           <Ionicons name="calendar-outline" size={15} color={colors.primary} />
           <Text style={styles.periodText}>{period ? formatPeriod(period) : "All months"}</Text>
           <Ionicons name="chevron-down" size={14} color={colors.primary} />
+        </PressableScale>
+        <View style={{ flex: 1 }} />
+        <PressableScale
+          onPress={() => navigation.navigate("Dues")}
+          scaleTo={0.9}
+          style={styles.duesButton}
+          accessibilityRole="button"
+          accessibilityLabel="Dues and collections"
+        >
+          <Ionicons name="alarm-outline" size={19} color={colors.primary} />
         </PressableScale>
       </View>
 
@@ -260,6 +258,7 @@ const styles = StyleSheet.create({
     paddingTop: spacing.sm,
   },
   title: { ...type.title, color: colors.text },
+  subHeader: { flexDirection: "row", alignItems: "center", paddingHorizontal: spacing.lg, paddingTop: spacing.sm },
   subtitle: { ...type.support, color: colors.textMuted, marginTop: 2 },
   duesButton: {
     width: HIT_TARGET,
