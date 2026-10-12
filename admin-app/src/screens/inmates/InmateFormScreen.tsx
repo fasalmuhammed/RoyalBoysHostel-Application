@@ -58,6 +58,7 @@ const EMPTY: InmateInput = {
   emergencyPhone: "",
   bloodGroup: "",
   institution: "",
+  institutionType: "college",
   termsAcceptedAt: null,
   termsVersion: "",
   idProof: "",
@@ -149,6 +150,7 @@ export default function InmateFormScreen({ navigation, route }: Props) {
   const presetRoom = rooms?.find((room) => room.id === route.params?.presetRoomId);
   const formBranchId = form.branchId || (allHostels ? (presetRoom?.branchId ?? "") : (activeBranch?.id ?? ""));
   const formBranch = branches.find((branch) => branch.id === formBranchId) ?? null;
+  const isCompany = form.institutionType === "company";
   const askBranch = !isEditing && allHostels && !route.params?.presetRoomId;
   const branchRooms = (rooms ?? []).filter((room) => !formBranchId || room.branchId === formBranchId);
   const { data: nextAdmissionNo } = useAsyncData(
@@ -175,6 +177,7 @@ export default function InmateFormScreen({ navigation, route }: Props) {
         emergencyPhone: inmate.emergencyPhone ?? "",
         bloodGroup: inmate.bloodGroup ?? "",
         institution: inmate.institution ?? "",
+        institutionType: inmate.institutionType === "company" ? "company" : "college",
         termsAcceptedAt: inmate.termsAcceptedAt ?? null,
         termsVersion: inmate.termsVersion ?? "",
         idProof: inmate.idProof,
@@ -311,6 +314,20 @@ export default function InmateFormScreen({ navigation, route }: Props) {
     const next: Partial<Record<keyof InmateInput, string>> = {};
     if (!isEditing && !formBranchId) next.branchId = "Choose which hostel this inmate is joining.";
     if (!form.fullName.trim()) next.fullName = "A name is required.";
+    // A new inmate needs everything the QR form asks a student for. Editing an
+    // older record stays lenient, so it can still be opened and corrected.
+    if (!isEditing) {
+      if (!form.phone.trim()) next.phone = "Enter their mobile number.";
+      if (!(form.institution ?? "").trim()) next.institution = isCompany ? "Enter the company they work at." : "Enter their college.";
+      if (!isCompany && !form.course.trim()) next.course = "Enter their course.";
+      if (!isCompany && !form.year.trim()) next.year = "Enter their year.";
+      if (!form.address.trim()) next.address = "Enter their home address.";
+      if (!form.guardianName.trim()) next.guardianName = "Enter the guardian's name.";
+      if (!form.guardianPhone.trim()) next.guardianPhone = "Enter the guardian's mobile number.";
+      if (!(form.emergencyPhone ?? "").trim()) next.emergencyPhone = "Enter an emergency contact number.";
+      if (!form.photoFile) next.photoFile = "Add the inmate's photo.";
+      if (!form.termsAcceptedAt) next.termsAcceptedAt = "Switch this on once they have accepted the rules.";
+    }
     if (form.phone.trim() && !isValidPhone(form.phone)) next.phone = "That phone number looks wrong.";
     if (form.guardianPhone.trim() && !isValidPhone(form.guardianPhone)) {
       next.guardianPhone = "That phone number looks wrong.";
@@ -446,31 +463,8 @@ export default function InmateFormScreen({ navigation, route }: Props) {
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
-          <View style={styles.photoBlock}>
-            <Pressable onPress={() => promptPhoto("photo")} disabled={capturing} style={styles.photoTarget}>
-              {previewUri ? (
-                <Image source={{ uri: previewUri }} style={styles.photo} />
-              ) : (
-                <View style={styles.photoPlaceholder}>
-                  {capturing ? (
-                    <ActivityIndicator color={colors.primary} />
-                  ) : (
-                    <Text style={styles.photoInitials}>
-                      {form.fullName.trim() ? initials(form.fullName) : ""}
-                    </Text>
-                  )}
-                </View>
-              )}
-              <View style={styles.cameraBadge}>
-                <Ionicons name="camera" size={15} color={colors.primaryOn} />
-              </View>
-            </Pressable>
-            <Text style={styles.photoHint}>
-              {previewUri ? "Tap to change photo" : "Tap to take a photo"}
-            </Text>
-          </View>
-
-          <SectionTitle title="Inmate" />
+          {/* The same sections, in the same order, as the form students fill in from the QR code. */}
+          <SectionTitle title="About the inmate" />
           <Input
             label="Full name"
             required
@@ -511,6 +505,7 @@ export default function InmateFormScreen({ navigation, route }: Props) {
           </View>
           <Input
             label="Mobile number"
+            required={!isEditing}
             value={form.phone}
             onChangeText={(t) => set("phone", t)}
             placeholder="e.g. 9876543210"
@@ -529,27 +524,67 @@ export default function InmateFormScreen({ navigation, route }: Props) {
             error={errors.email}
             icon="mail-outline"
           />
-
-          <View style={styles.pairRow}>
-            <Input
-              label="Course"
-              value={form.course}
-              onChangeText={(t) => set("course", t)}
-              placeholder="e.g. CSE"
-              containerStyle={{ flex: 1 }}
-              autoCapitalize="characters"
-            />
-            <Input
-              label="Year"
-              value={form.year}
-              onChangeText={(t) => set("year", t)}
-              placeholder="e.g. 2"
-              keyboardType="number-pad"
-              containerStyle={{ width: 90 }}
+          <View style={{ marginBottom: spacing.md }}>
+            <Text style={styles.fieldLabel}>They are a</Text>
+            <SegmentedTabs
+              value={form.institutionType === "company" ? "company" : "college"}
+              onChange={(key) =>
+                setForm((current) => ({
+                  ...current,
+                  institutionType: key,
+                  // Someone working has no course or year.
+                  ...(key === "company" ? { course: "", year: "" } : {}),
+                }))
+              }
+              options={[
+                { key: "college", label: "College student" },
+                { key: "company", label: "Working at a company" },
+              ]}
             />
           </View>
-
-          <SectionTitle title="Room" />
+          <Input
+            label={isCompany ? "Company name" : "College name"}
+            required={!isEditing}
+            value={form.institution ?? ""}
+            onChangeText={(t) => set("institution", t)}
+            icon={isCompany ? "briefcase-outline" : "school-outline"}
+            autoCapitalize="words"
+            error={errors.institution}
+          />
+          {isCompany ? null : (
+            <>
+            <View style={styles.pairRow}>
+              <Input
+                label="Course"
+                required={!isEditing}
+                error={errors.course}
+                value={form.course}
+                onChangeText={(t) => set("course", t)}
+                placeholder="e.g. CSE"
+                containerStyle={{ flex: 1 }}
+                autoCapitalize="characters"
+              />
+              <Input
+                label="Year"
+                required={!isEditing}
+                error={errors.year}
+                value={form.year}
+                onChangeText={(t) => set("year", t)}
+                placeholder="e.g. 2"
+                keyboardType="number-pad"
+                containerStyle={{ width: 90 }}
+              />
+            </View>
+              </>
+          )}
+          <Input
+            label="Blood group"
+            value={form.bloodGroup ?? ""}
+            onChangeText={(t) => set("bloodGroup", t.toUpperCase().slice(0, 4))}
+            placeholder="Optional, e.g. O+"
+            icon="water-outline"
+            autoCapitalize="characters"
+          />
           <PickerField
             label="Assigned room"
             icon="bed-outline"
@@ -563,8 +598,155 @@ export default function InmateFormScreen({ navigation, route }: Props) {
             onPress={() => setRoomPickerOpen(true)}
             error={errors.roomId}
           />
+          <Input
+            label="Home address"
+            required={!isEditing}
+            error={errors.address}
+            value={form.address}
+            onChangeText={(t) => set("address", t)}
+            placeholder="Home address"
+            multiline
+            icon="location-outline"
+          />
 
-          <SectionTitle title="Fees" />
+          <SectionTitle title="Family and emergency" />
+          <Input
+            label="Guardian name"
+            required={!isEditing}
+            error={errors.guardianName}
+            value={form.guardianName}
+            onChangeText={(t) => set("guardianName", t)}
+            placeholder="Parent or guardian"
+            icon="people-outline"
+            autoCapitalize="words"
+          />
+          <Input
+            label="Guardian mobile"
+            required={!isEditing}
+            value={form.guardianPhone}
+            onChangeText={(t) => set("guardianPhone", t)}
+            placeholder="e.g. 9876543210"
+            keyboardType="phone-pad"
+            error={errors.guardianPhone}
+            icon="call-outline"
+          />
+          <Input
+            label="Emergency contact number"
+            required={!isEditing}
+            value={form.emergencyPhone ?? ""}
+            onChangeText={(t) => set("emergencyPhone", t)}
+            placeholder="Who to call in an emergency"
+            keyboardType="phone-pad"
+            error={errors.emergencyPhone}
+            icon="medkit-outline"
+          />
+
+          <SectionTitle title="Photos" />
+          <View style={styles.photoBlock}>
+            <Pressable onPress={() => promptPhoto("photo")} disabled={capturing} style={styles.photoTarget}>
+              {previewUri ? (
+                <Image source={{ uri: previewUri }} style={styles.photo} />
+              ) : (
+                <View style={styles.photoPlaceholder}>
+                  {capturing ? (
+                    <ActivityIndicator color={colors.primary} />
+                  ) : (
+                    <Text style={styles.photoInitials}>
+                      {form.fullName.trim() ? initials(form.fullName) : ""}
+                    </Text>
+                  )}
+                </View>
+              )}
+              <View style={styles.cameraBadge}>
+                <Ionicons name="camera" size={15} color={colors.primaryOn} />
+              </View>
+            </Pressable>
+            <Text style={styles.photoHint}>
+              {previewUri ? "Tap to change photo" : "Tap to take a photo"}
+            </Text>
+          </View>
+          {errors.photoFile ? <Text style={[styles.errorText, { textAlign: "center", marginBottom: spacing.md }]}>{errors.photoFile}</Text> : null}
+          <Text style={styles.fieldLabel}>Aadhaar card</Text>
+          <Text style={styles.documentHint}>Both sides are required. Make sure all text is clear and readable.</Text>
+          <View style={styles.documentRow}>
+            <View style={styles.documentSide}>
+              <Text style={styles.documentSideLabel}>Front</Text>
+              <Pressable
+                onPress={() => promptPhoto("idProof")}
+                disabled={capturingIdProof}
+                style={styles.idProofTarget}
+              >
+                {idProofPreviewUri ? (
+                  <Image source={{ uri: idProofPreviewUri }} style={styles.idProofImage} />
+                ) : (
+                  <View style={[styles.idProofPlaceholder, errors.idProofFile ? styles.photoError : null]}>
+                    {capturingIdProof ? (
+                      <ActivityIndicator color={colors.primary} />
+                    ) : (
+                      <>
+                        <Ionicons name="card-outline" size={24} color={colors.primary} />
+                        <Text style={styles.idProofPlaceholderText}>Add front</Text>
+                      </>
+                    )}
+                  </View>
+                )}
+              </Pressable>
+              {errors.idProofFile ? <Text style={styles.errorText}>{errors.idProofFile}</Text> : null}
+            </View>
+
+            <View style={styles.documentSide}>
+              <Text style={styles.documentSideLabel}>Back</Text>
+              <Pressable
+                onPress={() => promptPhoto("idProofBack")}
+                disabled={capturingIdProofBack}
+                style={styles.idProofTarget}
+              >
+                {idProofBackPreviewUri ? (
+                  <Image source={{ uri: idProofBackPreviewUri }} style={styles.idProofImage} />
+                ) : (
+                  <View style={[styles.idProofPlaceholder, errors.idProofBackFile ? styles.photoError : null]}>
+                    {capturingIdProofBack ? (
+                      <ActivityIndicator color={colors.primary} />
+                    ) : (
+                      <>
+                        <Ionicons name="card-outline" size={24} color={colors.primary} />
+                        <Text style={styles.idProofPlaceholderText}>Add back</Text>
+                      </>
+                    )}
+                  </View>
+                )}
+              </Pressable>
+              {errors.idProofBackFile ? <Text style={styles.errorText}>{errors.idProofBackFile}</Text> : null}
+            </View>
+          </View>
+
+          <SectionTitle title="Rules and regulations" />
+          <View style={styles.termsRow}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.termsLabel}>Accepted the hostel rules</Text>
+              <Text style={styles.termsHint}>
+                {termsLocked
+                  ? "Already recorded for this inmate."
+                  : "Switch on once they have read and signed the rules and regulations."}
+              </Text>
+            </View>
+            <Switch
+              value={Boolean(form.termsAcceptedAt)}
+              disabled={termsLocked}
+              onValueChange={(on) =>
+                setForm((current) => ({
+                  ...current,
+                  termsAcceptedAt: on ? Date.now() : null,
+                  termsVersion: on ? "signed copy" : "",
+                }))
+              }
+              trackColor={{ true: colors.success, false: colors.borderStrong }}
+              thumbColor={colors.surface}
+            />
+          </View>
+          {errors.termsAcceptedAt ? <Text style={[styles.errorText, { marginBottom: spacing.md }]}>{errors.termsAcceptedAt}</Text> : null}
+
+          <SectionTitle title="Hostel and fees" />
           <View style={{ marginBottom: spacing.md }}>
             <Text style={styles.fieldLabel}>Billing</Text>
             <SegmentedTabs
@@ -628,136 +810,6 @@ export default function InmateFormScreen({ navigation, route }: Props) {
               />
             </>
           )}
-
-          <SectionTitle title="Guardian" />
-          <Input
-            label="Guardian name"
-            value={form.guardianName}
-            onChangeText={(t) => set("guardianName", t)}
-            placeholder="Parent or guardian"
-            icon="people-outline"
-            autoCapitalize="words"
-          />
-          <Input
-            label="Guardian mobile"
-            value={form.guardianPhone}
-            onChangeText={(t) => set("guardianPhone", t)}
-            placeholder="e.g. 9876543210"
-            keyboardType="phone-pad"
-            error={errors.guardianPhone}
-            icon="call-outline"
-          />
-          <Input
-            label="Emergency contact number"
-            value={form.emergencyPhone ?? ""}
-            onChangeText={(t) => set("emergencyPhone", t)}
-            placeholder="Who to call in an emergency"
-            keyboardType="phone-pad"
-            error={errors.emergencyPhone}
-            icon="medkit-outline"
-          />
-
-          <SectionTitle title="Other details" />
-          <Input
-            label="College / company"
-            value={form.institution ?? ""}
-            onChangeText={(t) => set("institution", t)}
-            placeholder="Optional"
-            icon="school-outline"
-            autoCapitalize="words"
-          />
-          <Input
-            label="Blood group"
-            value={form.bloodGroup ?? ""}
-            onChangeText={(t) => set("bloodGroup", t.toUpperCase().slice(0, 4))}
-            placeholder="Optional, e.g. O+"
-            icon="water-outline"
-            autoCapitalize="characters"
-          />
-          <Input
-            label="Address"
-            value={form.address}
-            onChangeText={(t) => set("address", t)}
-            placeholder="Home address"
-            multiline
-            icon="location-outline"
-          />
-          <View style={styles.termsRow}>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.termsLabel}>Accepted the hostel rules</Text>
-              <Text style={styles.termsHint}>
-                {termsLocked
-                  ? "Already recorded for this inmate."
-                  : "Switch on once they have read and signed the rules and regulations."}
-              </Text>
-            </View>
-            <Switch
-              value={Boolean(form.termsAcceptedAt)}
-              disabled={termsLocked}
-              onValueChange={(on) =>
-                setForm((current) => ({
-                  ...current,
-                  termsAcceptedAt: on ? Date.now() : null,
-                  termsVersion: on ? "signed copy" : "",
-                }))
-              }
-              trackColor={{ true: colors.success, false: colors.borderStrong }}
-              thumbColor={colors.surface}
-            />
-          </View>
-          <Text style={styles.fieldLabel}>Aadhaar card</Text>
-          <Text style={styles.documentHint}>Both sides are required. Make sure all text is clear and readable.</Text>
-          <View style={styles.documentRow}>
-            <View style={styles.documentSide}>
-              <Text style={styles.documentSideLabel}>Front</Text>
-              <Pressable
-                onPress={() => promptPhoto("idProof")}
-                disabled={capturingIdProof}
-                style={styles.idProofTarget}
-              >
-                {idProofPreviewUri ? (
-                  <Image source={{ uri: idProofPreviewUri }} style={styles.idProofImage} />
-                ) : (
-                  <View style={[styles.idProofPlaceholder, errors.idProofFile ? styles.photoError : null]}>
-                    {capturingIdProof ? (
-                      <ActivityIndicator color={colors.primary} />
-                    ) : (
-                      <>
-                        <Ionicons name="card-outline" size={24} color={colors.primary} />
-                        <Text style={styles.idProofPlaceholderText}>Add front</Text>
-                      </>
-                    )}
-                  </View>
-                )}
-              </Pressable>
-              {errors.idProofFile ? <Text style={styles.errorText}>{errors.idProofFile}</Text> : null}
-            </View>
-
-            <View style={styles.documentSide}>
-              <Text style={styles.documentSideLabel}>Back</Text>
-              <Pressable
-                onPress={() => promptPhoto("idProofBack")}
-                disabled={capturingIdProofBack}
-                style={styles.idProofTarget}
-              >
-                {idProofBackPreviewUri ? (
-                  <Image source={{ uri: idProofBackPreviewUri }} style={styles.idProofImage} />
-                ) : (
-                  <View style={[styles.idProofPlaceholder, errors.idProofBackFile ? styles.photoError : null]}>
-                    {capturingIdProofBack ? (
-                      <ActivityIndicator color={colors.primary} />
-                    ) : (
-                      <>
-                        <Ionicons name="card-outline" size={24} color={colors.primary} />
-                        <Text style={styles.idProofPlaceholderText}>Add back</Text>
-                      </>
-                    )}
-                  </View>
-                )}
-              </Pressable>
-              {errors.idProofBackFile ? <Text style={styles.errorText}>{errors.idProofBackFile}</Text> : null}
-            </View>
-          </View>
           <Input
             label="Joined on"
             value={form.joinedOn}
