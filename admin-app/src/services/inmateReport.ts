@@ -138,7 +138,9 @@ export function inmateReportHtml(data: ReportData): string {
     const billRows = fees
       .map(
         (fee) => `<tr>
-          <td><b>${esc(formatPeriod(fee.period))}</b>${fee.note ? `<br><span class="note">${esc(fee.note)}</span>` : ""}</td>
+          <td><b>${esc(formatPeriod(fee.period))}</b>${fee.note ? `<br><span class="note">${esc(fee.note)}</span>` : ""}${
+            fee.promisedDate ? `<br><span class="note">Balance promised by ${esc(formatDate(fee.promisedDate))}</span>` : ""
+          }</td>
           <td class="num">${money(fee.rent)}</td>
           <td class="num">${money(fee.electricity + fee.water + fee.other)}</td>
           <td class="num">${fee.discount ? `-${money(fee.discount)}` : "&mdash;"}</td>

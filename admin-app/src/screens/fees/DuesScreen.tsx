@@ -11,7 +11,7 @@ import { HIT_TARGET, colors, radius, spacing, type } from "@/constants/theme";
 import { FadeIn, PressableScale, SkeletonList } from "@/components/Motion";
 import { useApp } from "@/context/AppContext";
 import { useAsyncData } from "@/utils/hooks";
-import { DueBucket, groupDues, listAllDues } from "@/services/fees";
+import { DueBucket, dueLabel, groupDues, listAllDues } from "@/services/fees";
 import type { FeeRecordWithInmate } from "@/types";
 import { formatMoney, relativeDays } from "@/utils/format";
 import type { RootStackParamList } from "@/navigation/types";
@@ -179,7 +179,7 @@ export default function DuesScreen({ navigation }: Props) {
                   <Text style={styles.meta} numberOfLines={1}>
                     {[
                       item.roomLabel ? `Room ${item.roomLabel}` : "No room",
-                      item.dueDate ? `due ${relativeDays(item.dueDate)}` : "no due date",
+                      dueLabel(item),
                     ].join(" · ")}
                   </Text>
                 </View>

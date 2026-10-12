@@ -12,7 +12,7 @@ import { FadeIn, PressableScale } from "@/components/Motion";
 import { useApp } from "@/context/AppContext";
 import { useAsyncData } from "@/utils/hooks";
 import { deleteInmate, getInmate, markLeft, reinstate } from "@/services/inmates";
-import { listFeesForStudent } from "@/services/fees";
+import { dueLabel, listFeesForStudent } from "@/services/fees";
 import { savePhotoToDevice, usePhotoUri } from "@/services/photos";
 import PhotoViewer, { ViewedPhoto } from "@/components/PhotoViewer";
 import PopoverMenu, { usePopoverMenu } from "@/components/PopoverMenu";
@@ -57,8 +57,8 @@ export default function InmateDetailScreen({ navigation, route }: Props) {
   const fees = data?.fees ?? [];
   const outstanding = fees.reduce((sum, fee) => sum + Math.max(fee.balance, 0), 0);
   const oldestDue = fees
-    .filter((fee) => fee.balance > 0.01 && fee.dueDate)
-    .sort((a, b) => a.dueDate.localeCompare(b.dueDate))[0];
+    .filter((fee) => fee.balance > 0.01 && fee.chaseDate)
+    .sort((a, b) => a.chaseDate.localeCompare(b.chaseDate))[0];
   const symbol = settings.currencySymbol;
 
   const call = (number: string) => {
@@ -195,7 +195,7 @@ export default function InmateDetailScreen({ navigation, route }: Props) {
               </Text>
               {oldestDue ? (
                 <Text style={styles.balanceNote} numberOfLines={1}>
-                  Oldest bill due {relativeDays(oldestDue.dueDate)}
+                  {oldestDue.promisedDate ? "Balance" : "Oldest bill"} {dueLabel(oldestDue).replace(/^balance /, "")}
                 </Text>
               ) : null}
             </View>

@@ -1,16 +1,18 @@
 import React, { useEffect, useState } from "react";
 import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { Ionicons } from "@expo/vector-icons";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 
 import { Card, Loading, SectionTitle } from "@/components/Base";
 import Button from "@/components/Button";
 import Input, { PickerField } from "@/components/Input";
 import { OptionPicker } from "@/components/Controls";
+import PromiseDateField from "@/components/PromiseDateField";
 import { HIT_TARGET, colors, fontSize, radius, spacing, type } from "@/constants/theme";
 import { useApp } from "@/context/AppContext";
 import { useAsyncData } from "@/utils/hooks";
-import { getFee, OverpaymentError, recordPayment } from "@/services/fees";
+import { getFee, OverpaymentError, promiseDateProblem, recordPayment } from "@/services/fees";
 import { PaymentMethod } from "@/types";
 import { formatMoney, formatPeriod, toIsoDate } from "@/utils/format";
 import { parseAmount } from "@/utils/validate";
@@ -41,6 +43,14 @@ export default function CollectFeeScreen({ navigation, route }: Props) {
   const [methodPickerOpen, setMethodPickerOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  // For a part payment: the day they said they will pay the rest.
+  const [promisedDate, setPromisedDate] = useState("");
+  const [promiseError, setPromiseError] = useState<string | null>(null);
+
+  // An earlier promise that is still ahead is the starting answer.
+  useEffect(() => {
+    if (fee?.promisedDate && !promiseDateProblem(fee.promisedDate)) setPromisedDate((now) => now || (fee.promisedDate ?? ""));
+  }, [fee]);
 
   // Default to settling the bill outright, which is the usual case.
   useEffect(() => {
@@ -53,6 +63,7 @@ export default function CollectFeeScreen({ navigation, route }: Props) {
   const symbol = settings.currencySymbol;
   const entered = parseAmount(amount);
   const remaining = Math.max(fee.balance - entered, 0);
+  const partial = entered > 0 && remaining > 0.01;
 
   const onSubmit = async () => {
     setError(null);
@@ -60,10 +71,14 @@ export default function CollectFeeScreen({ navigation, route }: Props) {
       setError("Enter the amount being paid.");
       return;
     }
+    // Part paid: the rest needs a date, so someone knows when to ask again.
+    const problem = partial ? promiseDateProblem(promisedDate) : null;
+    setPromiseError(problem);
+    if (problem) return;
 
     setSaving(true);
     try {
-      await recordPayment(feeId, entered, method, paidOn, reference.trim(), note.trim());
+      await recordPayment(feeId, entered, method, paidOn, reference.trim(), note.trim(), partial ? promisedDate : null);
       successFeedback();
       invalidate();
       navigation.goBack();
@@ -119,10 +134,24 @@ export default function CollectFeeScreen({ navigation, route }: Props) {
           <QuickAmount label="Half" onPress={() => setAmount(String(Math.round(fee.balance / 2)))} />
         </View>
 
-        {entered > 0 && entered < fee.balance ? (
-          <Text style={styles.remaining}>
-            {formatMoney(remaining, symbol)} will still be outstanding after this.
-          </Text>
+        {partial ? (
+          <View style={styles.promise}>
+            <View style={styles.promiseHead}>
+              <Ionicons name="time-outline" size={18} color={colors.warning} />
+              <View style={{ flex: 1 }}>
+                <Text style={styles.promiseTitle}>Part payment · {formatMoney(remaining, symbol)} left</Text>
+                <Text style={styles.promiseHint}>When will they pay the rest?</Text>
+              </View>
+            </View>
+            <PromiseDateField
+              value={promisedDate}
+              onChange={(iso) => {
+                setPromisedDate(iso);
+                setPromiseError(null);
+              }}
+              error={promiseError ?? undefined}
+            />
+          </View>
         ) : null}
 
         <PickerField
@@ -156,7 +185,7 @@ export default function CollectFeeScreen({ navigation, route }: Props) {
         />
 
         <Button
-          title={`Record ${formatMoney(entered, symbol)}`}
+          title={partial ? `Record part payment of ${formatMoney(entered, symbol)}` : `Record ${formatMoney(entered, symbol)}`}
           onPress={onSubmit}
           loading={saving}
           disabled={entered <= 0}
@@ -210,6 +239,16 @@ const styles = StyleSheet.create({
     backgroundColor: colors.primaryLight,
   },
   chipText: { ...type.bodyStrong, fontSize: fontSize.sm, color: colors.primary },
+  promise: {
+    backgroundColor: colors.warningBg,
+    borderRadius: radius.lg,
+    padding: spacing.md,
+    paddingBottom: 0,
+    marginBottom: spacing.md,
+  },
+  promiseHead: { flexDirection: "row", alignItems: "center", gap: spacing.sm, marginBottom: spacing.md },
+  promiseTitle: { ...type.bodyStrong, color: colors.text },
+  promiseHint: { ...type.support, color: colors.textMuted, marginTop: 1 },
   remaining: {
     ...type.support,
     color: colors.warning,

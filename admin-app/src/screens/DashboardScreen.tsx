@@ -27,7 +27,7 @@ import { useApp } from "@/context/AppContext";
 import { useAsyncData } from "@/utils/hooks";
 import { inmateCounts } from "@/services/inmates";
 import { occupancyTotals } from "@/services/rooms";
-import { currentPeriod, feeTotals, listDueForReminder } from "@/services/fees";
+import { currentPeriod, dueLabel, feeTotals, listDueForReminder } from "@/services/fees";
 import { formatMoney, formatPeriod, relativeDays, toIsoDate } from "@/utils/format";
 import { countApplications } from "@/services/admissions";
 import BothHostelsOverview from "@/components/BothHostelsOverview";
@@ -219,7 +219,7 @@ export default function DashboardScreen({ navigation }: Props) {
                         </View>
                         <Text style={styles.dueMeta} numberOfLines={1}>
                           {fee.roomLabel ? `Room ${fee.roomLabel} · ` : ""}
-                          due {relativeDays(fee.dueDate)}
+                          {dueLabel(fee)}
                         </Text>
                       </View>
                       <Text style={styles.dueAmount}>{formatMoney(fee.balance, symbol)}</Text>

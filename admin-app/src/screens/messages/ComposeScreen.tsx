@@ -73,7 +73,8 @@ export default function ComposeScreen({ navigation, route }: Props) {
           roomLabel: fee.roomLabel,
           feeId: fee.id,
           period: fee.period,
-          dueDate: fee.dueDate,
+          // A reminder quotes the day they promised, when there is one.
+          dueDate: fee.chaseDate,
           balance: fee.balance,
         }));
     }

@@ -133,12 +133,19 @@ export interface FeeRecord {
   amountPaid: number;
   /** ISO yyyy-mm-dd. */
   dueDate: string;
+  /** ISO yyyy-mm-dd the balance of a part-paid bill was promised for; empty when none. */
+  promisedDate?: string;
   note: string;
   createdAt: number;
   updatedAt: number;
 }
 
 export interface FeeRecordWithInmate extends FeeRecord {
+  /**
+   * The date to collect on: the promised date while a promise stands,
+   * otherwise the due date. Dues lists and reminders go by this.
+   */
+  chaseDate: string;
   studentName: string;
   admissionNo: string;
   studentPhone: string;

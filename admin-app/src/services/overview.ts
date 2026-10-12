@@ -158,8 +158,8 @@ export async function buildAlerts(): Promise<Alert[]> {
       title: `${overdue.length} fee${overdue.length === 1 ? "" : "s"} overdue`,
       body:
         overdue.length === 1
-          ? `${worst.studentName} is ${Math.abs(daysUntil(worst.dueDate))} day(s) past due.`
-          : `Oldest is ${worst.studentName}, ${Math.abs(daysUntil(worst.dueDate))} day(s) past due.`,
+          ? `${worst.studentName} is ${Math.abs(daysUntil(worst.chaseDate))} day(s) past due.`
+          : `Oldest is ${worst.studentName}, ${Math.abs(daysUntil(worst.chaseDate))} day(s) past due.`,
       action: "fees",
     });
   }

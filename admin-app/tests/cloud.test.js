@@ -114,6 +114,60 @@ async function singleDevice() {
   bill = await fees.getFee(billId);
   check("reversing a payment restores the balance", bill.status === "unpaid" && bill.balance === 5000);
 
+  // Part payment with a promised date for the balance. The bill fell due on
+  // 2026-03-15, long past, so without a promise it is overdue.
+  const day = (offset) => {
+    const d = new Date();
+    d.setDate(d.getDate() + offset);
+    const two = (n) => String(n).padStart(2, "0");
+    return `${d.getFullYear()}-${two(d.getMonth() + 1)}-${two(d.getDate())}`;
+  };
+  const today = day(0);
+  const has = (list) => list.some((fee) => fee.id === billId);
+  const inBucket = async (key) => {
+    const group = fees.groupDues(await fees.listAllDues()).find((g) => g.key === key);
+    return Boolean(group) && has(group.fees);
+  };
+
+  check("an unpaid bill past its due date is overdue", has(await fees.listDueForReminder(today)) && (await inBucket("overdue")));
+  check("a promised date in the past is refused", await rejects(fees.recordPayment(billId, 1000, "cash", today, "", "", day(-1)), fees.OverpaymentError));
+  check("a badly written promised date is refused", await rejects(fees.recordPayment(billId, 1000, "cash", today, "", "", "20-10-2026"), fees.OverpaymentError));
+  check("a date that does not exist is refused", fees.promiseDateProblem("2026-02-31") !== null);
+  check("a promise more than six months away is refused", fees.promiseDateProblem(day(200)) !== null);
+  check("today is accepted as a promised date", fees.promiseDateProblem(today) === null);
+  check("a refused payment takes no money", (await fees.getFee(billId)).balance === 5000);
+
+  await fees.recordPayment(billId, 2000, "cash", today, "", "", day(5));
+  bill = await fees.getFee(billId);
+  check("a part payment keeps the promised date", bill.status === "partial" && bill.balance === 3000 && bill.promisedDate === day(5));
+  check("the original due date is untouched", bill.dueDate === "2026-03-15" && bill.chaseDate === day(5));
+  check("a promised bill leaves the reminder queue", !has(await fees.listDueForReminder(today)));
+  check("it comes back on the promised day", has(await fees.listDueForReminder(day(5))));
+  check("it is listed under this week, not overdue", (await inBucket("week")) && !(await inBucket("overdue")));
+  check("its label says when the balance is promised", fees.dueLabel(bill) === "balance promised in 5 days", fees.dueLabel(bill));
+
+  await fees.setPromiseDate(billId, day(1));
+  bill = await fees.getFee(billId);
+  check("the promised date can be moved", bill.promisedDate === day(1) && (await inBucket("tomorrow")));
+  check("moving it to a past date is refused", await rejects(fees.setPromiseDate(billId, day(-3)), fees.OverpaymentError));
+
+  await fees.recordPayment(billId, 500, "cash", today, "", "");
+  check("a further part payment without a new date keeps the promise", (await fees.getFee(billId)).promisedDate === day(1));
+
+  await fees.setPromiseDate(billId, null);
+  bill = await fees.getFee(billId);
+  check("removing the promise returns the bill to its due date", !bill.promisedDate && bill.chaseDate === "2026-03-15" && (await inBucket("overdue")));
+
+  await fees.recordPayment(billId, 500, "cash", today, "", "", day(3));
+  await fees.recordPayment(billId, 2000, "cash", today, "", "", day(9));
+  bill = await fees.getFee(billId);
+  check("settling the bill clears the promise", bill.status === "paid" && !bill.promisedDate && fees.dueLabel(bill) === "");
+  check("a settled bill is not chased", !has(await fees.listAllDues()));
+
+  for (const paid of await fees.listPayments(billId)) await fees.deletePayment(paid.id);
+  bill = await fees.getFee(billId);
+  check("reversing everything leaves an ordinary unpaid bill", bill.status === "unpaid" && bill.balance === 5000 && !bill.promisedDate);
+
   await inmates.createInmate(inmate("Stay guest", null, { admissionType: "stay", stayDays: 5 }));
   const gen = await fees.generateInvoices("2026-04");
   check("monthly bills raised for active monthly inmates only", gen.created === 2, JSON.stringify(gen));

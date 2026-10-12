@@ -181,6 +181,7 @@ export async function exportReport(kind: ReportKind, period: string | null = nul
       { header: "Balance", value: (r) => r.balance },
       { header: "Status", value: (r) => r.status },
       { header: "Due Date", value: (r) => r.dueDate },
+      { header: "Balance Promised By", value: (r) => r.promisedDate ?? "" },
     ]);
     const fileName = period ? `Fees_${period}.csv` : `Fees_All_${stamp()}.csv`;
     return { uri: writeCsv(fileName, csv), fileName, rowCount: rows.length };
