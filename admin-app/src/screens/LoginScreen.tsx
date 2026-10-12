@@ -15,7 +15,7 @@ import { useApp } from "@/context/AppContext";
  * which login it is.
  */
 export default function LoginScreen() {
-  const { signIn, settings } = useApp();
+  const { signIn, settings, loginNotice } = useApp();
   const insets = useSafeAreaInsets();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -60,6 +60,12 @@ export default function LoginScreen() {
         <View style={styles.card}>
           <Text style={styles.cardTitle}>Welcome back</Text>
           <Text style={styles.cardSubtitle}>Log in to open the hostel records.</Text>
+          {loginNotice ? (
+            <View style={styles.notice}>
+              <Ionicons name="time-outline" size={16} color={colors.info} />
+              <Text style={styles.noticeText}>{loginNotice}</Text>
+            </View>
+          ) : null}
 
           <Input
             label="User ID"
@@ -167,6 +173,15 @@ const styles = StyleSheet.create({
   },
   cardTitle: { ...type.title, color: colors.text },
   cardSubtitle: { ...type.body, color: colors.textMuted, marginTop: 2, marginBottom: spacing.lg },
+  notice: {
+    flexDirection: "row",
+    gap: spacing.sm,
+    backgroundColor: colors.infoBg,
+    borderRadius: radius.md,
+    padding: spacing.sm + 2,
+    marginBottom: spacing.md,
+  },
+  noticeText: { ...type.support, color: colors.text, flex: 1 },
   // Sits inside the password field, level with what is typed.
   eye: { position: "absolute", right: spacing.md, top: 38 },
 

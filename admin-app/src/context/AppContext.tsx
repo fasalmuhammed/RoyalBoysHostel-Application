@@ -8,7 +8,8 @@ import React, {
   useRef,
   useState,
 } from "react";
-import { AppState, AppStateStatus } from "react-native";
+import { AppState, AppStateStatus, Platform } from "react-native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 import { AppSettings, Branch } from "@/types";
 import { DEFAULT_SETTINGS, loadSettings, saveSettings } from "@/services/settings";
@@ -19,6 +20,35 @@ import { closeStore, openStore, storePending, storeProblem, subscribeStore } fro
 import { currentPeriod, raiseDueBills } from "@/services/fees";
 import { startBackend } from "@/backend";
 import type { FirebaseBackend, Session } from "@/backend/firebase";
+
+/**
+ * A login is kept while the app is in use. After this long without anyone
+ * touching it, the user ID and password are asked for again.
+ */
+const SIGN_OUT_AFTER_MS = 8 * 60 * 60 * 1000;
+const LAST_USED_KEY = "hostel.lastUsedAt";
+/** How often "still in use" is written down, at most. */
+const TOUCH_EVERY_MS = 60 * 1000;
+
+let lastTouch = 0;
+/** Notes that the app is being used right now. */
+function touch(force = false): void {
+  const now = Date.now();
+  if (!force && now - lastTouch < TOUCH_EVERY_MS) return;
+  lastTouch = now;
+  AsyncStorage.setItem(LAST_USED_KEY, String(now)).catch(() => undefined);
+}
+
+/** True when the app was last used too long ago to keep the login. */
+async function awayTooLong(): Promise<boolean> {
+  try {
+    const stored = Number(await AsyncStorage.getItem(LAST_USED_KEY));
+    // No note at all (a login from before this rule existed) also asks again.
+    return !Number.isFinite(stored) || stored <= 0 || Date.now() - stored > SIGN_OUT_AFTER_MS;
+  } catch {
+    return false;
+  }
+}
 
 /** Re-lock after this long in the background. */
 const AUTO_LOCK_MS = 2 * 60 * 1000;
@@ -51,6 +81,8 @@ interface AppContextValue {
   startupError: string | null;
   /** Null on the login screen. */
   user: SignedIn | null;
+  /** Why the login screen is showing, when the app signed someone out itself. */
+  loginNotice: string | null;
   /** True between a successful login and the records finishing loading. */
   opening: boolean;
   signIn: (username: string, password: string) => Promise<void>;
@@ -110,6 +142,7 @@ export function AppProvider({ children }: PropsWithChildren) {
   const [startupError, setStartupError] = useState<string | null>(null);
   const [user, setUser] = useState<SignedIn | null>(null);
   const [opening, setOpening] = useState(false);
+  const [loginNotice, setLoginNotice] = useState<string | null>(null);
   const [settings, setSettings] = useState<AppSettings>(DEFAULT_SETTINGS);
   const [branches, setBranches] = useState<Branch[]>([]);
   const [activeBranch, setActiveBranch] = useState<Branch | null>(null);
@@ -211,9 +244,19 @@ export function AppProvider({ children }: PropsWithChildren) {
       try {
         const backend = startBackend();
         backendRef.current = backend;
-        const session = await backend.ready();
+        let session = await backend.ready();
         if (cancelled) return;
-        if (session) await enter(session);
+        if (session && (await awayTooLong())) {
+          // Opened after a long break: the saved login is not used.
+          await backend.signOut();
+          session = null;
+          setLoginNotice("You were logged out because the app had not been used for a while.");
+        }
+        if (cancelled) return;
+        if (session) {
+          touch(true);
+          await enter(session);
+        }
         if (cancelled) return;
         setReady(true);
 
@@ -240,6 +283,8 @@ export function AppProvider({ children }: PropsWithChildren) {
       const backend = backendRef.current;
       if (!backend) throw new Error("The app is still starting. Try again in a moment.");
       const session = await backend.signIn(username, password);
+      touch(true);
+      setLoginNotice(null);
       await enter(session);
     },
     [enter]
@@ -249,6 +294,36 @@ export function AppProvider({ children }: PropsWithChildren) {
     leave();
     await backendRef.current?.signOut();
   }, [leave]);
+
+  /**
+   * Keeps the "last used" note fresh while someone is using the app, and logs
+   * out when it is picked up again after a long break (a tab left open
+   * overnight, a phone not opened since yesterday).
+   */
+  useEffect(() => {
+    if (!user) return;
+    const check = async () => {
+      if (await awayTooLong()) {
+        setLoginNotice("You were logged out because the app had not been used for a while.");
+        await signOut();
+      } else {
+        touch(true);
+      }
+    };
+    const subscription = AppState.addEventListener("change", (state) => {
+      if (state === "active") void check();
+    });
+    const used = () => touch();
+    const events = ["pointerdown", "keydown"];
+    if (Platform.OS === "web") events.forEach((name) => document.addEventListener(name, used, true));
+    // A phone has no page-wide tap event; being open in front counts as use.
+    const timer = Platform.OS === "web" ? null : setInterval(() => AppState.currentState === "active" && touch(), TOUCH_EVERY_MS);
+    return () => {
+      subscription.remove();
+      if (Platform.OS === "web") events.forEach((name) => document.removeEventListener(name, used, true));
+      if (timer) clearInterval(timer);
+    };
+  }, [user, signOut]);
 
   /**
    * Live updates. Any change on the server -- this device or another --
@@ -352,6 +427,7 @@ export function AppProvider({ children }: PropsWithChildren) {
       ready,
       startupError,
       user,
+      loginNotice,
       opening,
       signIn,
       signOut,
@@ -376,7 +452,7 @@ export function AppProvider({ children }: PropsWithChildren) {
       lock,
     }),
     [
-      ready, startupError, user, opening, signIn, signOut, settings, hasPin, locked, branches,
+      ready, startupError, user, loginNotice, opening, signIn, signOut, settings, hasPin, locked, branches,
       activeBranch, chooseBranch, allHostels, chooseAll, clearBranch, dataVersion, invalidate, access, syncProblem, pendingSync,
       updateSettings, refreshSettings, refreshPinState, unlock, lock,
     ]
