@@ -6,3 +6,5 @@ web-build/
 .env
 tests/build/
 tests/exportout/
+build/
+keys/

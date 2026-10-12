@@ -3,6 +3,7 @@ import {
   ActivityIndicator,
   Pressable,
   ScrollView,
+  StyleProp,
   StyleSheet,
   Text,
   TextStyle,
@@ -12,7 +13,18 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 
-import { colors, font, fontSize, radius, shadow, spacing, toneColor, Tone } from "@/constants/theme";
+import {
+  Tone,
+  colors,
+  font,
+  fontSize,
+  layout,
+  radius,
+  shadow,
+  spacing,
+  toneColor,
+  type,
+} from "@/constants/theme";
 import { PressableScale } from "./Motion";
 
 /** Full-screen container with the standard background and safe-area insets. */
@@ -47,7 +59,7 @@ export function Card({
   children,
   style,
   onPress,
-}: PropsWithChildren<{ style?: ViewStyle; onPress?: () => void }>) {
+}: PropsWithChildren<{ style?: StyleProp<ViewStyle>; onPress?: () => void }>) {
   if (onPress) {
     return (
       <PressableScale onPress={onPress} scaleTo={0.985} style={[styles.card, style] as ViewStyle[]}>
@@ -163,41 +175,50 @@ const styles = StyleSheet.create({
     borderRadius: radius.lg,
     padding: spacing.md,
     marginBottom: spacing.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    // Tablet only: cap the column so a card does not stretch into an
+    // unreadable band. Left untouched on phones, where the default stretch is
+    // what every screen already relies on -- setting `alignSelf` there would
+    // collapse each card to its content width instead.
+    ...(layout.isTablet
+      ? { maxWidth: 720, width: "100%" as const, alignSelf: "center" as const }
+      : null),
     ...shadow.card,
   },
   cardPressed: { opacity: 0.85, transform: [{ scale: 0.995 }] },
   badge: {
     alignSelf: "flex-start",
-    borderRadius: radius.pill,
-    paddingHorizontal: spacing.sm + 2,
+    borderRadius: radius.sm - 2,
+    paddingHorizontal: spacing.sm,
     paddingVertical: 3,
   },
-  badgeText: { fontSize: fontSize.xs, fontFamily: font.bold, letterSpacing: 0.3 },
+  badgeText: { ...type.label, fontSize: fontSize.xs },
   sectionRow: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
     marginBottom: spacing.sm,
+    marginTop: spacing.xs,
   },
-  sectionTitle: { fontSize: fontSize.lg, fontFamily: font.bold, color: colors.text },
+  sectionTitle: { ...type.section, color: colors.text },
   empty: { alignItems: "center", paddingVertical: spacing.xl },
   emptyIcon: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
+    width: 72,
+    height: 72,
+    borderRadius: radius.xl,
     backgroundColor: colors.primaryLight,
     alignItems: "center",
     justifyContent: "center",
     marginBottom: spacing.md,
   },
-  emptyTitle: { fontSize: fontSize.md, fontFamily: font.bold, color: colors.text },
+  emptyTitle: { ...type.section, color: colors.text },
   emptyMessage: {
-    fontSize: fontSize.sm,
+    ...type.support,
     color: colors.textMuted,
     textAlign: "center",
     marginTop: spacing.xs,
     paddingHorizontal: spacing.lg,
-    lineHeight: 19,
   },
   detailRow: {
     flexDirection: "row",
@@ -206,11 +227,11 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.sm,
     gap: spacing.md,
   },
-  detailLabel: { fontSize: fontSize.sm, color: colors.textMuted },
+  detailLabel: { ...type.support, color: colors.textMuted },
   detailValue: {
+    ...type.bodyStrong,
     fontSize: fontSize.sm,
     color: colors.text,
-    fontFamily: font.semibold,
     flexShrink: 1,
     textAlign: "right",
   },
@@ -224,5 +245,5 @@ const styles = StyleSheet.create({
     borderRadius: radius.md,
     marginBottom: spacing.md,
   },
-  calloutText: { fontSize: fontSize.sm, color: colors.text, lineHeight: 19 },
+  calloutText: { ...type.support, color: colors.text },
 });

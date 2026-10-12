@@ -1,3 +1,4 @@
+import { Platform } from "react-native";
 import { FeeRecordWithInmate, Payment } from "@/types";
 import { formatDate, formatMoney, formatPeriod, toIsoDate } from "./format";
 
@@ -27,7 +28,9 @@ export interface ReceiptInput {
 }
 
 export function receiptHtml({ hostelName, currencySymbol, fee, payments }: ReceiptInput): string {
-  const money = (amount: number) => escapeHtml(formatMoney(amount, currencySymbol));
+  // The browser's PDF writer has no rupee sign in its built-in font; "Rs" prints everywhere.
+  const shown = Platform.OS === "web" && currencySymbol === "₹" ? "Rs " : currencySymbol;
+  const money = (amount: number) => escapeHtml(formatMoney(amount, shown));
 
   const lineItems: [string, number][] = [
     ["Room rent", fee.rent],

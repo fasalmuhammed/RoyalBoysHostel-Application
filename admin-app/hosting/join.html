@@ -1,0 +1,385 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex">
+<meta name="theme-color" content="#0F1B45">
+<title>Hostel registration</title>
+<style>
+  :root {
+    --primary: #2F55E8; --navy: #0F1B45; --deep: #1B2C6B; --tint: #EAF0FF;
+    --bg: #F3F5FA; --surface: #fff; --text: #0F172A; --muted: #5A6478; --faint: #97A1B4;
+    --border: #E5E9F1; --danger: #DC2626; --danger-bg: #FDECEC; --success: #0E9F6E; --success-bg: #E3F7EF;
+    --gold: #F0C97A;
+  }
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font: 16px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  }
+  .hero {
+    background: var(--navy); color: #fff; text-align: center; position: relative; overflow: hidden;
+    padding: calc(env(safe-area-inset-top) + 36px) 20px 72px; border-radius: 0 0 28px 28px;
+  }
+  .hero::before, .hero::after { content: ""; position: absolute; border-radius: 50%; }
+  .hero::before { width: 280px; height: 280px; background: var(--primary); opacity: .35; top: -140px; right: -80px; }
+  .hero::after { width: 220px; height: 220px; background: var(--deep); bottom: -120px; left: -70px; }
+  .hero > * { position: relative; z-index: 1; }
+  .logo {
+    width: 60px; height: 60px; border-radius: 20px; margin: 0 auto 14px; display: grid; place-items: center;
+    background: rgba(255,255,255,.12); border: 1px solid rgba(255,255,255,.16);
+  }
+  .hero h1 { margin: 0; font-size: 22px; font-weight: 800; letter-spacing: -.3px; }
+  .hero p { margin: 4px 0 0; color: rgba(255,255,255,.7); font-size: 14px; }
+  main { max-width: 560px; margin: -48px auto 0; padding: 0 16px 48px; position: relative; }
+  .card {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 20px; padding: 20px;
+    margin-bottom: 16px; box-shadow: 0 4px 16px rgba(15,27,69,.07);
+  }
+  .card h2 { margin: 0 0 4px; font-size: 17px; font-weight: 700; letter-spacing: -.2px; }
+  .card .sub { margin: 0 0 16px; color: var(--muted); font-size: 13px; }
+  .step {
+    display: inline-grid; place-items: center; width: 24px; height: 24px; border-radius: 8px; margin-right: 8px;
+    background: var(--tint); color: var(--primary); font-size: 13px; font-weight: 700; vertical-align: 1px;
+  }
+  label.field { display: block; margin-bottom: 14px; }
+  .label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 6px; }
+  .label i { color: var(--danger); font-style: normal; }
+  .label small { color: var(--faint); font-weight: 500; }
+  input[type=text], input[type=tel], input[type=email], select, textarea {
+    width: 100%; min-height: 52px; padding: 12px 14px; border: 1px solid var(--border); border-radius: 14px;
+    background: #fff; color: var(--text); font: inherit; outline: none; -webkit-appearance: none; appearance: none;
+  }
+  select {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='18' height='18' fill='none' stroke='%2397A1B4' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m4 7 5 5 5-5'/%3E%3C/svg%3E");
+    background-repeat: no-repeat; background-position: right 14px center; padding-right: 40px;
+  }
+  textarea { min-height: 96px; resize: vertical; }
+  input:focus, select:focus, textarea:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(47,85,232,.14); }
+  .bad input, .bad select, .bad textarea, .bad .drop { border-color: var(--danger); }
+  .err { display: none; color: var(--danger); font-size: 13px; margin-top: 5px; }
+  .bad .err { display: block; }
+  .row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .photos { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .drop {
+    position: relative; display: grid; place-items: center; text-align: center; gap: 6px; cursor: pointer;
+    border: 1.5px dashed #CFD6E3; border-radius: 16px; background: #F8FAFD; min-height: 132px; padding: 12px;
+    color: var(--muted); font-size: 13px; overflow: hidden;
+  }
+  .drop.wide { min-height: 150px; }
+  .drop svg { color: var(--primary); }
+  .drop b { color: var(--text); display: block; font-size: 14px; }
+  .drop input { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%; }
+  .drop img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+  .drop .done {
+    position: absolute; left: 8px; bottom: 8px; background: rgba(15,27,69,.82); color: #fff; font-size: 12px;
+    font-weight: 600; padding: 4px 9px; border-radius: 999px; display: none;
+  }
+  .drop.has .done { display: block; }
+  .drop.has .hint { visibility: hidden; }
+  .notice { display: flex; gap: 10px; padding: 12px 14px; border-radius: 14px; font-size: 13px; margin-bottom: 16px; }
+  .notice.info { background: var(--tint); color: #23366f; }
+  .notice.error { background: var(--danger-bg); color: #8f1d1d; }
+  button.primary {
+    width: 100%; min-height: 54px; border: 0; border-radius: 16px; background: var(--primary); color: #fff;
+    font: inherit; font-weight: 700; cursor: pointer; box-shadow: 0 8px 18px rgba(47,85,232,.28);
+  }
+  button.primary:disabled { opacity: .55; box-shadow: none; }
+  .hp { position: absolute; left: -5000px; width: 1px; height: 1px; overflow: hidden; }
+  .center { text-align: center; padding: 28px 20px; }
+  .tick {
+    width: 72px; height: 72px; border-radius: 24px; background: var(--success-bg); color: var(--success);
+    display: grid; place-items: center; margin: 0 auto 16px;
+  }
+  .center h2 { font-size: 20px; margin-bottom: 6px; }
+  .center p { color: var(--muted); margin: 0; }
+  .foot { text-align: center; color: var(--faint); font-size: 12px; }
+  [hidden] { display: none !important; }
+  @media (max-width: 360px) { .row { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<header class="hero">
+  <div class="logo">
+    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#F0C97A" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 21V5a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v16"/><path d="M16 9h2a2 2 0 0 1 2 2v10"/><path d="M2 21h20"/><path d="M8 7h4M8 11h4M8 15h4"/></svg>
+  </div>
+  <h1 id="hostel">Hostel registration</h1>
+  <p>Fill in your details to register</p>
+</header>
+
+<main>
+  <div id="loading" class="card center"><p>Opening the form…</p></div>
+
+  <div id="invalid" class="card center" hidden>
+    <h2>This link is not valid</h2>
+    <p id="invalidText">Scan the QR code at the hostel again.</p>
+  </div>
+
+  <div id="done" class="card center" hidden>
+    <div class="tick"><svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg></div>
+    <h2>Details sent</h2>
+    <p>Thank you, <span id="doneName"></span>. The hostel office will check your details and confirm your admission.</p>
+  </div>
+
+  <form id="form" novalidate hidden>
+    <div class="card">
+      <h2><span class="step">1</span>About you</h2>
+      <p class="sub">As written on your Aadhaar card.</p>
+      <label class="field" data-f="fullName"><span class="label">Full name <i>*</i></span>
+        <input type="text" name="fullName" autocomplete="name" maxlength="80"><span class="err"></span></label>
+      <label class="field" data-f="phone"><span class="label">Mobile number <i>*</i></span>
+        <input type="tel" name="phone" inputmode="numeric" autocomplete="tel" maxlength="14" placeholder="10-digit number"><span class="err"></span></label>
+      <label class="field" data-f="email"><span class="label">Email <small>(optional)</small></span>
+        <input type="email" name="email" autocomplete="email" maxlength="120"><span class="err"></span></label>
+      <label class="field" data-f="institution"><span class="label">College / company <small>(optional)</small></span>
+        <input type="text" name="institution" maxlength="100"><span class="err"></span></label>
+      <div class="row">
+        <label class="field" data-f="course"><span class="label">Course <small>(optional)</small></span>
+          <input type="text" name="course" maxlength="80" placeholder="e.g. B.Tech"><span class="err"></span></label>
+        <label class="field" data-f="year"><span class="label">Year <small>(optional)</small></span>
+          <input type="text" name="year" maxlength="20" placeholder="e.g. 2nd"><span class="err"></span></label>
+      </div>
+      <div class="row">
+        <label class="field" data-f="bloodGroup"><span class="label">Blood group <small>(optional)</small></span>
+          <select name="bloodGroup"><option value="">Select</option><option>A+</option><option>A-</option><option>B+</option><option>B-</option><option>AB+</option><option>AB-</option><option>O+</option><option>O-</option></select><span class="err"></span></label>
+        <label class="field" data-f="roomId"><span class="label">Room <small>(if you know it)</small></span>
+          <select name="roomId"><option value="">Not allotted yet</option></select><span class="err"></span></label>
+      </div>
+      <label class="field" data-f="address" style="margin-bottom:0"><span class="label">Home address <i>*</i></span>
+        <textarea name="address" maxlength="400" autocomplete="street-address"></textarea><span class="err"></span></label>
+    </div>
+
+    <div class="card">
+      <h2><span class="step">2</span>Family and emergency</h2>
+      <p class="sub">Who the hostel can contact about you.</p>
+      <label class="field" data-f="guardianName"><span class="label">Guardian name <i>*</i></span>
+        <input type="text" name="guardianName" maxlength="80" placeholder="Parent or guardian"><span class="err"></span></label>
+      <label class="field" data-f="guardianPhone"><span class="label">Guardian mobile <i>*</i></span>
+        <input type="tel" name="guardianPhone" inputmode="numeric" maxlength="14" placeholder="10-digit number"><span class="err"></span></label>
+      <label class="field" data-f="emergencyPhone" style="margin-bottom:0"><span class="label">Emergency contact number <i>*</i></span>
+        <input type="tel" name="emergencyPhone" inputmode="numeric" maxlength="14" placeholder="10-digit number"><span class="err"></span></label>
+    </div>
+
+    <div class="card">
+      <h2><span class="step">3</span>Photos</h2>
+      <p class="sub">Clear and well lit. All the writing on the Aadhaar card must be readable.</p>
+      <div class="field" data-f="photo">
+        <span class="label">Your photo <i>*</i></span>
+        <label class="drop wide" id="drop-photo">
+          <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg>
+          <span class="hint"><b>Add your photo</b>Face clearly visible</span>
+          <input type="file" accept="image/*" data-kind="photo">
+          <span class="done">Change</span>
+        </label>
+        <span class="err"></span>
+      </div>
+      <div class="photos">
+        <div class="field" data-f="idFront" style="margin-bottom:0">
+          <span class="label">Aadhaar front <i>*</i></span>
+          <label class="drop" id="drop-idFront">
+            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2.5"/><circle cx="9" cy="11" r="2"/><path d="M14 10h4M14 14h4M6 16h6"/></svg>
+            <span class="hint"><b>Front side</b>Tap to add</span>
+            <input type="file" accept="image/*" data-kind="idFront">
+            <span class="done">Change</span>
+          </label>
+          <span class="err"></span>
+        </div>
+        <div class="field" data-f="idBack" style="margin-bottom:0">
+          <span class="label">Aadhaar back <i>*</i></span>
+          <label class="drop" id="drop-idBack">
+            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2.5"/><path d="M7 10h10M7 14h7"/></svg>
+            <span class="hint"><b>Back side</b>Tap to add</span>
+            <input type="file" accept="image/*" data-kind="idBack">
+            <span class="done">Change</span>
+          </label>
+          <span class="err"></span>
+        </div>
+      </div>
+    </div>
+
+    <div class="hp" aria-hidden="true"><label>Website <input type="text" name="website" tabindex="-1" autocomplete="off"></label></div>
+
+    <div id="formError" class="notice error" hidden></div>
+    <div class="notice info">Your details and Aadhaar photos are sent only to the hostel office and are used for your admission record.</div>
+    <button class="primary" type="submit" id="send">Send my details</button>
+  </form>
+
+  <p class="foot">Royal Boys Hostel</p>
+</main>
+
+<script>
+(function () {
+  "use strict";
+  var API = "/api/join";
+  var branchId = new URLSearchParams(location.search).get("b") || "";
+  var $ = function (id) { return document.getElementById(id); };
+  var form = $("form");
+  /** Compressed photos, as base64 JPEG without the data: prefix. */
+  var photos = { photo: null, idFront: null, idBack: null };
+  /** Longest edge and starting quality: enough to read an Aadhaar card, small enough to send on mobile data. */
+  var SIZES = { photo: [640, 0.72], idFront: [1400, 0.78], idBack: [1400, 0.78] };
+  var MAX_BYTES = 1000 * 1024;
+
+  function show(id) {
+    ["loading", "invalid", "done", "form"].forEach(function (name) { $(name).hidden = name !== id; });
+  }
+
+  function setError(field, message) {
+    var wrap = form.querySelector('[data-f="' + field + '"]');
+    if (!wrap) return;
+    wrap.classList.toggle("bad", !!message);
+    wrap.querySelector(".err").textContent = message || "";
+  }
+
+  function loadImage(file) {
+    return new Promise(function (resolve, reject) {
+      var url = URL.createObjectURL(file);
+      var image = new Image();
+      image.onload = function () { URL.revokeObjectURL(url); resolve(image); };
+      image.onerror = function () { URL.revokeObjectURL(url); reject(new Error("unreadable")); };
+      image.src = url;
+    });
+  }
+
+  /**
+   * Shrinks a photo before it is sent: scaled so its longest edge fits, then
+   * saved as JPEG, stepping the quality down only if it is still over the limit.
+   */
+  function compress(file, kind) {
+    return loadImage(file).then(function (image) {
+      var edge = SIZES[kind][0];
+      var quality = SIZES[kind][1];
+      var scale = Math.min(1, edge / Math.max(image.naturalWidth, image.naturalHeight));
+      var canvas = document.createElement("canvas");
+      canvas.width = Math.max(1, Math.round(image.naturalWidth * scale));
+      canvas.height = Math.max(1, Math.round(image.naturalHeight * scale));
+      var context = canvas.getContext("2d");
+      context.fillStyle = "#fff";
+      context.fillRect(0, 0, canvas.width, canvas.height);
+      context.drawImage(image, 0, 0, canvas.width, canvas.height);
+      var data = canvas.toDataURL("image/jpeg", quality);
+      while (data.length * 0.75 > MAX_BYTES && quality > 0.4) {
+        quality -= 0.08;
+        data = canvas.toDataURL("image/jpeg", quality);
+      }
+      return data;
+    });
+  }
+
+  form.querySelectorAll('input[type="file"]').forEach(function (input) {
+    input.addEventListener("change", function () {
+      var kind = input.dataset.kind;
+      var file = input.files && input.files[0];
+      if (!file) return;
+      compress(file, kind).then(function (data) {
+        photos[kind] = data.split(",")[1];
+        var drop = $("drop-" + kind);
+        var preview = drop.querySelector("img") || drop.insertBefore(document.createElement("img"), drop.querySelector("input"));
+        preview.src = data;
+        preview.alt = "";
+        drop.classList.add("has");
+        setError(kind, "");
+      }).catch(function () {
+        photos[kind] = null;
+        setError(kind, "That file is not a photo. Choose another.");
+      });
+    });
+  });
+
+  // A message goes away as soon as the person starts putting it right.
+  form.querySelectorAll("[data-f]").forEach(function (wrap) {
+    ["input", "change"].forEach(function (type) {
+      wrap.addEventListener(type, function () { if (wrap.classList.contains("bad")) setError(wrap.dataset.f, ""); });
+    });
+  });
+
+  var isPhone = function (value) { return /^[6-9]\d{9}$/.test(value.replace(/\D/g, "").replace(/^(91|0)(?=\d{10}$)/, "")); };
+
+  function validate(values) {
+    var problems = {};
+    if (!values.fullName) problems.fullName = "Enter your full name.";
+    if (!isPhone(values.phone)) problems.phone = "Enter a 10-digit mobile number.";
+    if (values.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(values.email)) problems.email = "That email address looks wrong.";
+    if (!values.address) problems.address = "Enter your home address.";
+    if (!values.guardianName) problems.guardianName = "Enter your guardian's name.";
+    if (!isPhone(values.guardianPhone)) problems.guardianPhone = "Enter a 10-digit mobile number.";
+    if (!isPhone(values.emergencyPhone)) problems.emergencyPhone = "Enter a 10-digit mobile number.";
+    if (!photos.photo) problems.photo = "Add your photo.";
+    if (!photos.idFront) problems.idFront = "Add the front side.";
+    if (!photos.idBack) problems.idBack = "Add the back side.";
+    return problems;
+  }
+
+  form.addEventListener("submit", function (event) {
+    event.preventDefault();
+    var values = {};
+    new FormData(form).forEach(function (value, key) { if (typeof value === "string") values[key] = value.trim(); });
+    form.querySelectorAll("[data-f]").forEach(function (wrap) { setError(wrap.dataset.f, ""); });
+    $("formError").hidden = true;
+
+    var problems = validate(values);
+    var fields = Object.keys(problems);
+    if (fields.length) {
+      fields.forEach(function (field) { setError(field, problems[field]); });
+      form.querySelector('[data-f="' + fields[0] + '"]').scrollIntoView({ behavior: "smooth", block: "center" });
+      return;
+    }
+
+    var button = $("send");
+    button.disabled = true;
+    button.textContent = "Sending…";
+    values.branchId = branchId;
+    values.photo = photos.photo;
+    values.idFront = photos.idFront;
+    values.idBack = photos.idBack;
+
+    fetch(API, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(values) })
+      .then(function (response) { return response.json().then(function (body) { return { ok: response.ok, body: body }; }); })
+      .then(function (result) {
+        if (!result.ok) throw new Error(result.body.error || "Something went wrong. Please try again.");
+        $("doneName").textContent = values.fullName;
+        show("done");
+        window.scrollTo(0, 0);
+      })
+      .catch(function (error) {
+        var box = $("formError");
+        box.textContent = error instanceof TypeError ? "No internet connection. Check it and try again." : error.message;
+        box.hidden = false;
+        button.disabled = false;
+        button.textContent = "Send my details";
+      });
+  });
+
+  if (!branchId) {
+    show("invalid");
+    return;
+  }
+  fetch(API + "?b=" + encodeURIComponent(branchId))
+    .then(function (response) { return response.json().then(function (body) { return { ok: response.ok, body: body }; }); })
+    .then(function (result) {
+      if (!result.ok) {
+        $("invalidText").textContent = result.body.error || "Scan the QR code at the hostel again.";
+        show("invalid");
+        return;
+      }
+      $("hostel").textContent = result.body.branch.name;
+      document.title = result.body.branch.name + " registration";
+      var select = form.elements.roomId;
+      result.body.rooms.forEach(function (room) {
+        var option = document.createElement("option");
+        option.value = room.id;
+        option.textContent = "Room " + room.label;
+        select.appendChild(option);
+      });
+      show("form");
+    })
+    .catch(function () {
+      $("invalidText").textContent = "Could not open the form. Check your internet connection and scan again.";
+      show("invalid");
+    });
+})();
+</script>
+</body>
+</html>

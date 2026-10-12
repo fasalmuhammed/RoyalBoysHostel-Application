@@ -4,6 +4,7 @@ import { NavigationContainer, DefaultTheme } from "@react-navigation/native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { Ionicons } from "@expo/vector-icons";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { colors, font, fontSize, spacing } from "@/constants/theme";
 import { useApp } from "@/context/AppContext";
@@ -15,8 +16,11 @@ import DashboardScreen from "@/screens/DashboardScreen";
 import MoreScreen from "@/screens/MoreScreen";
 import SettingsScreen from "@/screens/SettingsScreen";
 import ReportsScreen from "@/screens/ReportsScreen";
-import BackupScreen from "@/screens/BackupScreen";
 import NotificationsScreen from "@/screens/NotificationsScreen";
+import StaffScreen from "@/screens/StaffScreen";
+import AdmissionsScreen from "@/screens/admissions/AdmissionsScreen";
+import AdmissionReviewScreen from "@/screens/admissions/AdmissionReviewScreen";
+import JoinQrScreen from "@/screens/admissions/JoinQrScreen";
 import SearchScreen from "@/screens/SearchScreen";
 import ChangePinScreen from "@/screens/ChangePinScreen";
 
@@ -33,28 +37,22 @@ import FeesScreen from "@/screens/fees/FeesScreen";
 import FeeDetailScreen from "@/screens/fees/FeeDetailScreen";
 import FeeFormScreen from "@/screens/fees/FeeFormScreen";
 import CollectFeeScreen from "@/screens/fees/CollectFeeScreen";
-import GenerateInvoicesScreen from "@/screens/fees/GenerateInvoicesScreen";
+import DuesScreen from "@/screens/fees/DuesScreen";
 
 import MessagesScreen from "@/screens/messages/MessagesScreen";
 import ComposeScreen from "@/screens/messages/ComposeScreen";
 import SendQueueScreen from "@/screens/messages/SendQueueScreen";
 import TemplatesScreen from "@/screens/messages/TemplatesScreen";
 
-import ComplaintsScreen from "@/screens/complaints/ComplaintsScreen";
-import ComplaintFormScreen from "@/screens/complaints/ComplaintFormScreen";
 import NoticesScreen from "@/screens/notices/NoticesScreen";
 import NoticeFormScreen from "@/screens/notices/NoticeFormScreen";
 
-import StartChoiceScreen from "@/screens/setup/StartChoiceScreen";
-import RestoreExistingScreen from "@/screens/setup/RestoreExistingScreen";
-import HostelDetailsScreen from "@/screens/setup/HostelDetailsScreen";
-import CreatePinScreen from "@/screens/setup/CreatePinScreen";
+import LoginScreen from "@/screens/LoginScreen";
 
-import type { MainTabParamList, RootStackParamList, SetupStackParamList } from "./types";
+import type { MainTabParamList, RootStackParamList } from "./types";
 
 const Tab = createBottomTabNavigator<MainTabParamList>();
 const Stack = createNativeStackNavigator<RootStackParamList>();
-const SetupStack = createNativeStackNavigator<SetupStackParamList>();
 
 const navTheme = {
   ...DefaultTheme,
@@ -76,7 +74,21 @@ const TAB_ICONS: Record<keyof MainTabParamList, keyof typeof Ionicons.glyphMap> 
   More: "ellipsis-horizontal",
 };
 
+/**
+ * The active tab is marked by a filled icon as well as colour, so the current
+ * position is still readable to someone who cannot separate the blue from
+ * the grey.
+ */
+const TAB_ICONS_ACTIVE: Record<keyof MainTabParamList, keyof typeof Ionicons.glyphMap> = {
+  Dashboard: "grid",
+  Inmates: "people",
+  Rooms: "bed",
+  Fees: "wallet",
+  More: "ellipsis-horizontal",
+};
+
 function MainTabs() {
+  const insets = useSafeAreaInsets();
   return (
     <Tab.Navigator
       screenOptions={({ route }) => ({
@@ -86,13 +98,21 @@ function MainTabs() {
         tabBarStyle: {
           backgroundColor: colors.surface,
           borderTopColor: colors.border,
-          height: 62,
-          paddingBottom: 8,
+          borderTopWidth: StyleSheet.hairlineWidth,
+          // Tall enough for the icon and its label, plus whatever the phone
+          // reserves at the bottom (gesture bar or navigation buttons).
+          height: 68 + insets.bottom,
           paddingTop: 6,
+          paddingBottom: 6 + insets.bottom,
         },
-        tabBarLabelStyle: { fontSize: 11, fontFamily: font.semibold },
-        tabBarIcon: ({ color, size }) => (
-          <Ionicons name={TAB_ICONS[route.name]} size={size - 2} color={color} />
+        tabBarLabelStyle: { fontSize: fontSize.xs, fontFamily: font.semibold },
+        tabBarLabel: route.name === "Dashboard" ? "Home" : route.name === "Inmates" ? "Inmates" : route.name,
+        tabBarIcon: ({ color, size, focused }) => (
+          <Ionicons
+            name={focused ? TAB_ICONS_ACTIVE[route.name] : TAB_ICONS[route.name]}
+            size={size - 2}
+            color={color}
+          />
         ),
       })}
     >
@@ -152,9 +172,9 @@ function MainStack() {
         options={{ ...detailOptions, title: "Collect payment" }}
       />
       <Stack.Screen
-        name="GenerateInvoices"
-        component={GenerateInvoicesScreen}
-        options={{ ...detailOptions, title: "Raise bills" }}
+        name="Dues"
+        component={DuesScreen}
+        options={{ ...detailOptions, title: "Dues" }}
       />
 
       <Stack.Screen
@@ -181,12 +201,6 @@ function MainStack() {
       />
       <Stack.Screen name="NoticeForm" component={NoticeFormScreen} options={detailOptions} />
 
-      <Stack.Screen
-        name="Complaints"
-        component={ComplaintsScreen}
-        options={{ ...detailOptions, title: "Complaints" }}
-      />
-      <Stack.Screen name="ComplaintForm" component={ComplaintFormScreen} options={detailOptions} />
 
       <Stack.Screen
         name="Notifications"
@@ -200,9 +214,24 @@ function MainStack() {
       />
 
       <Stack.Screen
-        name="Backup"
-        component={BackupScreen}
-        options={{ ...detailOptions, title: "Backup & restore" }}
+        name="Admissions"
+        component={AdmissionsScreen}
+        options={{ ...detailOptions, title: "Applications" }}
+      />
+      <Stack.Screen
+        name="AdmissionReview"
+        component={AdmissionReviewScreen}
+        options={{ ...detailOptions, title: "Application" }}
+      />
+      <Stack.Screen
+        name="JoinQr"
+        component={JoinQrScreen}
+        options={{ ...detailOptions, title: "Registration QR code" }}
+      />
+      <Stack.Screen
+        name="Staff"
+        component={StaffScreen}
+        options={{ ...detailOptions, title: "Logins" }}
       />
       <Stack.Screen
         name="Reports"
@@ -216,29 +245,6 @@ function MainStack() {
         options={{ ...detailOptions, title: "Change PIN" }}
       />
     </Stack.Navigator>
-  );
-}
-
-function SetupFlow() {
-  return (
-    <SetupStack.Navigator screenOptions={{ headerShown: false }}>
-      <SetupStack.Screen name="StartChoice" component={StartChoiceScreen} />
-      <SetupStack.Screen
-        name="RestoreExisting"
-        component={RestoreExistingScreen}
-        options={{ headerShown: true, title: "Restore" }}
-      />
-      <SetupStack.Screen
-        name="HostelDetails"
-        component={HostelDetailsScreen}
-        options={{ headerShown: true, title: "Hostel details" }}
-      />
-      <SetupStack.Screen
-        name="CreatePin"
-        component={CreatePinScreen}
-        options={{ headerShown: true, title: "Security" }}
-      />
-    </SetupStack.Navigator>
   );
 }
 
@@ -258,11 +264,11 @@ function StartupError({ message }: { message: string }) {
 /**
  * Chooses the top-level flow.
  *
- * Setup runs before the lock screen: a fresh install has no PIN yet, and the
- * restore path must be reachable without one.
+ * Login comes first: nothing is loaded until the server knows who is asking.
+ * The PIN lock is this device's own quick re-lock on top of that.
  */
 export default function RootNavigator() {
-  const { ready, startupError, settings, hasPin, locked, activeBranch } = useApp();
+  const { ready, startupError, user, hasPin, locked, activeBranch } = useApp();
 
   if (!ready) {
     return (
@@ -276,8 +282,8 @@ export default function RootNavigator() {
 
   return (
     <NavigationContainer theme={navTheme}>
-      {!settings.setupComplete ? (
-        <SetupFlow />
+      {!user ? (
+        <LoginScreen />
       ) : hasPin && locked ? (
         <LockScreen />
       ) : !activeBranch ? (

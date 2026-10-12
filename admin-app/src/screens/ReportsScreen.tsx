@@ -7,7 +7,7 @@ import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 
 import { Callout, CalloutText, SectionTitle } from "@/components/Base";
 import { OptionPicker } from "@/components/Controls";
-import { colors, font, fontSize, radius, spacing } from "@/constants/theme";
+import { colors, font, fontSize, radius, spacing, type } from "@/constants/theme";
 import { exportReport, ReportKind } from "@/services/csv";
 import { currentPeriod } from "@/services/fees";
 import { formatPeriod, shiftPeriod } from "@/utils/format";
@@ -80,15 +80,6 @@ export default function ReportsScreen({}: Props) {
   return (
     <SafeAreaView style={styles.screen} edges={["left", "right", "bottom"]}>
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        <Callout tone="info" icon="information-circle-outline">
-          <CalloutText style={{ fontFamily: font.bold }}>CSV is for reading, not restoring</CalloutText>
-          <CalloutText style={{ marginTop: 3 }}>
-            These spreadsheets are for printing, accounts and sharing with management. They cannot
-            carry photos or the links between records, so they will not restore your app. Use
-            Backup & restore for that.
-          </CalloutText>
-        </Callout>
-
         <SectionTitle title="Available reports" />
         {REPORTS.map((report) => (
           <Pressable
@@ -160,6 +151,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  title: { fontSize: fontSize.md, fontFamily: font.bold, color: colors.text },
+  title: { ...type.bodyStrong, color: colors.text },
   description: { fontSize: fontSize.sm, color: colors.textMuted, marginTop: 2, lineHeight: 18 },
 });

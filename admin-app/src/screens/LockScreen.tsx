@@ -1,9 +1,18 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 
-import { colors, font, fontSize, radius, shadow, spacing } from "@/constants/theme";
+import {
+  HIT_TARGET,
+  colors,
+  font,
+  layout,
+  radius,
+  shadow,
+  spacing,
+  type,
+} from "@/constants/theme";
 import { useApp } from "@/context/AppContext";
 import {
   authenticateBiometric,
@@ -16,6 +25,13 @@ import {
 const PIN_LENGTH_MAX = 8;
 const KEYS = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "bio", "0", "del"] as const;
 
+/**
+ * Three keys per row, sharing the width left after the pad's own padding and
+ * the two gaps between them. Capped so the pad does not become absurd on a
+ * tablet.
+ */
+const KEY_SIZE = Math.min((layout.width - spacing.lg * 2 - spacing.md * 2) / 3, 96);
+
 export default function LockScreen() {
   const { settings, unlock } = useApp();
 
@@ -24,7 +40,10 @@ export default function LockScreen() {
   const [lockedUntil, setLockedUntil] = useState<number | null>(null);
   const [now, setNow] = useState(Date.now());
   const [biometricLabel, setBiometricLabel] = useState<string | null>(null);
+  const [checking, setChecking] = useState(false);
   const promptedRef = useRef(false);
+  /** Mirrors `checking` for the guard, which must read the value synchronously. */
+  const checkingRef = useRef(false);
 
   const tryBiometric = useCallback(async () => {
     if (await authenticateBiometric()) unlock();
@@ -70,30 +89,50 @@ export default function LockScreen() {
 
   const submit = useCallback(
     async (value: string) => {
-      const result = await verifyPin(value);
-      if (result.ok) {
-        unlock();
-        return;
-      }
+      // Hashing runs on the JS thread, so a second tap would queue another one
+      // behind the first and make the freeze worse rather than doing anything.
+      if (checkingRef.current) return;
+      checkingRef.current = true;
+      setChecking(true);
+      setMessage(null);
 
-      setPin("");
-      if (result.lockedUntil) {
-        setLockedUntil(result.lockedUntil);
-        setNow(Date.now());
-        setMessage("Too many wrong attempts.");
-      } else if (result.attemptsLeft !== null) {
-        setMessage(
-          `Wrong PIN. ${result.attemptsLeft} ${result.attemptsLeft === 1 ? "try" : "tries"} left.`
-        );
-      } else {
-        setMessage("Wrong PIN.");
+      try {
+        // One frame to paint "Checking…" before the hash blocks the thread.
+        await new Promise((resolve) => setTimeout(resolve, 0));
+        const result = await verifyPin(value);
+
+        if (result.ok) {
+          unlock();
+          return;
+        }
+
+        setPin("");
+        if (result.lockedUntil) {
+          setLockedUntil(result.lockedUntil);
+          setNow(Date.now());
+          setMessage("Too many wrong attempts.");
+        } else if (result.attemptsLeft !== null) {
+          setMessage(
+            `Wrong PIN. ${result.attemptsLeft} ${result.attemptsLeft === 1 ? "try" : "tries"} left.`
+          );
+        } else {
+          setMessage("Wrong PIN.");
+        }
+      } catch {
+        // Without this the rejection was swallowed and the screen simply sat
+        // there, looking hung, with no way to tell the PIN was never checked.
+        setPin("");
+        setMessage("Could not check that PIN. Please try again.");
+      } finally {
+        checkingRef.current = false;
+        setChecking(false);
       }
     },
     [unlock]
   );
 
   const onKey = (key: string) => {
-    if (isLockedOut) return;
+    if (isLockedOut || checking) return;
 
     if (key === "del") {
       setPin((current) => current.slice(0, -1));
@@ -131,7 +170,9 @@ export default function LockScreen() {
         <Text style={[styles.message, isLockedOut && { color: colors.danger }]}>
           {isLockedOut
             ? `Locked. Try again in ${secondsLeft}s.`
-            : message ?? " "}
+            : checking
+              ? "Checking…"
+              : message ?? " "}
         </Text>
       </View>
 
@@ -144,11 +185,11 @@ export default function LockScreen() {
             <Pressable
               key={key}
               onPress={() => onKey(key)}
-              disabled={isLockedOut && key !== "del"}
+              disabled={checking || (isLockedOut && key !== "del")}
               style={({ pressed }) => [
                 styles.key,
-                pressed && !isLockedOut && styles.keyPressed,
-                isLockedOut && key !== "del" && { opacity: 0.4 },
+                pressed && !isLockedOut && !checking && styles.keyPressed,
+                ((isLockedOut && key !== "del") || checking) && { opacity: 0.4 },
               ]}
               accessibilityRole="button"
               accessibilityLabel={
@@ -169,12 +210,18 @@ export default function LockScreen() {
 
       <Pressable
         style={styles.unlockButton}
-        disabled={pin.length < 4 || isLockedOut}
+        disabled={pin.length < 4 || isLockedOut || checking}
         onPress={() => submit(pin)}
+        accessibilityRole="button"
+        accessibilityState={{ disabled: pin.length < 4 || isLockedOut, busy: checking }}
       >
-        <Text style={[styles.unlockText, (pin.length < 4 || isLockedOut) && { opacity: 0.4 }]}>
-          Unlock
-        </Text>
+        {checking ? (
+          <ActivityIndicator color={colors.primary} />
+        ) : (
+          <Text style={[styles.unlockText, (pin.length < 4 || isLockedOut) && { opacity: 0.4 }]}>
+            Unlock
+          </Text>
+        )}
       </Pressable>
     </SafeAreaView>
   );
@@ -198,13 +245,13 @@ const styles = StyleSheet.create({
     ...shadow.raised,
   },
   hostel: {
-    fontSize: fontSize.lg,
-    fontFamily: font.extrabold,
+    ...type.section,
     color: colors.text,
     marginTop: spacing.md,
     paddingHorizontal: spacing.lg,
+    textAlign: "center",
   },
-  prompt: { fontSize: fontSize.sm, color: colors.textMuted, marginTop: spacing.xs },
+  prompt: { ...type.support, color: colors.textMuted, marginTop: spacing.xs },
   dots: { flexDirection: "row", gap: spacing.sm + 2, marginTop: spacing.lg },
   dot: {
     width: 13,
@@ -215,28 +262,33 @@ const styles = StyleSheet.create({
   },
   dotFilled: { backgroundColor: colors.primary, borderColor: colors.primary },
   message: {
-    fontSize: fontSize.sm,
+    ...type.support,
     color: colors.textMuted,
     marginTop: spacing.md,
     minHeight: 20,
+    paddingHorizontal: spacing.lg,
+    textAlign: "center",
   },
   pad: {
     flexDirection: "row",
     flexWrap: "wrap",
     justifyContent: "center",
-    paddingHorizontal: spacing.xl,
+    paddingHorizontal: spacing.lg,
     gap: spacing.md,
   },
   key: {
-    width: 76,
-    height: 62,
+    // Keys share the row instead of being pinned to 76dp: on a 320dp phone a
+    // fixed width overflows once padding and gaps are counted, and on a large
+    // phone it strands the pad in the middle of the screen.
+    width: KEY_SIZE,
+    height: Math.min(KEY_SIZE * 0.82, 66),
     borderRadius: radius.lg,
     backgroundColor: colors.surface,
     alignItems: "center",
     justifyContent: "center",
   },
   keyPressed: { backgroundColor: colors.primaryLight },
-  keyText: { fontSize: fontSize.xl, fontFamily: font.semibold, color: colors.text },
-  unlockButton: { alignSelf: "center", padding: spacing.md },
-  unlockText: { fontSize: fontSize.md, fontFamily: font.bold, color: colors.primary },
+  keyText: { ...type.title, fontFamily: font.semibold, color: colors.text },
+  unlockButton: { alignSelf: "center", padding: spacing.md, minHeight: HIT_TARGET },
+  unlockText: { ...type.bodyStrong, color: colors.primary },
 });

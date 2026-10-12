@@ -1,9 +1,22 @@
-import { getDb } from "@/db";
-import { Inmate, InmateStatus } from "@/types";
+import { Complaint, Inmate, InmateStatus, Room } from "@/types";
 import { newId } from "@/utils/id";
 import { toIsoDate } from "@/utils/format";
-import { deletePhoto } from "./photos";
-import { branchClause, getActiveBranchId, requireActiveBranchId } from "./branches";
+import { entries, find, fresh, freshWhere, list, logActivity, patch, put, remove, withLock } from "@/store/cloud";
+import {
+  FeeYearDoc,
+  allInmates,
+  branchById,
+  castInt,
+  compareText,
+  contains,
+  inmateById,
+  outstandingByStudent,
+  roomById,
+  roomLabelOf,
+} from "@/store/views";
+import { deletePhoto, movePhotoToBranch } from "./photos";
+import { raiseBillFor } from "./fees";
+import { getActiveBranchId, inActiveBranch, requireActiveBranchId } from "./branches";
 
 export type InmateInput = Omit<Inmate, "id" | "createdAt" | "updatedAt">;
 
@@ -14,70 +27,60 @@ export interface InmateWithRoom extends Inmate {
   /** Branch letter, for rendering the id as `T-14`. */
   branchCode: string | null;
   branchName: string | null;
+  /** Unpaid balance across every bill raised for them. 0 when settled. */
+  outstanding: number;
 }
 
 export type InmateFilter = "all" | "active" | "left" | "unassigned";
 
-const SELECT_WITH_ROOM = `
-  SELECT s.*,
-         CASE WHEN r.id IS NULL THEN NULL
-              WHEN r.block = '' THEN r.roomNumber
-              ELSE r.block || '-' || r.roomNumber END AS roomLabel,
-         r.rent AS roomRent,
-         b.code AS branchCode,
-         b.shortName AS branchName
-  FROM students s
-  LEFT JOIN rooms r ON r.id = s.roomId
-  LEFT JOIN branches b ON b.id = s.branchId
-`;
+/**
+ * `outstanding` comes with every row: "who owes money" is the first thing an
+ * admin scans this list for.
+ */
+function withRoom(inmate: Inmate): InmateWithRoom {
+  const room = roomById(inmate.roomId);
+  const branch = branchById(inmate.branchId);
+  return {
+    ...inmate,
+    roomLabel: roomLabelOf(room),
+    roomRent: room ? room.rent : null,
+    branchCode: branch ? branch.code : null,
+    branchName: branch ? branch.shortName : null,
+    outstanding: outstandingByStudent().get(inmate.id) ?? 0,
+  };
+}
 
-export async function listInmates(
-  search = "",
-  filter: InmateFilter = "active"
-): Promise<InmateWithRoom[]> {
-  const db = await getDb();
+const byName = (a: Inmate, b: Inmate) => compareText(a.fullName, b.fullName);
 
-  const clauses: string[] = [];
-  const params: (string | number)[] = [];
-
-  const branch = branchClause("s.branchId");
-  if (branch.sql) {
-    clauses.push(branch.sql);
-    params.push(...branch.params);
-  }
-
-  if (filter === "active" || filter === "left") {
-    clauses.push("s.status = ?");
-    params.push(filter);
-  } else if (filter === "unassigned") {
-    clauses.push("s.status = 'active' AND s.roomId IS NULL");
-  }
-
+export async function listInmates(search = "", filter: InmateFilter = "active"): Promise<InmateWithRoom[]> {
   const term = search.trim().toLowerCase();
-  if (term) {
-    clauses.push("(LOWER(s.fullName) LIKE ? OR LOWER(s.admissionNo) LIKE ? OR s.phone LIKE ?)");
-    params.push(`%${term}%`, `%${term}%`, `%${term}%`);
-  }
-
-  const where = clauses.length ? `WHERE ${clauses.join(" AND ")}` : "";
-  return db.getAllAsync<InmateWithRoom>(
-    `${SELECT_WITH_ROOM} ${where} ORDER BY s.fullName COLLATE NOCASE;`,
-    params
-  );
+  return allInmates()
+    .filter((inmate) => {
+      if (!inActiveBranch(inmate.branchId)) return false;
+      if ((filter === "active" || filter === "left") && inmate.status !== filter) return false;
+      if (filter === "unassigned" && !(inmate.status === "active" && !inmate.roomId)) return false;
+      return (
+        !term ||
+        contains(inmate.fullName, term) ||
+        contains(inmate.admissionNo, term) ||
+        contains(inmate.phone, term)
+      );
+    })
+    .sort(byName)
+    .map(withRoom);
 }
 
 export async function getInmate(id: string): Promise<InmateWithRoom | null> {
-  const db = await getDb();
-  return db.getFirstAsync<InmateWithRoom>(`${SELECT_WITH_ROOM} WHERE s.id = ?;`, id);
+  const inmate = inmateById(id);
+  return inmate ? withRoom(inmate) : null;
 }
 
 /** Occupants are already implicitly scoped: a room belongs to one branch. */
 export async function listInmatesInRoom(roomId: string): Promise<InmateWithRoom[]> {
-  const db = await getDb();
-  return db.getAllAsync<InmateWithRoom>(
-    `${SELECT_WITH_ROOM} WHERE s.roomId = ? AND s.status = 'active' ORDER BY s.fullName COLLATE NOCASE;`,
-    roomId
-  );
+  return allInmates()
+    .filter((inmate) => inmate.roomId === roomId && inmate.status === "active")
+    .sort(byName)
+    .map(withRoom);
 }
 
 /**
@@ -86,40 +89,22 @@ export async function listInmatesInRoom(roomId: string): Promise<InmateWithRoom[
  */
 export class RoomFullError extends Error {}
 
-interface Queryable {
-  getFirstAsync<T>(sql: string, ...params: (string | number)[]): Promise<T | null>;
-}
-
 /**
  * Guards room capacity at the point of write.
  *
- * The check and the insert/update run inside one exclusive transaction --
- * checking first and writing later would let two quick taps both pass the
- * check and overfill the room.
+ * Runs inside the room's lock and counts from the server's current copy, so
+ * two people filling the last bed from two phones cannot both succeed.
  */
-async function assertRoomHasSpace(
-  txn: Queryable,
-  roomId: string,
-  excludeInmateId: string | null
-): Promise<void> {
-  const room = await txn.getFirstAsync<{ capacity: number; block: string; roomNumber: string }>(
-    "SELECT capacity, block, roomNumber FROM rooms WHERE id = ?;",
-    roomId
-  );
+async function assertRoomHasSpace(roomId: string, excludeInmateId: string | null): Promise<void> {
+  const room = await fresh<Room>("rooms", roomId);
   if (!room) throw new RoomFullError("That room no longer exists.");
 
-  const occupied = excludeInmateId
-    ? await txn.getFirstAsync<{ n: number }>(
-        "SELECT COUNT(*) AS n FROM students WHERE roomId = ? AND status = 'active' AND id <> ?;",
-        roomId,
-        excludeInmateId
-      )
-    : await txn.getFirstAsync<{ n: number }>(
-        "SELECT COUNT(*) AS n FROM students WHERE roomId = ? AND status = 'active';",
-        roomId
-      );
+  const occupants = await freshWhere<Inmate>("inmates", "roomId", roomId);
+  const occupied = occupants.filter(
+    (inmate) => inmate.status === "active" && inmate.id !== excludeInmateId
+  ).length;
 
-  if ((occupied?.n ?? 0) >= room.capacity) {
+  if (occupied >= room.capacity) {
     const label = room.block ? `${room.block}-${room.roomNumber}` : room.roomNumber;
     throw new RoomFullError(
       `Room ${label} is full (${room.capacity} of ${room.capacity} beds taken). ` +
@@ -128,159 +113,196 @@ async function assertRoomHasSpace(
   }
 }
 
-/** Where the admission sequence is persisted. Rides along in backups. */
-const ADMISSION_COUNTER_KEY = "admissionCounter";
+/** Where each branch's admission sequence is kept. */
+const counterId = (branchId: string) => `admission-${branchId}`;
 
 /**
- * Next admission number in the sequence: 1 for the first student, then 2, 3...
+ * Next admission number in the sequence: 1 for the first inmate, then 2, 3...
  *
  * Takes the greater of a stored counter and the highest number in use.
- *
- * The counter alone would be wrong after restoring a backup written by an
- * older build; the maximum alone would reissue a departed student's number the
- * moment the highest-numbered student is deleted, leaving two people sharing
- * an id across old receipts and exports. Together they never go backwards.
- *
- * It lives as a raw row in `settings` rather than in `AppSettings`: it is
- * bookkeeping, not a preference, and `loadSettings` ignores keys it does not
- * know about.
+ * The counter alone would be wrong after restoring an older backup; the
+ * maximum alone would reissue a departed inmate's number the moment the
+ * highest-numbered inmate is deleted. Together they never go backwards.
  */
-async function highestIssued(txn: Queryable, branchId: string): Promise<number> {
-  const row = await txn.getFirstAsync<{ highest: number | null }>(
-    `SELECT MAX(
-       COALESCE((SELECT CAST(value AS INTEGER) FROM settings WHERE key = ?), 0),
-       COALESCE((SELECT MAX(CAST(admissionNo AS INTEGER)) FROM students WHERE branchId = ?), 0)
-     ) AS highest;`,
-    `${ADMISSION_COUNTER_KEY}:${branchId}`,
-    branchId
-  );
-  return row?.highest ?? 0;
+function highestIssued(counterValue: number, inmates: Inmate[], branchId: string): number {
+  const inUse = inmates
+    .filter((inmate) => inmate.branchId === branchId)
+    .reduce((max, inmate) => Math.max(max, castInt(inmate.admissionNo)), 0);
+  return Math.max(counterValue || 0, inUse);
 }
 
-interface Writable extends Queryable {
-  runAsync(sql: string, ...params: (string | number | null)[]): Promise<unknown>;
-}
-
-/** Claims the next number and advances the counter, inside the caller's transaction. */
-async function claimAdmissionNo(txn: Writable, branchId: string): Promise<string> {
-  const next = (await highestIssued(txn, branchId)) + 1;
-  await txn.runAsync(
-    "INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value;",
-    `${ADMISSION_COUNTER_KEY}:${branchId}`,
-    String(next)
-  );
+/** Claims the next number and advances the counter. Run inside the counter's lock. */
+async function claimAdmissionNo(branchId: string): Promise<string> {
+  const counter = await fresh<{ value?: number }>("counters", counterId(branchId));
+  const inmates = await freshWhere<Inmate>("inmates", "branchId", branchId);
+  const next = highestIssued(Number(counter?.value) || 0, inmates, branchId) + 1;
+  await put("counters", counterId(branchId), { branchId, value: next });
   return String(next);
 }
 
 export async function createInmate(input: InmateInput): Promise<string> {
-  const db = await getDb();
   const id = newId();
   const now = Date.now();
-
   const branchId = input.branchId || requireActiveBranchId();
+  // Every caller gets today's "monthly" behaviour even if it predates the field.
+  const admissionType = input.admissionType ?? "monthly";
+  const stayDays = admissionType === "stay" ? (input.stayDays ?? null) : null;
+  const typedNumber = input.admissionNo.trim();
 
-  await db.withExclusiveTransactionAsync(async (txn) => {
-    if (input.roomId && input.status === "active") {
-      await assertRoomHasSpace(txn, input.roomId, null);
-    }
-    // Allocated inside the transaction so two quick saves cannot claim the
-    // same number. Numbering restarts per branch.
-    const admissionNo = input.admissionNo.trim() || (await claimAdmissionNo(txn, branchId));
-    await txn.runAsync(
-      `INSERT INTO students (id, branchId, admissionNo, fullName, phone, guardianName, guardianPhone,
-         email, course, year, address, idProof, photoFile, roomId, status, monthlyRent,
-         billingCycleDays, joinedOn, leftOn, notes, createdAt, updatedAt)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`,
-      id, branchId, admissionNo, input.fullName, input.phone, input.guardianName, input.guardianPhone,
-      input.email, input.course, input.year, input.address, input.idProof, input.photoFile,
-      input.roomId, input.status, input.monthlyRent, input.billingCycleDays,
-      input.joinedOn, input.leftOn, input.notes, now, now
-    );
-  });
+  const write = async () => {
+    if (input.roomId && input.status === "active") await assertRoomHasSpace(input.roomId, null);
+    // Numbering restarts per branch; issued under the counter's lock so two
+    // quick saves on two devices cannot claim the same number.
+    const admissionNo = typedNumber || (await claimAdmissionNo(branchId));
+    await put("inmates", id, {
+      id,
+      branchId,
+      admissionNo,
+      fullName: input.fullName,
+      phone: input.phone,
+      guardianName: input.guardianName,
+      guardianPhone: input.guardianPhone,
+      email: input.email,
+      course: input.course,
+      year: input.year,
+      address: input.address,
+      emergencyPhone: input.emergencyPhone ?? "",
+      bloodGroup: input.bloodGroup ?? "",
+      institution: input.institution ?? "",
+      idProof: input.idProof,
+      photoFile: input.photoFile,
+      idProofFile: input.idProofFile,
+      idProofBackFile: input.idProofBackFile,
+      roomId: input.roomId,
+      status: input.status,
+      monthlyRent: input.monthlyRent,
+      billingCycleDays: input.billingCycleDays,
+      admissionType,
+      stayDays,
+      joinedOn: input.joinedOn,
+      leftOn: input.leftOn,
+      notes: input.notes,
+      createdAt: now,
+      updatedAt: now,
+    });
+  };
 
+  const numbered = typedNumber ? write : () => withLock("counters", counterId(branchId), write);
+  if (input.roomId && input.status === "active") {
+    await withLock("rooms", input.roomId, numbered);
+  } else {
+    await numbered();
+  }
+
+  logActivity({ action: "created", entity: "inmate", entityId: id, label: input.fullName, branchId });
+
+  // A monthly inmate is billed for the current month as soon as they are
+  // admitted. A failure here is retried by the automatic monthly run.
+  const admitted = inmateById(id);
+  if (admitted) await raiseBillFor(admitted).catch(() => false);
   return id;
 }
 
 export async function updateInmate(id: string, input: InmateInput): Promise<void> {
-  const db = await getDb();
-  const existing = await getInmate(id);
+  const existing = inmateById(id);
+  if (!existing) return;
 
-  await db.withExclusiveTransactionAsync(async (txn) => {
-    const movingIn = input.roomId && input.status === "active" && input.roomId !== existing?.roomId;
-    if (movingIn && input.roomId) {
-      await assertRoomHasSpace(txn, input.roomId, id);
-    }
-    await txn.runAsync(
-      `UPDATE students SET fullName = ?, phone = ?, guardianName = ?,
-         guardianPhone = ?, email = ?, course = ?, year = ?, address = ?, idProof = ?,
-         photoFile = ?, roomId = ?, status = ?, monthlyRent = ?, billingCycleDays = ?,
-         joinedOn = ?, leftOn = ?, notes = ?, updatedAt = ?
-       WHERE id = ?;`,
-      input.fullName, input.phone, input.guardianName, input.guardianPhone,
-      input.email, input.course, input.year, input.address, input.idProof, input.photoFile,
-      input.roomId, input.status, input.monthlyRent, input.billingCycleDays,
-      input.joinedOn, input.leftOn, input.notes, Date.now(), id
-    );
-  });
+  const admissionType = input.admissionType ?? "monthly";
+  const stayDays = admissionType === "stay" ? (input.stayDays ?? null) : null;
 
-  // Drop the old image only once the row that referenced it is committed.
-  if (existing?.photoFile && existing.photoFile !== input.photoFile) {
-    deletePhoto(existing.photoFile);
+  // The admission number and branch are not edited here: the number is the
+  // inmate's id on past receipts, and branch moves go through moveToBranch.
+  const write = async () => {
+    const movingIn = input.roomId && input.status === "active" && input.roomId !== existing.roomId;
+    if (movingIn && input.roomId) await assertRoomHasSpace(input.roomId, id);
+    await patch("inmates", id, {
+      fullName: input.fullName,
+      phone: input.phone,
+      guardianName: input.guardianName,
+      guardianPhone: input.guardianPhone,
+      email: input.email,
+      course: input.course,
+      year: input.year,
+      address: input.address,
+      emergencyPhone: input.emergencyPhone ?? "",
+      bloodGroup: input.bloodGroup ?? "",
+      institution: input.institution ?? "",
+      idProof: input.idProof,
+      photoFile: input.photoFile,
+      idProofFile: input.idProofFile,
+      idProofBackFile: input.idProofBackFile,
+      roomId: input.roomId,
+      status: input.status,
+      monthlyRent: input.monthlyRent,
+      billingCycleDays: input.billingCycleDays,
+      admissionType,
+      stayDays,
+      joinedOn: input.joinedOn,
+      leftOn: input.leftOn,
+      notes: input.notes,
+      updatedAt: Date.now(),
+    });
+  };
+
+  const movingIn = input.roomId && input.status === "active" && input.roomId !== existing.roomId;
+  if (movingIn && input.roomId) await withLock("rooms", input.roomId, write);
+  else await write();
+
+  // Drop the old images only once the record that referenced them is saved.
+  if (existing.photoFile && existing.photoFile !== input.photoFile) deletePhoto(existing.photoFile);
+  if (existing.idProofFile && existing.idProofFile !== input.idProofFile) deletePhoto(existing.idProofFile);
+  if (existing.idProofBackFile && existing.idProofBackFile !== input.idProofBackFile) {
+    deletePhoto(existing.idProofBackFile);
   }
+
+  logActivity({ action: "updated", entity: "inmate", entityId: id, label: input.fullName, branchId: existing.branchId });
 }
 
-/** Assigns or clears a student's bed. Passing null vacates them. */
+/** Assigns or clears an inmate's bed. Passing null vacates them. */
 export async function assignRoom(studentId: string, roomId: string | null): Promise<void> {
-  const db = await getDb();
-  await db.withExclusiveTransactionAsync(async (txn) => {
-    if (roomId) await assertRoomHasSpace(txn, roomId, studentId);
-    await txn.runAsync(
-      "UPDATE students SET roomId = ?, updatedAt = ? WHERE id = ?;",
-      roomId,
-      Date.now(),
-      studentId
-    );
-  });
+  const inmate = inmateById(studentId);
+  if (roomId) {
+    await withLock("rooms", roomId, async () => {
+      await assertRoomHasSpace(roomId, studentId);
+      await patch("inmates", studentId, { roomId, updatedAt: Date.now() });
+    });
+  } else {
+    await patch("inmates", studentId, { roomId: null, updatedAt: Date.now() });
+  }
+  if (inmate) {
+    logActivity({ action: "updated", entity: "inmate", entityId: studentId, label: inmate.fullName, branchId: inmate.branchId });
+  }
 }
 
 /**
  * Updates only the agreed rent.
  *
- * Moving a student between rooms deliberately does not change their rent, so
+ * Moving an inmate between rooms deliberately does not change their rent, so
  * this exists for the caller to apply the new room's rate when the admin
  * explicitly asks for it.
  */
 export async function setInmateRent(studentId: string, monthlyRent: number): Promise<void> {
-  const db = await getDb();
-  await db.runAsync(
-    "UPDATE students SET monthlyRent = ?, updatedAt = ? WHERE id = ?;",
-    monthlyRent,
-    Date.now(),
-    studentId
-  );
+  await patch("inmates", studentId, { monthlyRent, updatedAt: Date.now() });
 }
 
 /**
- * Marks a student as having vacated. Their bed is freed but the record -- and
- * every fee row attached to it -- is kept, because past dues stay collectable.
+ * Marks an inmate as having vacated. Their bed is freed but the record -- and
+ * every bill attached to it -- is kept, because past dues stay collectable.
  */
 export async function markLeft(studentId: string): Promise<void> {
-  const db = await getDb();
-  await db.runAsync(
-    "UPDATE students SET status = 'left', roomId = NULL, leftOn = ?, updatedAt = ? WHERE id = ?;",
-    toIsoDate(),
-    Date.now(),
-    studentId
-  );
+  const inmate = inmateById(studentId);
+  if (!inmate) return;
+  await patch("inmates", studentId, { status: "left", roomId: null, leftOn: toIsoDate(), updatedAt: Date.now() });
+  logActivity({ action: "updated", entity: "inmate", entityId: studentId, label: `${inmate.fullName} left`, branchId: inmate.branchId });
 }
 
 export async function reinstate(studentId: string): Promise<void> {
-  const db = await getDb();
-  await db.runAsync(
-    "UPDATE students SET status = 'active', leftOn = NULL, updatedAt = ? WHERE id = ?;",
-    Date.now(),
-    studentId
-  );
+  const inmate = inmateById(studentId);
+  if (!inmate) return;
+  await patch("inmates", studentId, { status: "active", leftOn: null, updatedAt: Date.now() });
+  const back = inmateById(studentId);
+  if (back) await raiseBillFor(back).catch(() => false);
+  logActivity({ action: "updated", entity: "inmate", entityId: studentId, label: `${inmate.fullName} reinstated`, branchId: inmate.branchId });
 }
 
 /**
@@ -291,21 +313,55 @@ export async function reinstate(studentId: string): Promise<void> {
  * displayed with the new branch's letter from then on.
  */
 export async function moveToBranch(studentId: string, branchId: string): Promise<void> {
-  const db = await getDb();
-  await db.runAsync(
-    "UPDATE students SET branchId = ?, roomId = NULL, updatedAt = ? WHERE id = ?;",
+  const inmate = inmateById(studentId);
+  if (!inmate) return;
+  // Their photos move to the new branch's folder, so its manager can open them.
+  const photoFile = await movePhotoToBranch(inmate.photoFile, branchId);
+  const idProofFile = await movePhotoToBranch(inmate.idProofFile, branchId);
+  const idProofBackFile = await movePhotoToBranch(inmate.idProofBackFile, branchId);
+  await patch("inmates", studentId, {
     branchId,
-    Date.now(),
-    studentId
-  );
+    roomId: null,
+    photoFile,
+    idProofFile,
+    idProofBackFile,
+    updatedAt: Date.now(),
+  });
+  // Their bills follow them, so the new branch's manager can see and collect them.
+  for (const [docId, doc] of entries<FeeYearDoc>("fees")) {
+    if (doc.studentId === studentId) await patch("fees", docId, { branchId });
+  }
+  logActivity({ action: "updated", entity: "inmate", entityId: studentId, label: `${inmate.fullName} moved branch`, branchId });
 }
 
-/** Permanently removes a student, their photo, and their fee history. */
+/** Permanently removes an inmate, their photos, and their fee history. */
 export async function deleteInmate(studentId: string): Promise<void> {
-  const db = await getDb();
-  const existing = await getInmate(studentId);
-  await db.runAsync("DELETE FROM students WHERE id = ?;", studentId);
+  const existing = inmateById(studentId);
+
+  // Bills and payments go with the inmate, as the database cascade did. The
+  // server is asked too, in case a bill was raised elsewhere a moment ago.
+  const feeDocs = new Set(
+    entries<FeeYearDoc>("fees")
+      .filter(([, doc]) => doc.studentId === studentId)
+      .map(([docId]) => docId)
+  );
+  for (const doc of await freshWhere<FeeYearDoc>("fees", "studentId", studentId)) {
+    feeDocs.add(`${doc.studentId}_${doc.year}`);
+  }
+  for (const docId of feeDocs) await remove("fees", docId);
+  // Complaints outlive the person who raised them.
+  for (const complaint of list<Complaint>("complaints").filter((item) => item.studentId === studentId)) {
+    await patch("complaints", complaint.id, { studentId: null });
+  }
+  await remove("inmates", studentId);
+
   deletePhoto(existing?.photoFile ?? null);
+  deletePhoto(existing?.idProofFile ?? null);
+  deletePhoto(existing?.idProofBackFile ?? null);
+
+  if (existing) {
+    logActivity({ action: "deleted", entity: "inmate", entityId: studentId, label: existing.fullName, branchId: existing.branchId });
+  }
 }
 
 /**
@@ -313,10 +369,10 @@ export async function deleteInmate(studentId: string): Promise<void> {
  * Read-only -- it does not advance the counter.
  */
 export async function peekNextAdmissionNo(branchId?: string): Promise<string> {
-  const db = await getDb();
   const target = branchId ?? getActiveBranchId();
   if (!target) return "1";
-  return String((await highestIssued(db, target)) + 1);
+  const counter = find<{ value?: number }>("counters", counterId(target));
+  return String(highestIssued(Number(counter?.value) || 0, allInmates(), target) + 1);
 }
 
 export interface InmateCounts {
@@ -327,18 +383,13 @@ export interface InmateCounts {
 }
 
 export async function inmateCounts(): Promise<InmateCounts> {
-  const db = await getDb();
-  const branch = branchClause("branchId");
-  const where = branch.sql ? `WHERE ${branch.sql}` : "";
-  const row = await db.getFirstAsync<InmateCounts>(
-    `SELECT COUNT(*) AS total,
-            COALESCE(SUM(status = 'active'), 0) AS active,
-            COALESCE(SUM(status = 'left'), 0) AS "left",
-            COALESCE(SUM(status = 'active' AND roomId IS NULL), 0) AS unassigned
-     FROM students ${where};`,
-    branch.params
-  );
-  return row ?? { total: 0, active: 0, left: 0, unassigned: 0 };
+  const rows = allInmates().filter((inmate) => inActiveBranch(inmate.branchId));
+  return {
+    total: rows.length,
+    active: rows.filter((inmate) => inmate.status === "active").length,
+    left: rows.filter((inmate) => inmate.status === "left").length,
+    unassigned: rows.filter((inmate) => inmate.status === "active" && !inmate.roomId).length,
+  };
 }
 
 export function statusOf(student: Pick<Inmate, "status">): InmateStatus {

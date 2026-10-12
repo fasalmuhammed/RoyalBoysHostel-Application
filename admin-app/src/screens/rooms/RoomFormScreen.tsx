@@ -8,6 +8,7 @@ import Button from "@/components/Button";
 import Input from "@/components/Input";
 import { colors, spacing } from "@/constants/theme";
 import { useApp } from "@/context/AppContext";
+import BranchChoice from "@/components/BranchChoice";
 import { createRoom, getRoom, updateRoom } from "@/services/rooms";
 import { parseAmount } from "@/utils/validate";
 import { successFeedback } from "@/utils/haptics";
@@ -18,7 +19,11 @@ type Props = NativeStackScreenProps<RootStackParamList, "RoomForm">;
 export default function RoomFormScreen({ navigation, route }: Props) {
   const roomId = route.params?.roomId;
   const isEditing = Boolean(roomId);
-  const { settings, invalidate } = useApp();
+  const { settings, invalidate, allHostels } = useApp();
+  // With both hostels showing, a new room has to be given to one of them.
+  const askBranch = !isEditing && allHostels;
+  const [branchChoice, setBranchChoice] = useState<string | null>(null);
+  const [branchError, setBranchError] = useState<string | undefined>(undefined);
 
   const [block, setBlock] = useState("");
   const [roomNumber, setRoomNumber] = useState("");
@@ -68,13 +73,15 @@ export default function RoomFormScreen({ navigation, route }: Props) {
     }
 
     setErrors(next);
-    if (Object.keys(next).length > 0) return;
+    const noBranch = askBranch && !branchChoice;
+    setBranchError(noBranch ? "Choose which hostel this room is in." : undefined);
+    if (Object.keys(next).length > 0 || noBranch) return;
 
     setSaving(true);
     try {
       const payload = {
-        // Blank: createRoom stamps the active branch.
-        branchId: "",
+        // Blank: createRoom stamps the hostel being worked in.
+        branchId: askBranch ? (branchChoice ?? "") : "",
         block: block.trim(),
         roomNumber: roomNumber.trim(),
         floor: floor.trim(),
@@ -104,6 +111,16 @@ export default function RoomFormScreen({ navigation, route }: Props) {
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
+        {askBranch ? (
+          <BranchChoice
+            value={branchChoice}
+            onChange={(branchId) => {
+              setBranchChoice(branchId);
+              setBranchError(undefined);
+            }}
+            error={branchError}
+          />
+        ) : null}
         <SectionTitle title="Identity" />
         <View style={styles.row}>
           <Input

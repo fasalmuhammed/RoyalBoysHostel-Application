@@ -1,8 +1,9 @@
-import { getDb } from "@/db";
 import { Complaint, ComplaintCategory, ComplaintStatus, ComplaintWithContext } from "@/types";
 import { newId } from "@/utils/id";
 import { toIsoDate } from "@/utils/format";
-import { branchClause, requireActiveBranchId } from "./branches";
+import { find, list, logActivity, patch, put, remove } from "@/store/cloud";
+import { contains, inmateById, roomById, roomLabelOf } from "@/store/views";
+import { inActiveBranch, requireActiveBranchId } from "./branches";
 import { deletePhoto } from "./photos";
 
 export type ComplaintInput = Omit<
@@ -12,88 +13,84 @@ export type ComplaintInput = Omit<
 
 export type ComplaintFilter = "all" | ComplaintStatus;
 
-const SELECT_WITH_CONTEXT = `
-  SELECT c.*,
-         CASE WHEN r.id IS NULL THEN NULL
-              WHEN r.block = '' THEN r.roomNumber
-              ELSE r.block || '-' || r.roomNumber END AS roomLabel,
-         s.fullName AS raisedByName,
-         s.photoFile AS raisedByPhoto
-  FROM complaints c
-  LEFT JOIN rooms r ON r.id = c.roomId
-  LEFT JOIN students s ON s.id = c.studentId
-`;
+function withContext(complaint: Complaint): ComplaintWithContext {
+  const raisedBy = inmateById(complaint.studentId);
+  return {
+    ...complaint,
+    roomLabel: roomLabelOf(roomById(complaint.roomId)),
+    raisedByName: raisedBy ? raisedBy.fullName : null,
+    raisedByPhoto: raisedBy ? raisedBy.photoFile : null,
+  };
+}
+
+const STATUS_RANK: Record<ComplaintStatus, number> = { open: 0, in_progress: 1, resolved: 2 };
 
 export async function listComplaints(
   filter: ComplaintFilter = "all",
   search = ""
 ): Promise<ComplaintWithContext[]> {
-  const db = await getDb();
-
-  const clauses: string[] = [];
-  const params: (string | number)[] = [];
-
-  const branch = branchClause("c.branchId");
-  if (branch.sql) {
-    clauses.push(branch.sql);
-    params.push(...branch.params);
-  }
-  if (filter !== "all") {
-    clauses.push("c.status = ?");
-    params.push(filter);
-  }
   const term = search.trim().toLowerCase();
-  if (term) {
-    clauses.push("(LOWER(c.title) LIKE ? OR LOWER(c.description) LIKE ?)");
-    params.push(`%${term}%`, `%${term}%`);
-  }
-
-  const where = clauses.length ? `WHERE ${clauses.join(" AND ")}` : "";
-  return db.getAllAsync<ComplaintWithContext>(
-    `${SELECT_WITH_CONTEXT} ${where}
-     ORDER BY
-       CASE c.status WHEN 'open' THEN 0 WHEN 'in_progress' THEN 1 ELSE 2 END,
-       c.createdAt DESC;`,
-    params
-  );
+  return list<Complaint>("complaints")
+    .filter((complaint) => inActiveBranch(complaint.branchId))
+    .filter((complaint) => filter === "all" || complaint.status === filter)
+    .filter((complaint) => !term || contains(complaint.title, term) || contains(complaint.description, term))
+    .sort(
+      (a, b) =>
+        (STATUS_RANK[a.status] ?? 2) - (STATUS_RANK[b.status] ?? 2) || b.createdAt - a.createdAt
+    )
+    .map(withContext);
 }
 
 export async function getComplaint(id: string): Promise<ComplaintWithContext | null> {
-  const db = await getDb();
-  return db.getFirstAsync<ComplaintWithContext>(`${SELECT_WITH_CONTEXT} WHERE c.id = ?;`, id);
+  const complaint = find<Complaint>("complaints", id);
+  return complaint ? withContext(complaint) : null;
 }
 
 export async function createComplaint(input: ComplaintInput): Promise<string> {
-  const db = await getDb();
   const id = newId();
   const now = Date.now();
   const branchId = input.branchId || requireActiveBranchId();
 
-  await db.runAsync(
-    `INSERT INTO complaints (id, branchId, roomId, studentId, title, description, category,
-       status, photoFile, raisedOn, resolvedAt, resolution, createdAt, updatedAt)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, '', ?, ?);`,
-    id, branchId, input.roomId, input.studentId, input.title, input.description,
-    input.category, input.status, input.photoFile, input.raisedOn || toIsoDate(), now, now
-  );
+  await put("complaints", id, {
+    id,
+    branchId,
+    roomId: input.roomId,
+    studentId: input.studentId,
+    title: input.title,
+    description: input.description,
+    category: input.category,
+    status: input.status,
+    photoFile: input.photoFile,
+    raisedOn: input.raisedOn || toIsoDate(),
+    resolvedAt: null,
+    resolution: "",
+    createdAt: now,
+    updatedAt: now,
+  });
+  logActivity({ action: "created", entity: "complaint", entityId: id, label: input.title, branchId });
   return id;
 }
 
 export async function updateComplaint(id: string, input: ComplaintInput): Promise<void> {
-  const db = await getDb();
-  const existing = await getComplaint(id);
+  const existing = find<Complaint>("complaints", id);
+  if (!existing) return;
 
-  await db.runAsync(
-    `UPDATE complaints SET roomId = ?, studentId = ?, title = ?, description = ?,
-       category = ?, status = ?, photoFile = ?, raisedOn = ?, updatedAt = ?
-     WHERE id = ?;`,
-    input.roomId, input.studentId, input.title, input.description, input.category,
-    input.status, input.photoFile, input.raisedOn || toIsoDate(), Date.now(), id
-  );
+  await patch("complaints", id, {
+    roomId: input.roomId,
+    studentId: input.studentId,
+    title: input.title,
+    description: input.description,
+    category: input.category,
+    status: input.status,
+    photoFile: input.photoFile,
+    raisedOn: input.raisedOn || toIsoDate(),
+    updatedAt: Date.now(),
+  });
 
-  if (existing?.photoFile && existing.photoFile !== input.photoFile) {
+  if (existing.photoFile && existing.photoFile !== input.photoFile) {
     deletePhoto(existing.photoFile);
   }
+  logActivity({ action: "updated", entity: "complaint", entityId: id, label: input.title, branchId: existing.branchId });
 }
 
 /**
@@ -108,22 +105,30 @@ export async function setStatus(
   status: ComplaintStatus,
   resolution = ""
 ): Promise<void> {
-  const db = await getDb();
-  await db.runAsync(
-    "UPDATE complaints SET status = ?, resolvedAt = ?, resolution = ?, updatedAt = ? WHERE id = ?;",
+  const existing = find<Complaint>("complaints", id);
+  if (!existing) return;
+  await patch("complaints", id, {
     status,
-    status === "resolved" ? Date.now() : null,
-    status === "resolved" ? resolution : "",
-    Date.now(),
-    id
-  );
+    resolvedAt: status === "resolved" ? Date.now() : null,
+    resolution: status === "resolved" ? resolution : "",
+    updatedAt: Date.now(),
+  });
+  logActivity({
+    action: "updated",
+    entity: "complaint",
+    entityId: id,
+    label: `${existing.title} · ${STATUS_LABELS[status]}`,
+    branchId: existing.branchId,
+  });
 }
 
 export async function deleteComplaint(id: string): Promise<void> {
-  const db = await getDb();
-  const existing = await getComplaint(id);
-  await db.runAsync("DELETE FROM complaints WHERE id = ?;", id);
+  const existing = find<Complaint>("complaints", id);
+  await remove("complaints", id);
   deletePhoto(existing?.photoFile ?? null);
+  if (existing) {
+    logActivity({ action: "deleted", entity: "complaint", entityId: id, label: existing.title, branchId: existing.branchId });
+  }
 }
 
 export interface ComplaintCounts {
@@ -134,22 +139,12 @@ export interface ComplaintCounts {
 }
 
 export async function complaintCounts(): Promise<ComplaintCounts> {
-  const db = await getDb();
-  const branch = branchClause("branchId");
-  const where = branch.sql ? `WHERE ${branch.sql}` : "";
-  const row = await db.getFirstAsync<Record<string, number>>(
-    `SELECT COUNT(*) AS all_count,
-            COALESCE(SUM(status = 'open'), 0)        AS open_count,
-            COALESCE(SUM(status = 'in_progress'), 0) AS progress_count,
-            COALESCE(SUM(status = 'resolved'), 0)    AS resolved_count
-     FROM complaints ${where};`,
-    branch.params
-  );
+  const rows = list<Complaint>("complaints").filter((complaint) => inActiveBranch(complaint.branchId));
   return {
-    all: row?.all_count ?? 0,
-    open: row?.open_count ?? 0,
-    in_progress: row?.progress_count ?? 0,
-    resolved: row?.resolved_count ?? 0,
+    all: rows.length,
+    open: rows.filter((complaint) => complaint.status === "open").length,
+    in_progress: rows.filter((complaint) => complaint.status === "in_progress").length,
+    resolved: rows.filter((complaint) => complaint.status === "resolved").length,
   };
 }
 

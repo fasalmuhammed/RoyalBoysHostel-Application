@@ -1,0 +1,86 @@
+rules_version = '2';
+
+// Who may see and change what.
+//
+// Every login has a staff/<uid> document, written only by the server
+// (Cloud Functions): role "admin" sees both hostels; role "manager" is held
+// to the one branch named in branchId. A disabled login gets nothing.
+// The app also hides what a login may not use, but these rules are the guard.
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function staffPath() {
+      return /databases/$(database)/documents/staff/$(request.auth.uid);
+    }
+    function me() {
+      return get(staffPath()).data;
+    }
+    function active() {
+      return request.auth != null && exists(staffPath()) && me().disabled != true;
+    }
+    function isAdmin() {
+      return active() && me().role == 'admin';
+    }
+    // The admin, or the manager of that branch.
+    function inBranch(branchId) {
+      return active() && (me().role == 'admin' || (branchId != null && me().branchId == branchId));
+    }
+
+    // Logins: each person reads their own; the admin reads all. Nobody writes
+    // from the app -- creating, disabling and resetting go through the server.
+    match /staff/{uid} {
+      allow read: if request.auth != null && (request.auth.uid == uid || isAdmin());
+      allow write: if false;
+    }
+
+    // Shared by every login.
+    match /branches/{id} {
+      allow read: if active();
+      allow write: if isAdmin();
+    }
+    match /config/{id} {
+      allow read: if active();
+      allow write: if isAdmin();
+    }
+    match /templates/{id} {
+      allow read, write: if active();
+    }
+    // Short leases that make two devices take turns on one record.
+    match /locks/{id} {
+      allow read, write: if active();
+    }
+
+    // Records that belong to a branch. `resource == null` lets a manager ask
+    // for a record that does not exist yet (the first bill of a year, say)
+    // and be told so, rather than refused.
+    match /{collection}/{id} {
+      function branchScoped() {
+        return collection in ['rooms', 'inmates', 'fees', 'messages', 'complaints', 'counters', 'activity', 'applications'];
+      }
+      allow get: if branchScoped() && active() && (resource == null || inBranch(resource.data.branchId));
+      allow list: if branchScoped() && inBranch(resource.data.branchId);
+      allow create: if branchScoped() && inBranch(request.resource.data.branchId);
+      // A record cannot be edited into another branch by that branch's
+      // manager: moving an inmate between hostels is the admin's.
+      allow update: if branchScoped()
+        && inBranch(resource.data.branchId)
+        && inBranch(request.resource.data.branchId);
+      allow delete: if branchScoped() && inBranch(resource.data.branchId);
+    }
+
+    // Notices: a branch's own, plus those posted to every branch (branchId
+    // null), which everyone reads and only the admin posts or changes.
+    match /notices/{id} {
+      allow get: if active() && (resource == null || resource.data.branchId == null || inBranch(resource.data.branchId));
+      allow list: if active() && (resource.data.branchId == null || inBranch(resource.data.branchId));
+      allow create: if (request.resource.data.branchId == null && isAdmin()) || inBranch(request.resource.data.branchId);
+      allow update: if ((resource.data.branchId == null && isAdmin()) || inBranch(resource.data.branchId))
+        && ((request.resource.data.branchId == null && isAdmin()) || inBranch(request.resource.data.branchId));
+      allow delete: if (resource.data.branchId == null && isAdmin()) || inBranch(resource.data.branchId);
+    }
+
+    // Saved snapshots cover both hostels.
+    match /snapshots/{id} {
+      allow read, write: if isAdmin();
+    }
+  }
+}

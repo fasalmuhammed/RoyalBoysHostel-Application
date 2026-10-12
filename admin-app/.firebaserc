@@ -1,0 +1,6 @@
+{
+  "projects": {
+    "default": "royal-hostel-staging",
+    "staging": "royal-hostel-staging"
+  }
+}

@@ -4,7 +4,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 
 import { Loading } from "@/components/Base";
-import { colors, font, fontSize, radius, shadow, spacing } from "@/constants/theme";
+import { colors, font, fontSize, radius, shadow, spacing, type } from "@/constants/theme";
 import { useApp } from "@/context/AppContext";
 import { useAsyncData } from "@/utils/hooks";
 import { BranchSummary, listBranchSummaries } from "@/services/branches";
@@ -109,7 +109,7 @@ const styles = StyleSheet.create({
   content: { padding: spacing.lg, paddingTop: spacing.xl, flexGrow: 1, justifyContent: "center" },
   header: { alignItems: "center", marginBottom: spacing.xl },
   logo: { width: 96, height: 96, marginBottom: spacing.sm },
-  title: { fontSize: fontSize.xxl, fontFamily: font.extrabold, color: colors.text },
+  title: { ...type.title, color: colors.text },
   subtitle: {
     fontSize: fontSize.md,
     color: colors.textMuted,
@@ -139,8 +139,8 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  badgeText: { color: colors.goldLight, fontSize: fontSize.xl, fontFamily: font.extrabold },
-  name: { fontSize: fontSize.lg, fontFamily: font.extrabold, color: colors.text },
+  badgeText: { color: colors.goldLight, ...type.title },
+  name: { ...type.section, color: colors.text },
   full: { fontSize: fontSize.xs, color: colors.textMuted, marginTop: 1 },
   stats: { fontSize: fontSize.sm, color: colors.textMuted, marginTop: spacing.xs },
   lastUsed: {

@@ -1,8 +1,20 @@
 import { Directory, File, Paths } from "expo-file-system";
 
-import { getDb } from "@/db";
 import { loadSettings } from "./settings";
-import { branchClause, branchOrSharedClause, getActiveBranchId } from "./branches";
+import { inActiveBranch } from "./branches";
+import {
+  allBills,
+  allInmates,
+  allRooms,
+  branchById,
+  compareRaw,
+  compareRooms,
+  compareText,
+  inmateById,
+  occupancyByRoom,
+  roomById,
+  roomLabelOf,
+} from "@/store/views";
 
 /**
  * CSV report export.
@@ -73,26 +85,21 @@ export interface ReportResult {
 }
 
 export async function exportReport(kind: ReportKind, period: string | null = null): Promise<ReportResult> {
-  const db = await getDb();
   const settings = await loadSettings();
 
-  const studentBranch = branchClause("s.branchId");
-  const studentWhere = studentBranch.sql ? `WHERE ${studentBranch.sql}` : "";
-
   if (kind === "inmates") {
-    const rows = await db.getAllAsync<Record<string, string | number | null>>(
-      `SELECT s.admissionNo, s.fullName, s.phone, s.guardianName, s.guardianPhone, s.email,
-              s.course, s.year, s.status, s.joinedOn, s.leftOn, s.address, s.idProof,
-              b.shortName AS branch, b.code AS branchCode,
-              CASE WHEN r.id IS NULL THEN '' WHEN r.block = '' THEN r.roomNumber
-                   ELSE r.block || '-' || r.roomNumber END AS room
-       FROM students s
-       LEFT JOIN rooms r ON r.id = s.roomId
-       LEFT JOIN branches b ON b.id = s.branchId
-       ${studentWhere}
-       ORDER BY s.fullName COLLATE NOCASE;`,
-      studentBranch.params
-    );
+    const rows = allInmates()
+      .filter((inmate) => inActiveBranch(inmate.branchId))
+      .sort((a, b) => compareText(a.fullName, b.fullName))
+      .map((inmate) => {
+        const branch = branchById(inmate.branchId);
+        return {
+          ...inmate,
+          branch: branch ? branch.shortName : null,
+          branchCode: branch ? branch.code : null,
+          room: roomLabelOf(roomById(inmate.roomId)) ?? "",
+        };
+      });
     const csv = toCsv(rows, [
       // Numbering restarts per branch, so the letter is what keeps an id
       // unambiguous in a sheet covering both hostels.
@@ -117,19 +124,13 @@ export async function exportReport(kind: ReportKind, period: string | null = nul
   }
 
   if (kind === "rooms") {
-    const roomBranch = branchClause("r.branchId");
-    const rows = await db.getAllAsync<Record<string, string | number | null>>(
-      `SELECT r.block, r.roomNumber, r.floor, r.capacity, r.rent, r.deposit, r.amenities,
-              COALESCE(o.n, 0) AS occupied,
-              MAX(r.capacity - COALESCE(o.n, 0), 0) AS vacant
-       FROM rooms r
-       LEFT JOIN (SELECT roomId, COUNT(*) AS n FROM students
-                  WHERE status = 'active' AND roomId IS NOT NULL GROUP BY roomId) o
-              ON o.roomId = r.id
-       ${roomBranch.sql ? `WHERE ${roomBranch.sql}` : ""}
-       ORDER BY r.block, CAST(r.roomNumber AS INTEGER);`,
-      roomBranch.params
-    );
+    const rows = allRooms()
+      .filter((room) => inActiveBranch(room.branchId))
+      .sort(compareRooms)
+      .map((room) => {
+        const occupied = occupancyByRoom().get(room.id) ?? 0;
+        return { ...room, occupied, vacant: Math.max(room.capacity - occupied, 0) };
+      });
     const csv = toCsv(rows, [
       { header: "Block", value: (r) => r.block },
       { header: "Room", value: (r) => r.roomNumber },
@@ -145,32 +146,26 @@ export async function exportReport(kind: ReportKind, period: string | null = nul
     return { uri: writeCsv(fileName, csv), fileName, rowCount: rows.length };
   }
 
-  if (kind === "fees") {
-    const clauses: string[] = [];
-    const feeParams: (string | number)[] = [];
-    if (period) {
-      clauses.push("f.period = ?");
-      feeParams.push(period);
-    }
-    if (studentBranch.sql) {
-      clauses.push(studentBranch.sql);
-      feeParams.push(...studentBranch.params);
-    }
-    const where = clauses.length ? `WHERE ${clauses.join(" AND ")}` : "";
-    const rows = await db.getAllAsync<Record<string, string | number | null>>(
-      `SELECT f.period, s.admissionNo, s.fullName, f.rent, f.electricity, f.water, f.other,
-              f.discount, f.total, f.amountPaid, (f.total - f.amountPaid) AS balance, f.dueDate,
-              CASE WHEN f.amountPaid >= f.total - 0.01 THEN 'paid'
-                   WHEN f.amountPaid > 0.009 THEN 'partial' ELSE 'unpaid' END AS status,
-              CASE WHEN r.id IS NULL THEN '' WHEN r.block = '' THEN r.roomNumber
-                   ELSE r.block || '-' || r.roomNumber END AS room
-       FROM fee_records f
-       JOIN students s ON s.id = f.studentId
-       LEFT JOIN rooms r ON r.id = s.roomId
-       ${where}
-       ORDER BY f.period DESC, s.fullName COLLATE NOCASE;`,
-      feeParams
+  // Bills and payments belong to the branch of the inmate they are for.
+  const billRows = allBills()
+    .map((bill) => ({ bill, inmate: inmateById(bill.studentId) }))
+    .filter(
+      (row): row is { bill: (typeof row)["bill"]; inmate: NonNullable<(typeof row)["inmate"]> } =>
+        row.inmate !== null && inActiveBranch(row.inmate.branchId)
     );
+
+  if (kind === "fees") {
+    const rows = billRows
+      .filter(({ bill }) => !period || bill.period === period)
+      .sort((a, b) => compareRaw(b.bill.period, a.bill.period) || compareText(a.inmate.fullName, b.inmate.fullName))
+      .map(({ bill, inmate }) => ({
+        ...bill,
+        admissionNo: inmate.admissionNo,
+        fullName: inmate.fullName,
+        balance: bill.total - bill.amountPaid,
+        status: bill.amountPaid >= bill.total - 0.01 ? "paid" : bill.amountPaid > 0.009 ? "partial" : "unpaid",
+        room: roomLabelOf(roomById(inmate.roomId)) ?? "",
+      }));
     const csv = toCsv(rows, [
       { header: "Month", value: (r) => r.period },
       { header: "Admission No", value: (r) => r.admissionNo },
@@ -191,15 +186,16 @@ export async function exportReport(kind: ReportKind, period: string | null = nul
     return { uri: writeCsv(fileName, csv), fileName, rowCount: rows.length };
   }
 
-  const rows = await db.getAllAsync<Record<string, string | number | null>>(
-    `SELECT p.paidOn, s.admissionNo, s.fullName, f.period, p.amount, p.method, p.reference, p.note
-     FROM payments p
-     JOIN fee_records f ON f.id = p.feeRecordId
-     JOIN students s ON s.id = p.studentId
-     ${studentWhere}
-     ORDER BY p.paidOn DESC, p.createdAt DESC;`,
-    studentBranch.params
-  );
+  const rows = billRows
+    .flatMap(({ bill, inmate }) =>
+      bill.payments.map((payment) => ({
+        ...payment,
+        admissionNo: inmate.admissionNo,
+        fullName: inmate.fullName,
+        period: bill.period,
+      }))
+    )
+    .sort((a, b) => compareRaw(b.paidOn, a.paidOn) || b.createdAt - a.createdAt);
   const csv = toCsv(rows, [
     { header: "Date", value: (r) => r.paidOn },
     { header: "Admission No", value: (r) => r.admissionNo },

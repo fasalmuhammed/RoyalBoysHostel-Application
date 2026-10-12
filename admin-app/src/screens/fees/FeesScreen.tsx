@@ -1,21 +1,23 @@
 import React, { useState } from "react";
-import { FlatList, Pressable, StyleSheet, Text, View } from "react-native";
+import { FlatList, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import type { CompositeScreenProps } from "@react-navigation/native";
 import type { BottomTabScreenProps } from "@react-navigation/bottom-tabs";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 
-import { Badge, Card, EmptyState, Loading } from "@/components/Base";
+import { Badge, Card, EmptyState } from "@/components/Base";
 import { Fab, OptionPicker, SearchBar, SegmentedTabs } from "@/components/Controls";
 import Button from "@/components/Button";
 import Avatar from "@/components/Avatar";
-import { colors, font, fontSize, radius, spacing } from "@/constants/theme";
-import { FadeIn, SkeletonList } from "@/components/Motion";
+import { HIT_TARGET, colors, radius, shadow, spacing, type } from "@/constants/theme";
+import { AnimatedBar, FadeIn, PressableScale, SkeletonList } from "@/components/Motion";
 import { useApp } from "@/context/AppContext";
+import HostelSwitch from "@/components/HostelSwitch";
 import { useAsyncData, useDebounced } from "@/utils/hooks";
 import { currentPeriod, FeeFilter, feeTotals, listFees } from "@/services/fees";
-import { formatMoney, formatPeriod, shiftPeriod } from "@/utils/format";
+import type { FeeRecordWithInmate } from "@/types";
+import { formatMoney, formatPeriod, relativeDays, shiftPeriod } from "@/utils/format";
 import type { MainTabParamList, RootStackParamList } from "@/navigation/types";
 
 type Props = CompositeScreenProps<
@@ -32,7 +34,12 @@ function periodOptions(): string[] {
 export default function FeesScreen({ navigation, route }: Props) {
   const { settings } = useApp();
   const [filter, setFilter] = useState<FeeFilter>(route.params?.filter ?? "all");
-  const [period, setPeriod] = useState<string | null>(currentPeriod());
+  // `undefined` (not navigated with a period at all) keeps today's default of the
+  // current month; an explicit `null` (e.g. the dashboard's "See all" shortcut)
+  // means "every month".
+  const [period, setPeriod] = useState<string | null>(
+    route.params?.period !== undefined ? route.params.period : currentPeriod()
+  );
   const [search, setSearch] = useState("");
   const [periodPickerOpen, setPeriodPickerOpen] = useState(false);
   const debounced = useDebounced(search);
@@ -44,38 +51,75 @@ export default function FeesScreen({ navigation, route }: Props) {
   );
 
   const symbol = settings.currencySymbol;
+  const dueCount = totals ? totals.unpaidCount + totals.partialCount : undefined;
+  const collectedFraction = totals && totals.billed > 0 ? totals.collected / totals.billed : 0;
 
   return (
     <SafeAreaView style={styles.screen} edges={["top", "left", "right"]}>
+      <HostelSwitch style={styles.hostelSwitch} />
       <View style={styles.header}>
-        <Text style={styles.title}>Fees</Text>
-        <Pressable style={styles.periodChip} onPress={() => setPeriodPickerOpen(true)}>
-          <Ionicons name="calendar-outline" size={15} color={colors.primary} />
-          <Text style={styles.periodText}>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.title}>Fees</Text>
+          <Text style={styles.subtitle}>
             {period ? formatPeriod(period) : "All months"}
           </Text>
-          <Ionicons name="chevron-down" size={15} color={colors.primary} />
-        </Pressable>
+        </View>
+        <PressableScale
+          onPress={() => navigation.navigate("Dues")}
+          scaleTo={0.9}
+          style={styles.duesButton}
+          accessibilityRole="button"
+          accessibilityLabel="Dues and collections"
+        >
+          <Ionicons name="alarm-outline" size={19} color={colors.primary} />
+        </PressableScale>
+        <PressableScale
+          onPress={() => setPeriodPickerOpen(true)}
+          scaleTo={0.95}
+          style={styles.periodChip}
+          accessibilityRole="button"
+          accessibilityLabel="Change month"
+        >
+          <Ionicons name="calendar-outline" size={15} color={colors.primary} />
+          <Text style={styles.periodText}>{period ? formatPeriod(period) : "All months"}</Text>
+          <Ionicons name="chevron-down" size={14} color={colors.primary} />
+        </PressableScale>
       </View>
 
-      <View style={styles.summary}>
-        <View style={styles.summaryCell}>
-          <Text style={styles.summaryValue}>{formatMoney(totals?.billed ?? 0, symbol)}</Text>
-          <Text style={styles.summaryLabel}>Billed</Text>
+      {/*
+        Money summary leads the screen: the outstanding figure is what an admin
+        opens this tab to check, so it is the largest thing on it.
+      */}
+      <Card style={styles.summary}>
+        <View style={styles.summaryRow}>
+          <View style={styles.summaryCell}>
+            <Text style={styles.summaryLabel}>OUTSTANDING</Text>
+            <Text
+              style={[
+                styles.summaryValue,
+                (totals?.outstanding ?? 0) > 0 && { color: colors.danger },
+              ]}
+              numberOfLines={1}
+              adjustsFontSizeToFit
+            >
+              {formatMoney(totals?.outstanding ?? 0, symbol)}
+            </Text>
+          </View>
+          <View style={styles.summaryDivider} />
+          <View style={styles.summaryCell}>
+            <Text style={styles.summaryLabel}>COLLECTED</Text>
+            <Text style={styles.summaryValueMuted} numberOfLines={1} adjustsFontSizeToFit>
+              {formatMoney(totals?.collected ?? 0, symbol)}
+            </Text>
+          </View>
         </View>
-        <View style={styles.summaryCell}>
-          <Text style={[styles.summaryValue, { color: colors.success }]}>
-            {formatMoney(totals?.collected ?? 0, symbol)}
-          </Text>
-          <Text style={styles.summaryLabel}>Collected</Text>
-        </View>
-        <View style={styles.summaryCell}>
-          <Text style={[styles.summaryValue, { color: colors.danger }]}>
-            {formatMoney(totals?.outstanding ?? 0, symbol)}
-          </Text>
-          <Text style={styles.summaryLabel}>Outstanding</Text>
-        </View>
-      </View>
+
+        <AnimatedBar fraction={collectedFraction} color={colors.success} height={7} />
+        <Text style={styles.summaryFoot}>
+          {formatMoney(totals?.billed ?? 0, symbol)} billed
+          {totals && totals.billed > 0 ? ` · ${Math.round(collectedFraction * 100)}% collected` : ""}
+        </Text>
+      </Card>
 
       <View style={styles.controls}>
         <SearchBar value={search} onChangeText={setSearch} placeholder="Search inmate" />
@@ -84,6 +128,7 @@ export default function FeesScreen({ navigation, route }: Props) {
           onChange={setFilter}
           options={[
             { key: "all", label: "All" },
+            { key: "due", label: "Due", count: dueCount },
             { key: "unpaid", label: "Unpaid", count: totals?.unpaidCount },
             { key: "partial", label: "Partial", count: totals?.partialCount },
             { key: "paid", label: "Paid", count: totals?.paidCount },
@@ -99,66 +144,34 @@ export default function FeesScreen({ navigation, route }: Props) {
           keyExtractor={(item) => item.id}
           contentContainerStyle={styles.list}
           keyboardShouldPersistTaps="handled"
+          removeClippedSubviews
+          initialNumToRender={12}
+          windowSize={9}
           ListEmptyComponent={
             <EmptyState
-              icon="receipt-outline"
-              title="No bills here"
+              icon={debounced ? "search-outline" : "receipt-outline"}
+              title={debounced ? "No matches" : "No bills here"}
               message={
-                period
-                  ? `Nothing raised for ${formatPeriod(period)} yet. Raise this month's bills in one tap.`
-                  : "No fee records yet."
-              }
-              action={
-                <Button
-                  title="Raise monthly bills"
-                  icon="documents-outline"
-                  onPress={() => navigation.navigate("GenerateInvoices")}
-                />
+                debounced
+                  ? `No bill matches "${debounced}".`
+                  : period
+                    ? `No bills for ${formatPeriod(period)}. Each inmate's monthly bill is raised automatically.`
+                    : "No fee records yet."
               }
             />
           }
           renderItem={({ item, index }) => (
             <FadeIn index={index}>
-            <Card
-              style={styles.row}
-              onPress={() => navigation.navigate("FeeDetail", { feeId: item.id })}
-            >
-              <Avatar name={item.studentName} photoFile={item.photoFile} size={44} />
-
-              <View style={{ flex: 1 }}>
-                <Text style={styles.name} numberOfLines={1}>
-                  {item.studentName}
-                </Text>
-                <Text style={styles.meta} numberOfLines={1}>
-                  {item.roomLabel ? `Room ${item.roomLabel} · ` : ""}
-                  {formatPeriod(item.period)}
-                </Text>
-              </View>
-
-              <View style={styles.amountCell}>
-                <Text style={styles.amount}>{formatMoney(item.total, symbol)}</Text>
-                <Badge
-                  label={item.status.toUpperCase()}
-                  tone={
-                    item.status === "paid"
-                      ? "success"
-                      : item.status === "partial"
-                        ? "warning"
-                        : "danger"
-                  }
-                />
-              </View>
-            </Card>
+              <FeeRow
+                fee={item}
+                symbol={symbol}
+                showPeriod={!period}
+                onPress={() => navigation.navigate("FeeDetail", { feeId: item.id })}
+              />
             </FadeIn>
           )}
         />
       )}
-
-      <Fab
-        icon="documents-outline"
-        label="Raise bills"
-        onPress={() => navigation.navigate("GenerateInvoices")}
-      />
 
       <OptionPicker
         visible={periodPickerOpen}
@@ -175,42 +188,128 @@ export default function FeesScreen({ navigation, route }: Props) {
   );
 }
 
+/**
+ * One bill.
+ *
+ * The balance owed is the number that matters, so it takes the right edge and
+ * the heavier weight; the total billed sits under it as context. A settled
+ * bill drops the amount entirely and just reads PAID -- nothing to chase.
+ */
+function FeeRow({
+  fee,
+  symbol,
+  showPeriod,
+  onPress,
+}: {
+  fee: FeeRecordWithInmate;
+  symbol: string;
+  showPeriod: boolean;
+  onPress: () => void;
+}) {
+  const settled = fee.status === "paid";
+  const overdue = !settled && fee.dueDate !== "" && new Date(fee.dueDate) <= new Date();
+
+  return (
+    <Card style={styles.row} onPress={onPress}>
+      <Avatar name={fee.studentName} photoFile={fee.photoFile} size={44} />
+
+      <View style={styles.rowBody}>
+        <View style={styles.rowNameLine}>
+          <Text style={styles.name} numberOfLines={1}>
+            {fee.studentName}
+          </Text>
+          {fee.admissionType === "stay" ? <Badge label="STAY" tone="neutral" /> : null}
+        </View>
+        <Text style={styles.meta} numberOfLines={1}>
+          {[
+            fee.roomLabel ? `Room ${fee.roomLabel}` : null,
+            showPeriod ? formatPeriod(fee.period) : null,
+            settled ? null : fee.dueDate ? `due ${relativeDays(fee.dueDate)}` : null,
+          ]
+            .filter(Boolean)
+            .join(" · ")}
+        </Text>
+      </View>
+
+      <View style={styles.rowTail}>
+        {settled ? (
+          <Badge label="PAID" tone="success" />
+        ) : (
+          <>
+            <Text style={[styles.balance, overdue && { color: colors.danger }]} numberOfLines={1}>
+              {formatMoney(fee.balance, symbol)}
+            </Text>
+            <Text style={styles.balanceOf} numberOfLines={1}>
+              of {formatMoney(fee.total, symbol)}
+            </Text>
+          </>
+        )}
+      </View>
+    </Card>
+  );
+}
+
 const styles = StyleSheet.create({
+  hostelSwitch: { marginHorizontal: spacing.lg, marginTop: spacing.sm },
   screen: { flex: 1, backgroundColor: colors.background },
   header: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
+    gap: spacing.sm,
     paddingHorizontal: spacing.lg,
     paddingTop: spacing.sm,
   },
-  title: { fontSize: fontSize.xxl, fontFamily: font.extrabold, color: colors.text },
+  title: { ...type.title, color: colors.text },
+  subtitle: { ...type.support, color: colors.textMuted, marginTop: 2 },
+  duesButton: {
+    width: HIT_TARGET,
+    height: HIT_TARGET,
+    borderRadius: radius.md,
+    backgroundColor: colors.surface,
+    alignItems: "center",
+    justifyContent: "center",
+    ...shadow.subtle,
+  },
   periodChip: {
     flexDirection: "row",
     alignItems: "center",
     gap: spacing.xs,
+    minHeight: HIT_TARGET - 8,
     backgroundColor: colors.primaryLight,
     paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
     borderRadius: radius.pill,
   },
-  periodText: { fontSize: fontSize.sm, fontFamily: font.bold, color: colors.primary },
+  periodText: { ...type.caption, fontFamily: type.bodyStrong.fontFamily, color: colors.primary },
+
   summary: {
-    flexDirection: "row",
-    backgroundColor: colors.surface,
     marginHorizontal: spacing.lg,
     marginTop: spacing.md,
-    borderRadius: radius.lg,
-    paddingVertical: spacing.md,
+    marginBottom: 0,
+    gap: spacing.sm,
+    ...shadow.card,
   },
-  summaryCell: { flex: 1, alignItems: "center" },
-  summaryValue: { fontSize: fontSize.md, fontFamily: font.extrabold, color: colors.text },
-  summaryLabel: { fontSize: fontSize.xs, color: colors.textMuted, marginTop: 2 },
+  summaryRow: { flexDirection: "row", alignItems: "center" },
+  summaryCell: { flex: 1, gap: 2 },
+  summaryDivider: {
+    width: 1,
+    height: 34,
+    backgroundColor: colors.border,
+    marginHorizontal: spacing.md,
+  },
+  summaryLabel: { ...type.label, color: colors.textFaint },
+  summaryValue: { ...type.metric, color: colors.text },
+  summaryValueMuted: { ...type.metric, color: colors.success },
+  summaryFoot: { ...type.caption, color: colors.textMuted },
+
   controls: { paddingHorizontal: spacing.lg, paddingTop: spacing.md, gap: spacing.sm },
   list: { padding: spacing.lg, paddingBottom: 110 },
-  row: { flexDirection: "row", alignItems: "center", gap: spacing.md },
-  name: { fontSize: fontSize.md, fontFamily: font.bold, color: colors.text },
-  meta: { fontSize: fontSize.xs, color: colors.textMuted, marginTop: 2 },
-  amountCell: { alignItems: "flex-end", gap: spacing.xs },
-  amount: { fontSize: fontSize.md, fontFamily: font.extrabold, color: colors.text },
+
+  row: { flexDirection: "row", alignItems: "center", gap: spacing.sm + 4 },
+  rowBody: { flex: 1, gap: 2 },
+  rowNameLine: { flexDirection: "row", alignItems: "center", gap: spacing.xs },
+  name: { ...type.bodyStrong, color: colors.text, flexShrink: 1 },
+  meta: { ...type.caption, color: colors.textMuted },
+  rowTail: { alignItems: "flex-end", gap: 1 },
+  balance: { ...type.metricSmall, color: colors.text },
+  balanceOf: { ...type.caption, color: colors.textFaint },
 });

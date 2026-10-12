@@ -164,12 +164,36 @@ export function macMatches(expected: string, actual: string): boolean {
 
 // --- passphrase hashing (for the app PIN) -----------------------------------
 
+/**
+ * PBKDF2 rounds for the app PIN.
+ *
+ * Deliberately far lower than `KDF_ITERATIONS`, because the two protect very
+ * different things. A backup file travels off the phone, so its passphrase is
+ * worth a slow KDF. The PIN hash never leaves the platform keystore, and
+ * anyone able to read it has already rooted the device -- at which point the
+ * SQLite database is readable directly and the hash is beside the point.
+ *
+ * What actually protects a 4-digit PIN here is the attempt throttle in
+ * services/security.ts (five tries, then an escalating cool-down), not the
+ * cost of one hash. Meanwhile CryptoJS runs PBKDF2 on the JS thread, so every
+ * extra thousand rounds is frozen UI on a real unlock: at 20k this took
+ * several seconds on a mid-range Android and read as the app hanging.
+ */
+export const PIN_ITERATIONS = 1_000;
+
+/**
+ * What PINs were hashed with before the count was recorded alongside them.
+ * Needed to verify an existing PIN once, so it can be migrated -- see
+ * `verifyPin`. Do not reuse for new hashes.
+ */
+export const LEGACY_PIN_ITERATIONS = 20_000;
+
 /** Salted PBKDF2 hash of a PIN, stored in SecureStore. */
-export function hashPin(pin: string, saltBase64: string): string {
+export function hashPin(pin: string, saltBase64: string, iterations: number): string {
   const salt = CryptoJS.enc.Base64.parse(saltBase64);
   return CryptoJS.PBKDF2(pin, salt, {
     keySize: 256 / 32,
-    iterations: 20_000,
+    iterations,
     hasher: CryptoJS.algo.SHA256,
   }).toString(CryptoJS.enc.Hex);
 }

@@ -1,298 +1,106 @@
-/* Test harness: runs the real service code against an in-memory filesystem
-   and a real SQLite engine (node:sqlite), with Expo native modules stubbed. */
+/* Test harness: runs the real compiled service code in Node against the
+   in-memory Claude storage stand-in (fake-claude.js).
+
+   Each call to `device()` loads a fresh copy of the app's modules bound to its
+   own runtime, so two devices in one test keep separate caches while sharing
+   one store -- the situation of two phones open on the same hostel. */
 const path = require("path");
 const Module = require("module");
 const nodeCrypto = require("crypto");
-const { DatabaseSync } = require("node:sqlite");
+const { SharedStore, makeRuntime } = require("./fake-claude");
 
 const BUILD = path.join(__dirname, "build");
 
-// ---------------------------------------------------------------- in-memory fs
-const files = new Map(); // uri -> Buffer
-const dirs = new Set(["file:///doc", "file:///cache"]);
+// --- browser globals the services touch ----------------------------------------
 
-const norm = (u) => u.replace(/\/+$/, "");
-function join(...parts) {
-  return norm(
-    parts
-      .map((p, i) => (i === 0 ? norm(p) : String(p).replace(/^\/+/, "")))
-      .filter(Boolean)
-      .join("/")
-  );
-}
-function uriOf(x) {
-  if (typeof x === "string") return x;
-  if (x && typeof x.uri === "string") return x.uri;
-  throw new Error("bad uri part: " + x);
-}
-
-class FSFile {
-  constructor(...parts) {
-    this.uri = join(...parts.map(uriOf));
-  }
-  get name() {
-    return this.uri.split("/").pop();
-  }
-  get exists() {
-    return files.has(this.uri);
-  }
-  get size() {
-    return files.has(this.uri) ? files.get(this.uri).length : null;
-  }
-  get parentDirectory() {
-    return new FSDirectory(this.uri.split("/").slice(0, -1).join("/"));
-  }
-  create() {
-    files.set(this.uri, Buffer.alloc(0));
-    return this;
-  }
-  delete() {
-    if (!files.has(this.uri)) throw new Error("ENOENT " + this.uri);
-    files.delete(this.uri);
-  }
-  write(content, options) {
-    const enc = options && options.encoding;
-    if (content instanceof Uint8Array) files.set(this.uri, Buffer.from(content));
-    else if (enc === "base64") files.set(this.uri, Buffer.from(content, "base64"));
-    else files.set(this.uri, Buffer.from(String(content), "utf8"));
-  }
-  async text() {
-    return files.get(this.uri).toString("utf8");
-  }
-  async base64() {
-    if (!files.has(this.uri)) throw new Error("ENOENT " + this.uri);
-    return files.get(this.uri).toString("base64");
-  }
-  copy(dest) {
-    const target = dest instanceof FSDirectory ? new FSFile(dest, this.name) : dest;
-    files.set(target.uri, Buffer.from(files.get(this.uri)));
-  }
-  info() {
-    return { exists: this.exists, uri: this.uri, size: this.size, modificationTime: Date.now() };
-  }
-  open() {
-    const self = this;
-    if (!files.has(this.uri)) files.set(this.uri, Buffer.alloc(0));
-    let offset = 0;
-    let closed = false;
-    return {
-      get offset() {
-        return offset;
-      },
-      set offset(v) {
-        offset = v;
-      },
-      get size() {
-        return files.get(self.uri).length;
-      },
-      writeBytes(bytes) {
-        if (closed) throw new Error("handle closed");
-        const cur = files.get(self.uri);
-        const incoming = Buffer.from(bytes);
-        const end = offset + incoming.length;
-        const next = Buffer.alloc(Math.max(cur.length, end));
-        cur.copy(next);
-        incoming.copy(next, offset);
-        files.set(self.uri, next);
-        offset = end;
-      },
-      readBytes(length) {
-        if (closed) throw new Error("handle closed");
-        const cur = files.get(self.uri);
-        const slice = cur.subarray(offset, Math.min(offset + length, cur.length));
-        offset += slice.length;
-        return new Uint8Array(slice);
-      },
-      close() {
-        closed = true;
-      },
-    };
-  }
-}
-
-class FSDirectory {
-  constructor(...parts) {
-    this.uri = join(...parts.map(uriOf));
-  }
-  get name() {
-    return this.uri.split("/").pop();
-  }
-  get exists() {
-    return dirs.has(this.uri);
-  }
-  get size() {
-    let total = 0;
-    for (const [u, b] of files) if (u.startsWith(this.uri + "/")) total += b.length;
-    return total;
-  }
-  create() {
-    dirs.add(this.uri);
-    return this;
-  }
-  delete() {
-    for (const u of [...files.keys()]) if (u.startsWith(this.uri + "/")) files.delete(u);
-    dirs.delete(this.uri);
-  }
-  list() {
-    const out = [];
-    const seen = new Set();
-    for (const u of files.keys()) {
-      if (!u.startsWith(this.uri + "/")) continue;
-      const rest = u.slice(this.uri.length + 1);
-      if (rest.includes("/")) continue;
-      if (seen.has(u)) continue;
-      seen.add(u);
-      out.push(new FSFile(u));
-    }
-    return out;
-  }
-  createFile(name) {
-    return new FSFile(this, name).create();
-  }
-  createDirectory(name) {
-    return new FSDirectory(this, name).create();
-  }
-}
-
-const Paths = {
-  get document() {
-    return new FSDirectory("file:///doc");
-  },
-  get cache() {
-    return new FSDirectory("file:///cache");
-  },
+const memoryStorage = new Map();
+globalThis.localStorage = {
+  getItem: (k) => (memoryStorage.has(k) ? memoryStorage.get(k) : null),
+  setItem: (k, v) => memoryStorage.set(k, String(v)),
+  removeItem: (k) => memoryStorage.delete(k),
+  clear: () => memoryStorage.clear(),
 };
 
-// ---------------------------------------------------------------- sqlite shim
-function makeDbApi(db) {
-  const bind = (params) =>
-    params.map((p) => (p === undefined ? null : typeof p === "boolean" ? (p ? 1 : 0) : p));
-  const flatten = (params) =>
-    params.length === 1 && Array.isArray(params[0]) ? params[0] : params;
-
-  const api = {
-    async execAsync(sql) {
-      db.exec(sql);
-    },
-    async runAsync(sql, ...params) {
-      const st = db.prepare(sql);
-      const r = st.run(...bind(flatten(params)));
-      return { lastInsertRowId: Number(r.lastInsertRowid), changes: Number(r.changes) };
-    },
-    async getAllAsync(sql, ...params) {
-      return db.prepare(sql).all(...bind(flatten(params)));
-    },
-    async getFirstAsync(sql, ...params) {
-      const rows = db.prepare(sql).all(...bind(flatten(params)));
-      return rows.length ? rows[0] : null;
-    },
-    async withExclusiveTransactionAsync(task) {
-      db.exec("BEGIN");
-      try {
-        await task(api);
-        db.exec("COMMIT");
-      } catch (e) {
-        db.exec("ROLLBACK");
-        throw e;
-      }
-    },
-    async withTransactionAsync(task) {
-      return api.withExclusiveTransactionAsync(task);
-    },
-    async closeAsync() {
-      db.close();
-    },
-  };
-  return api;
-}
-
-let sqliteInstances = new Map();
-const expoSqlite = {
-  async openDatabaseAsync(name) {
-    if (!sqliteInstances.has(name)) {
-      sqliteInstances.set(name, makeDbApi(new DatabaseSync(":memory:")));
-    }
-    return sqliteInstances.get(name);
-  },
+/** The store whose files `/_blob/<id>` serves; set by each test. */
+let blobStore = null;
+const realFetch = globalThis.fetch;
+globalThis.fetch = async (url, init) => {
+  const match = /^\/_blob\/([0-9a-f]{32})/.exec(String(url));
+  if (!match) return realFetch(url, init);
+  const asset = blobStore && blobStore.assets.get(match[1]);
+  if (!asset) return new Response(null, { status: 404 });
+  return new Response(asset.bytes, { status: 200, headers: { "content-type": asset.type } });
 };
 
-function resetDatabase() {
-  sqliteInstances = new Map();
-}
-
-// ---------------------------------------------------------------- module stubs
-let manipCounter = 0;
+// --- module stubs --------------------------------------------------------------
 
 const stubs = {
-  "expo-file-system": { File: FSFile, Directory: FSDirectory, Paths },
   "expo-crypto": {
     getRandomBytes: (n) => new Uint8Array(nodeCrypto.randomBytes(n)),
     randomUUID: () => nodeCrypto.randomUUID(),
   },
-  // Faithful enough to exercise savePhoto end to end: it produces a real
-  // temp file in the in-memory FS, the way the native module produces one in
-  // the cache directory.
-  "expo-image-manipulator": {
-    SaveFormat: { JPEG: "jpeg" },
-    ImageManipulator: {
-      manipulate: (uri) => {
-        const ctx = {
-          resize() {
-            return ctx;
-          },
-          async renderAsync() {
-            return {
-              async saveAsync() {
-                const out = "file:///cache/manip-" + manipCounter++ + ".jpg";
-                const src = files.get(uri) || Buffer.from("no-source");
-                files.set(out, Buffer.from(src));
-                return { uri: out };
-              },
-            };
-          },
-        };
-        return ctx;
-      },
-    },
-  },
-  "expo-sqlite": expoSqlite,
-  // Only the surface the services touch. Nothing here drives UI; it exists so
-  // messaging.ts (which imports Linking) can be loaded outside a device.
+  // Only the surface the services touch; messaging.ts imports Linking.
   "react-native": {
-    Platform: { OS: "android", select: (spec) => spec.android ?? spec.default },
-    Linking: {
-      canOpenURL: async () => false,
-      openURL: async () => {
-        throw new Error("openURL is not available in tests");
-      },
-    },
+    Platform: { OS: "web", select: (spec) => spec.web ?? spec.default },
+    Linking: { canOpenURL: async () => true, openURL: async () => undefined },
   },
 };
 
 const origResolve = Module._resolveFilename;
 Module._resolveFilename = function (request, parent, ...rest) {
-  if (stubs[request]) return "stub:" + request;
-  if (request.startsWith("@/")) {
-    return origResolve.call(this, path.join(BUILD, request.slice(2)), parent, ...rest);
-  }
+  if (stubs[request]) return `stub:${request}`;
+  // The browser build swaps these for the web shims; so does the harness.
+  if (request === "expo-file-system") return origResolve.call(this, path.join(BUILD, "web/shims/file-system"), parent, ...rest);
+  if (request.startsWith("@/")) return origResolve.call(this, path.join(BUILD, request.slice(2)), parent, ...rest);
   return origResolve.call(this, request, parent, ...rest);
 };
 for (const key of Object.keys(stubs)) {
-  require.cache["stub:" + key] = {
-    id: "stub:" + key,
-    filename: "stub:" + key,
-    loaded: true,
-    exports: stubs[key],
-  };
+  require.cache[`stub:${key}`] = { id: `stub:${key}`, filename: `stub:${key}`, loaded: true, exports: stubs[key] };
 }
 
-module.exports = {
-  BUILD,
-  files,
-  dirs,
-  FSFile,
-  FSDirectory,
-  Paths,
-  resetDatabase,
-  load: (rel) => require(path.join(BUILD, rel)),
-};
+// --- devices -------------------------------------------------------------------
+
+const OWNER = { id: "u_owner0000000000000001", name: "Owner", isOwner: true, canEdit: true, canWrite: true };
+
+/**
+ * Loads a fresh copy of the app's modules as one person's device, opens the
+ * records and returns the services. Capabilities are resolved immediately, so
+ * the copy stays bound to this device's runtime when another one loads.
+ */
+async function device(store, user = OWNER) {
+  for (const key of Object.keys(require.cache)) {
+    if (key.startsWith(BUILD)) delete require.cache[key];
+  }
+  globalThis.claude = makeRuntime(store, user);
+  blobStore = store;
+  const load = (rel) => require(path.join(BUILD, rel));
+  const runtime = load("web/runtime");
+  await Promise.all(["db", "user", "assets", "downloads"].map((name) => runtime.capability(name)));
+
+  const api = {
+    cloud: load("store/cloud"),
+    views: load("store/views"),
+    branches: load("services/branches"),
+    settings: load("services/settings"),
+    rooms: load("services/rooms"),
+    inmates: load("services/inmates"),
+    fees: load("services/fees"),
+    complaints: load("services/complaints"),
+    notices: load("services/notices"),
+    messaging: load("services/messaging"),
+    overview: load("services/overview"),
+    csv: load("services/csv"),
+    backup: load("services/backup"),
+    photos: load("services/photos"),
+    format: load("utils/format"),
+    validate: load("utils/validate"),
+    fs: load("web/shims/file-system"),
+  };
+  await api.cloud.openStore();
+  return api;
+}
+
+/** Waits for the store's live delivery to settle. */
+const settle = (ms = 30) => new Promise((resolve) => setTimeout(resolve, ms));
+
+module.exports = { BUILD, SharedStore, device, settle, OWNER };

@@ -9,7 +9,16 @@
       "android": {
         "buildType": "apk"
       },
-      "channel": "preview"
+      "channel": "preview",
+      "env": {
+        "GRADLE_OPTS": "-Dorg.gradle.jvmargs=-Xmx3072m -XX:MaxMetaspaceSize=768m -Dorg.gradle.daemon=false -Dorg.gradle.parallel=false -Dorg.gradle.workers.max=2",
+        "EXPO_PUBLIC_FIREBASE_API_KEY": "AIzaSyCXfu0acfUshB21PKKuzngno1g2VS5WaDQ",
+        "EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN": "royal-hostel-staging.firebaseapp.com",
+        "EXPO_PUBLIC_FIREBASE_PROJECT_ID": "royal-hostel-staging",
+        "EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET": "royal-hostel-staging.firebasestorage.app",
+        "EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID": "597810046702",
+        "EXPO_PUBLIC_FIREBASE_APP_ID": "1:597810046702:web:c11f33d904736fa93675ff"
+      }
     },
     "production": {
       "android": {

@@ -7,12 +7,15 @@ import { Callout, CalloutText } from "@/components/Base";
 import Button from "@/components/Button";
 import Input from "@/components/Input";
 import { colors, font, fontSize, spacing } from "@/constants/theme";
-import { changePin } from "@/services/security";
+import { changePin, setPin } from "@/services/security";
+import { useApp } from "@/context/AppContext";
 import type { RootStackParamList } from "@/navigation/types";
 
 type Props = NativeStackScreenProps<RootStackParamList, "ChangePin">;
 
 export default function ChangePinScreen({ navigation }: Props) {
+  // The PIN is per device; one opened here for the first time has none yet.
+  const { hasPin, refreshPinState } = useApp();
   const [current, setCurrent] = useState("");
   const [next, setNext] = useState("");
   const [confirm, setConfirm] = useState("");
@@ -32,7 +35,8 @@ export default function ChangePinScreen({ navigation }: Props) {
     setSaving(true);
     setError(null);
     try {
-      const ok = await changePin(current, next);
+      const ok = hasPin ? await changePin(current, next) : (await setPin(next), true);
+      await refreshPinState();
       if (!ok) {
         setError("That current PIN is not right.");
         return;
@@ -48,8 +52,9 @@ export default function ChangePinScreen({ navigation }: Props) {
   return (
     <SafeAreaView style={styles.screen} edges={["left", "right", "bottom"]}>
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-        <Text style={styles.title}>Change your PIN</Text>
+        <Text style={styles.title}>{hasPin ? "Change your PIN" : "Set a PIN for this device"}</Text>
 
+        {hasPin ? (
         <Input
           label="Current PIN"
           required
@@ -59,6 +64,7 @@ export default function ChangePinScreen({ navigation }: Props) {
           keyboardType="number-pad"
           icon="lock-closed-outline"
         />
+        ) : null}
         <Input
           label="New PIN"
           required
@@ -81,12 +87,12 @@ export default function ChangePinScreen({ navigation }: Props) {
 
         <Callout tone="warning" icon="warning-outline">
           <CalloutText>
-            There is no way to reset a forgotten PIN. Make sure you have a recent backup file
-            before changing it.
+            This PIN belongs to this device only. A forgotten one is removed by clearing this
+            browser's data for the app; the hostel records stay safe in online storage.
           </CalloutText>
         </Callout>
 
-        <Button title="Change PIN" onPress={onSubmit} loading={saving} />
+        <Button title={hasPin ? "Change PIN" : "Set PIN"} onPress={onSubmit} loading={saving} />
       </ScrollView>
     </SafeAreaView>
   );

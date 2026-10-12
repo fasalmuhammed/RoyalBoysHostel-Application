@@ -7,7 +7,7 @@ import { Card, Loading, SectionTitle } from "@/components/Base";
 import Button from "@/components/Button";
 import Input, { PickerField } from "@/components/Input";
 import { OptionPicker } from "@/components/Controls";
-import { colors, font, fontSize, radius, spacing } from "@/constants/theme";
+import { HIT_TARGET, colors, fontSize, radius, spacing, type } from "@/constants/theme";
 import { useApp } from "@/context/AppContext";
 import { useAsyncData } from "@/utils/hooks";
 import { getFee, OverpaymentError, recordPayment } from "@/services/fees";
@@ -196,21 +196,22 @@ const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.background },
   content: { padding: spacing.lg, paddingBottom: spacing.xl * 2 },
   summary: { marginBottom: spacing.lg },
-  inmate: { fontSize: fontSize.lg, fontFamily: font.extrabold, color: colors.text },
-  period: { fontSize: fontSize.sm, color: colors.textMuted, marginTop: 2 },
+  inmate: { ...type.section, color: colors.text },
+  period: { ...type.support, color: colors.textMuted, marginTop: 2 },
   summaryRow: { flexDirection: "row", marginTop: spacing.md, gap: spacing.sm },
-  cellLabel: { fontSize: fontSize.xs, color: colors.textMuted },
-  cellValue: { fontSize: fontSize.md, fontFamily: font.bold, color: colors.text, marginTop: 2 },
+  cellLabel: { ...type.caption, color: colors.textMuted },
+  cellValue: { ...type.metricSmall, color: colors.text, marginTop: 2 },
   quickAmounts: { flexDirection: "row", gap: spacing.sm, marginBottom: spacing.md, marginTop: -8 },
   chip: {
     paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm - 2,
+    justifyContent: "center",
+    minHeight: HIT_TARGET - 8,
     borderRadius: radius.pill,
     backgroundColor: colors.primaryLight,
   },
-  chipText: { fontSize: fontSize.sm, fontFamily: font.bold, color: colors.primary },
+  chipText: { ...type.bodyStrong, fontSize: fontSize.sm, color: colors.primary },
   remaining: {
-    fontSize: fontSize.sm,
+    ...type.support,
     color: colors.warning,
     marginBottom: spacing.md,
     marginTop: -4,

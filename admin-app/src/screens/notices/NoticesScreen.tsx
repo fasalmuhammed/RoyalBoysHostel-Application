@@ -4,11 +4,11 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 
-import { Badge, Card, EmptyState, Loading } from "@/components/Base";
+import { Badge, Card, EmptyState } from "@/components/Base";
 import { Fab, SearchBar, SegmentedTabs } from "@/components/Controls";
 import Button from "@/components/Button";
-import { colors, font, fontSize, radius, spacing, Tone } from "@/constants/theme";
-import { FadeIn, SkeletonList } from "@/components/Motion";
+import { HIT_TARGET, Tone, colors, radius, spacing, toneColor, type } from "@/constants/theme";
+import { FadeIn, PressableScale, SkeletonList } from "@/components/Motion";
 import { useApp } from "@/context/AppContext";
 import { useAsyncData, useDebounced } from "@/utils/hooks";
 import {
@@ -114,14 +114,20 @@ export default function NoticesScreen({ navigation }: Props) {
           }
           renderItem={({ item, index }) => (
             <FadeIn index={index}>
-            <Card style={styles.card}>
-              <Pressable onPress={() => navigation.navigate("NoticeForm", { noticeId: item.id })}>
+            <Card style={item.pinned ? [styles.card, styles.cardPinned] : styles.card}>
+              <PressableScale
+                scaleTo={0.99}
+                onPress={() => navigation.navigate("NoticeForm", { noticeId: item.id })}
+              >
                 <View style={styles.head}>
-                  <View style={[styles.icon, { backgroundColor: colors.primaryLight }]}>
+                  {/* Tinted by category, so urgent reads differently from general at a glance. */}
+                  <View
+                    style={[styles.icon, { backgroundColor: toneColor[CATEGORY_TONE[item.category]].bg }]}
+                  >
                     <Ionicons
                       name={CATEGORY_ICON[item.category]}
                       size={18}
-                      color={colors.primary}
+                      color={toneColor[CATEGORY_TONE[item.category]].fg}
                     />
                   </View>
                   <View style={{ flex: 1 }}>
@@ -151,11 +157,12 @@ export default function NoticesScreen({ navigation }: Props) {
                     {formatDateTime(item.lastSentAt)}
                   </Text>
                 ) : null}
-              </Pressable>
+              </PressableScale>
 
               <View style={styles.actions}>
-                <Pressable
-                  style={styles.action}
+                <PressableScale
+                  scaleTo={0.96}
+                  style={styles.sendAction}
                   onPress={() =>
                     navigation.navigate("Compose", {
                       kind: "announcement",
@@ -168,10 +175,13 @@ export default function NoticesScreen({ navigation }: Props) {
                   <Text style={[styles.actionText, { color: colors.success }]}>
                     Send on WhatsApp
                   </Text>
-                </Pressable>
+                </PressableScale>
 
-                <Pressable
-                  style={styles.action}
+                <PressableScale
+                  scaleTo={0.9}
+                  style={styles.iconAction}
+                  accessibilityRole="button"
+                  accessibilityLabel={item.pinned ? "Unpin notice" : "Pin notice"}
                   onPress={async () => {
                     await togglePinned(item.id, !item.pinned);
                     reload();
@@ -179,14 +189,21 @@ export default function NoticesScreen({ navigation }: Props) {
                 >
                   <Ionicons
                     name={item.pinned ? "pin" : "pin-outline"}
-                    size={16}
-                    color={colors.textMuted}
+                    size={17}
+                    color={item.pinned ? colors.warning : colors.textMuted}
                   />
-                </Pressable>
+                </PressableScale>
 
-                <Pressable style={styles.action} onPress={() => onDelete(item.id, item.title)}>
-                  <Ionicons name="trash-outline" size={16} color={colors.danger} />
-                </Pressable>
+                <PressableScale
+                  scaleTo={0.9}
+                  haptic={false}
+                  style={styles.iconAction}
+                  accessibilityRole="button"
+                  accessibilityLabel="Delete notice"
+                  onPress={() => onDelete(item.id, item.title)}
+                >
+                  <Ionicons name="trash-outline" size={17} color={colors.danger} />
+                </PressableScale>
               </View>
             </Card>
             </FadeIn>
@@ -204,7 +221,9 @@ const styles = StyleSheet.create({
   controls: { paddingHorizontal: spacing.lg, paddingTop: spacing.md, gap: spacing.sm },
   list: { padding: spacing.lg, paddingBottom: 110 },
   card: { padding: spacing.md },
-  head: { flexDirection: "row", gap: spacing.md, alignItems: "flex-start" },
+  /** Pinned notices carry a left rule so they read as held above the rest. */
+  cardPinned: { borderLeftWidth: 3, borderLeftColor: colors.warning },
+  head: { flexDirection: "row", gap: spacing.sm + 4, alignItems: "flex-start" },
   icon: {
     width: 38,
     height: 38,
@@ -213,24 +232,36 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   titleRow: { flexDirection: "row", alignItems: "center", gap: spacing.xs },
-  title: { fontSize: fontSize.md, fontFamily: font.bold, color: colors.text, flexShrink: 1 },
-  date: { fontSize: fontSize.xs, color: colors.textMuted, marginTop: 2 },
-  body: {
-    fontSize: fontSize.sm,
-    color: colors.textMuted,
-    lineHeight: 19,
+  title: { ...type.bodyStrong, color: colors.text, flexShrink: 1 },
+  date: { ...type.caption, color: colors.textMuted, marginTop: 2 },
+  body: { ...type.support, color: colors.textMuted, marginTop: spacing.sm },
+  sent: {
+    ...type.caption,
+    fontFamily: type.bodyStrong.fontFamily,
+    color: colors.success,
     marginTop: spacing.sm,
   },
-  sent: { fontSize: fontSize.xs, color: colors.success, marginTop: spacing.sm, fontFamily: font.semibold },
   actions: {
     flexDirection: "row",
     alignItems: "center",
-    gap: spacing.lg,
-    marginTop: spacing.md,
-    paddingTop: spacing.sm,
+    gap: spacing.sm,
+    marginTop: spacing.sm,
+    paddingTop: spacing.xs,
     borderTopWidth: 1,
     borderTopColor: colors.border,
   },
-  action: { flexDirection: "row", alignItems: "center", gap: spacing.xs },
-  actionText: { fontSize: fontSize.sm, fontFamily: font.bold },
+  sendAction: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.xs,
+    flex: 1,
+    minHeight: HIT_TARGET - 8,
+  },
+  iconAction: {
+    width: HIT_TARGET - 6,
+    height: HIT_TARGET - 8,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  actionText: { ...type.bodyStrong },
 });

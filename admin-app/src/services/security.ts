@@ -1,7 +1,7 @@
 import * as LocalAuthentication from "expo-local-authentication";
 import * as SecureStore from "expo-secure-store";
 
-import { hashPin, newSaltBase64 } from "./crypto";
+import { LEGACY_PIN_ITERATIONS, PIN_ITERATIONS, hashPin, newSaltBase64 } from "./crypto";
 
 /**
  * App lock.
@@ -18,6 +18,7 @@ import { hashPin, newSaltBase64 } from "./crypto";
 
 const KEY_HASH = "lock.pinHash";
 const KEY_SALT = "lock.pinSalt";
+const KEY_ITERATIONS = "lock.pinIterations";
 const KEY_BIOMETRIC = "lock.biometric";
 const KEY_FAILURES = "lock.failures";
 const KEY_LOCKED_UNTIL = "lock.lockedUntil";
@@ -32,8 +33,24 @@ export async function hasPin(): Promise<boolean> {
 export async function setPin(pin: string): Promise<void> {
   const salt = newSaltBase64();
   await SecureStore.setItemAsync(KEY_SALT, salt);
-  await SecureStore.setItemAsync(KEY_HASH, hashPin(pin, salt));
+  await SecureStore.setItemAsync(KEY_HASH, hashPin(pin, salt, PIN_ITERATIONS));
+  await SecureStore.setItemAsync(KEY_ITERATIONS, String(PIN_ITERATIONS));
   await resetFailures();
+}
+
+/**
+ * How many rounds the stored hash was made with.
+ *
+ * A PIN set before the count was recorded has no entry, and can only have been
+ * hashed with the old fixed count -- so that is the fallback rather than the
+ * current value, which would fail to verify a perfectly good PIN and lock the
+ * admin out of their own app.
+ */
+async function storedPinIterations(): Promise<number> {
+  const raw = await SecureStore.getItemAsync(KEY_ITERATIONS);
+  if (!raw) return LEGACY_PIN_ITERATIONS;
+  const n = Number.parseInt(raw, 10);
+  return Number.isFinite(n) && n > 0 ? n : LEGACY_PIN_ITERATIONS;
 }
 
 export interface VerifyResult {
@@ -61,7 +78,20 @@ export async function verifyPin(pin: string): Promise<VerifyResult> {
   const stored = await SecureStore.getItemAsync(KEY_HASH);
   if (!salt || !stored) return { ok: false, attemptsLeft: null, lockedUntil: null };
 
-  if (hashPin(pin, salt) === stored) {
+  const iterations = await storedPinIterations();
+
+  if (hashPin(pin, salt, iterations) === stored) {
+    // Correct PIN, but hashed under the old expensive count: quietly re-hash it
+    // at the current one so this unlock is the last slow one. Done only on
+    // success, since that is the only point the plaintext PIN is known to be
+    // right, and failures here must never block the unlock itself.
+    if (iterations !== PIN_ITERATIONS) {
+      try {
+        await setPin(pin);
+      } catch {
+        // Keep the old hash; it still verifies, just slowly.
+      }
+    }
     await resetFailures();
     return { ok: true, attemptsLeft: null, lockedUntil: null };
   }
@@ -163,6 +193,7 @@ export async function authenticateBiometric(): Promise<boolean> {
 export async function clearSecurity(): Promise<void> {
   await SecureStore.deleteItemAsync(KEY_HASH);
   await SecureStore.deleteItemAsync(KEY_SALT);
+  await SecureStore.deleteItemAsync(KEY_ITERATIONS);
   await SecureStore.deleteItemAsync(KEY_BIOMETRIC);
   await resetFailures();
 }

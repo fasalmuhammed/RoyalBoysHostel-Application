@@ -7,7 +7,7 @@ import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { Badge, Card, DetailRow, Divider, EmptyState, Loading, SectionTitle } from "@/components/Base";
 import Button from "@/components/Button";
 import Avatar from "@/components/Avatar";
-import { colors, font, fontSize, radius, spacing } from "@/constants/theme";
+import { HIT_TARGET, colors, radius, spacing, type } from "@/constants/theme";
 import { useApp } from "@/context/AppContext";
 import { useAsyncData } from "@/utils/hooks";
 import { deleteRoom, getRoom } from "@/services/rooms";
@@ -218,13 +218,6 @@ export default function RoomDetailScreen({ navigation, route }: Props) {
 
         <SectionTitle title="Manage" />
         <Button
-          title="Raise a complaint for this room"
-          variant="secondary"
-          icon="construct-outline"
-          onPress={() => navigation.navigate("ComplaintForm", { roomId })}
-          style={{ marginBottom: spacing.sm }}
-        />
-        <Button
           title="Edit room"
           variant="secondary"
           icon="create-outline"
@@ -252,20 +245,20 @@ const styles = StyleSheet.create({
     marginBottom: spacing.lg,
   },
   heroTop: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between" },
-  roomTitle: { fontSize: fontSize.xl, fontFamily: font.extrabold, color: colors.text },
-  roomSubtitle: { fontSize: fontSize.sm, color: colors.textMuted, marginTop: 2 },
+  roomTitle: { ...type.title, color: colors.text },
+  roomSubtitle: { ...type.support, color: colors.textMuted, marginTop: 2 },
   bedRow: { flexDirection: "row", gap: spacing.sm, marginTop: spacing.md, flexWrap: "wrap" },
   bed: { width: 38, height: 38, borderRadius: radius.sm, alignItems: "center", justifyContent: "center" },
   bedTaken: { backgroundColor: colors.primary },
   bedFree: { backgroundColor: colors.background, borderWidth: 1.5, borderColor: colors.border },
   addRow: { flexDirection: "row", gap: spacing.sm, marginBottom: spacing.md },
-  empty: { fontSize: fontSize.sm, color: colors.textMuted, textAlign: "center" },
+  empty: { ...type.support, color: colors.textMuted, textAlign: "center" },
   occupantRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
   occupantMain: { flex: 1, flexDirection: "row", alignItems: "center", gap: spacing.md },
-  occupantName: { fontSize: fontSize.md, fontFamily: font.bold, color: colors.text },
-  occupantMeta: { fontSize: fontSize.xs, color: colors.textMuted, marginTop: 2 },
+  occupantName: { ...type.bodyStrong, color: colors.text },
+  occupantMeta: { ...type.caption, color: colors.textMuted, marginTop: 2 },
   amenityBlock: { paddingVertical: spacing.sm },
-  amenityLabel: { fontSize: fontSize.sm, color: colors.textMuted, marginBottom: spacing.sm },
+  amenityLabel: { ...type.support, color: colors.textMuted, marginBottom: spacing.sm },
   amenityRow: { flexDirection: "row", flexWrap: "wrap", gap: spacing.xs },
   amenityChip: {
     backgroundColor: colors.primaryLight,
@@ -273,19 +266,19 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.sm + 2,
     paddingVertical: 5,
   },
-  amenityText: { fontSize: fontSize.xs, fontFamily: font.bold, color: colors.primary },
+  amenityText: { ...type.label, color: colors.primary },
   callButton: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
+    width: HIT_TARGET,
+    height: HIT_TARGET,
+    borderRadius: HIT_TARGET / 2,
     backgroundColor: colors.successBg,
     alignItems: "center",
     justifyContent: "center",
   },
   vacateButton: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
+    width: HIT_TARGET,
+    height: HIT_TARGET,
+    borderRadius: HIT_TARGET / 2,
     backgroundColor: colors.dangerBg,
     alignItems: "center",
     justifyContent: "center",

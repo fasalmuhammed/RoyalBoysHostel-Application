@@ -7,7 +7,7 @@ import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { Callout, CalloutText, SectionTitle } from "@/components/Base";
 import Button from "@/components/Button";
 import Input from "@/components/Input";
-import { colors, font, fontSize, radius, spacing } from "@/constants/theme";
+import { colors, font, fontSize, radius, spacing, type } from "@/constants/theme";
 import { useApp } from "@/context/AppContext";
 import { getActiveBranchId } from "@/services/branches";
 import {
@@ -29,14 +29,15 @@ const CATEGORIES: NoticeCategory[] = ["general", "event", "maintenance", "urgent
 export default function NoticeFormScreen({ navigation, route }: Props) {
   const noticeId = route.params?.noticeId;
   const isEditing = Boolean(noticeId);
-  const { invalidate, activeBranch } = useApp();
+  const { invalidate, activeBranch, access, allHostels } = useApp();
   const branchLabel = activeBranch?.shortName ?? "this branch";
 
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
   const [category, setCategory] = useState<NoticeCategory>("general");
   const [pinned, setPinned] = useState(false);
-  const [allBranches, setAllBranches] = useState(false);
+  // Posted while both hostels are showing: for both, unless switched off below.
+  const [allBranches, setAllBranches] = useState(allHostels);
   const [postedOn, setPostedOn] = useState(toIsoDate());
   const [errors, setErrors] = useState<{ title?: string; body?: string }>({});
   const [saving, setSaving] = useState(false);
@@ -70,7 +71,7 @@ export default function NoticeFormScreen({ navigation, route }: Props) {
   const persist = async (): Promise<string | null> => {
     const payload = {
       // null means "every branch" -- the board shows it on both.
-      branchId: allBranches ? null : getActiveBranchId(),
+      branchId: allBranches ? null : (getActiveBranchId() ?? activeBranch?.id ?? null),
       title: title.trim(),
       body: body.trim(),
       category,
@@ -175,7 +176,8 @@ export default function NoticeFormScreen({ navigation, route }: Props) {
           icon="calendar-outline"
         />
 
-        <View style={styles.switchRow}>
+        {/* Only the admin posts to both hostels; a manager's notices are their branch's. */}
+        <View style={[styles.switchRow, access.isOwner ? null : { display: "none" }]}>
           <View style={{ flex: 1 }}>
             <Text style={styles.switchLabel}>Applies to both branches</Text>
             <Text style={styles.switchHint}>
@@ -263,7 +265,7 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
   },
   chipActive: { backgroundColor: colors.primary, borderColor: colors.primary },
-  chipText: { fontSize: fontSize.sm, fontFamily: font.semibold, color: colors.textMuted },
+  chipText: { ...type.bodyStrong, fontSize: fontSize.sm, color: colors.textMuted },
   chipTextActive: { color: colors.primaryOn },
   switchRow: {
     flexDirection: "row",
@@ -272,7 +274,7 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.sm,
     marginBottom: spacing.md,
   },
-  switchLabel: { fontSize: fontSize.md, fontFamily: font.semibold, color: colors.text },
+  switchLabel: { ...type.bodyStrong, color: colors.text },
   switchHint: { fontSize: fontSize.sm, color: colors.textMuted, marginTop: 2 },
   preview: {
     backgroundColor: "#E7FFDB",

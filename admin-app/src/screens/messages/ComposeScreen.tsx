@@ -9,7 +9,7 @@ import Button from "@/components/Button";
 import Input, { PickerField } from "@/components/Input";
 import { OptionPicker } from "@/components/Controls";
 import Avatar from "@/components/Avatar";
-import { colors, font, fontSize, radius, spacing } from "@/constants/theme";
+import { colors, font, fontSize, radius, spacing, type } from "@/constants/theme";
 import { useApp } from "@/context/AppContext";
 import { useAsyncData } from "@/utils/hooks";
 import {
@@ -47,9 +47,9 @@ export default function ComposeScreen({ navigation, route }: Props) {
   const presetBody = route.params?.presetBody;
   const noticeId = route.params?.noticeId;
 
-  const { settings, activeBranch } = useApp();
+  const { settings, activeBranch, allHostels } = useApp();
   // Inmates identify with their own hostel, not the parent organisation.
-  const hostelLabel = activeBranch?.name ?? settings.hostelName;
+  const hostelLabel = (allHostels ? null : activeBranch?.name) ?? settings.hostelName;
 
   const [body, setBody] = useState(presetBody ?? "");
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -341,7 +341,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.pill,
     backgroundColor: colors.primaryLight,
   },
-  chipText: { fontSize: fontSize.xs, fontFamily: font.bold, color: colors.primary },
+  chipText: { ...type.label, color: colors.primary },
   chipHint: {
     fontSize: fontSize.xs,
     color: colors.textFaint,
@@ -369,6 +369,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  recipientName: { fontSize: fontSize.md, fontFamily: font.semibold, color: colors.text },
+  recipientName: { ...type.bodyStrong, color: colors.text },
   recipientMeta: { fontSize: fontSize.xs, color: colors.textMuted, marginTop: 1 },
 });

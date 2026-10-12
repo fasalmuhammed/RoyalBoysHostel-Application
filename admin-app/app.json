@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "Hostel Manager",
+    "name": "Royal Boys Hostel",
     "slug": "hostel-manager-local",
     "version": "1.1.0",
     "orientation": "portrait",
@@ -10,7 +10,7 @@
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
-      "backgroundColor": "#6D4AFC"
+      "backgroundColor": "#0F1B45"
     },
     "assetBundlePatterns": [
       "**/*"
@@ -28,7 +28,7 @@
       "package": "com.hostelmanager.local",
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#062962"
+        "backgroundColor": "#0F1B45"
       },
       "permissions": [
         "android.permission.CAMERA",
@@ -59,10 +59,9 @@
         "expo-notifications",
         {
           "icon": "./assets/notification-icon.png",
-          "color": "#6D4AFC"
+          "color": "#2F55E8"
         }
       ],
-      "expo-sqlite",
       "expo-secure-store",
       "expo-font"
     ],
@@ -76,7 +75,9 @@
       "policy": "appVersion"
     },
     "updates": {
-      "url": "https://u.expo.dev/fbd6f7dc-74b2-43f5-8a3c-c4929fda388f"
+      "url": "https://u.expo.dev/fbd6f7dc-74b2-43f5-8a3c-c4929fda388f",
+      "checkAutomatically": "ON_LOAD",
+      "fallbackToCacheTimeout": 4000
     }
   }
 }

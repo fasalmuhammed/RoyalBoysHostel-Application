@@ -25,6 +25,14 @@ export interface Branch {
 
 export type InmateStatus = "active" | "left";
 
+/**
+ * `"monthly"` is the recurring cycle every student defaults to. `"stay"` is a
+ * short-term guest admitted for a fixed number of days (`stayDays`) and
+ * billed exactly once for the whole stay -- see services/fees.ts, which
+ * excludes `"stay"` students from the monthly "raise bills" batch.
+ */
+export type AdmissionType = "monthly" | "stay";
+
 export interface Inmate {
   id: string;
   admissionNo: string;
@@ -36,20 +44,41 @@ export interface Inmate {
   course: string;
   year: string;
   address: string;
+  /** Who to ring in an emergency, when it is not the guardian. Blank on older records. */
+  emergencyPhone?: string;
+  /** e.g. "O+". Optional. */
+  bloodGroup?: string;
+  /** College or company. Optional. */
+  institution?: string;
+  /** Legacy free-text field (e.g. "Aadhaar last 4 digits"). Kept for old records; no longer editable. */
   idProof: string;
   /** Filename (not a full URI) inside the app's photos directory. */
   photoFile: string | null;
+  /** Filename inside the app's photos directory: front of the Aadhaar/ID proof. */
+  idProofFile: string | null;
+  /** Filename inside the app's photos directory: back of the Aadhaar/ID proof. */
+  idProofBackFile: string | null;
   roomId: string | null;
   /** Which branch this inmate belongs to. */
   branchId: string;
   status: InmateStatus;
+  /** `"monthly"` (recurring) or `"stay"` (fixed number of days, billed once). */
+  admissionType: AdmissionType;
+  /** Total length of a `"stay"` admission, in days. Null/ignored for `"monthly"`. */
+  stayDays: number | null;
   /**
-   * Agreed monthly rent for this student, in rupees. Pre-filled from their
-   * room when one is assigned, but editable -- two students in the same room
-   * can be on different terms.
+   * Agreed rent for this student, in rupees. For `admissionType === "monthly"`
+   * this is a monthly rate, pre-filled from their room when one is assigned
+   * but editable. For `admissionType === "stay"` it is instead the flat total
+   * for the whole stay, typed directly (no per-day proration).
    */
   monthlyRent: number;
-  /** Days a bill covers before it falls due. 30 unless agreed otherwise. */
+  /**
+   * Legacy field, no longer editable or read by billing logic -- a monthly
+   * bill's due date is now the day-of-month the student joined on (see
+   * `services/fees.ts` `dueDateFor`/`anchorDayFor`). Kept only because old
+   * records and backups still carry a value here.
+   */
   billingCycleDays: number;
   /** ISO yyyy-mm-dd. */
   joinedOn: string;
@@ -113,6 +142,8 @@ export interface FeeRecordWithInmate extends FeeRecord {
   roomLabel: string | null;
   status: FeeStatus;
   balance: number;
+  /** The billing student's current admission type, for a "one-time stay" badge. */
+  admissionType: AdmissionType;
 }
 
 export type PaymentMethod = "cash" | "upi" | "card" | "bank" | "cheque";

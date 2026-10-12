@@ -94,11 +94,19 @@ interface PressableScaleProps extends PressableProps {
   style?: ViewStyle | ViewStyle[];
 }
 
+const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
+
 /**
  * A Pressable that springs inward when held.
  *
  * The scale is subtle by design -- enough to register as a physical response,
  * not enough to make a list feel bouncy when scrolled past quickly.
+ *
+ * The press target *is* the styled box, rather than a bare Pressable wrapping a
+ * styled inner view. That distinction matters: layout styles (`flex: 1`,
+ * `width: "31%"`) have to land on the element the parent's flex row actually
+ * measures. Nesting them one level deeper silently collapses every such card to
+ * its intrinsic content width.
  */
 export function PressableScale({
   children,
@@ -121,7 +129,7 @@ export function PressableScale({
     }).start();
 
   return (
-    <Pressable
+    <AnimatedPressable
       onPressIn={(e) => {
         spring(scaleTo);
         onPressIn?.(e);
@@ -134,10 +142,11 @@ export function PressableScale({
         if (haptic) tapFeedback();
         onPress?.(e);
       }}
+      style={[style, { transform: [{ scale }] }]}
       {...rest}
     >
-      <Animated.View style={[style, { transform: [{ scale }] }]}>{children}</Animated.View>
-    </Pressable>
+      {children}
+    </AnimatedPressable>
   );
 }
 
