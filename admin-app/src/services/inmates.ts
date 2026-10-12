@@ -242,6 +242,10 @@ export async function updateInmate(id: string, input: InmateInput): Promise<void
       joinedOn: input.joinedOn,
       leftOn: input.leftOn,
       notes: input.notes,
+      // Recorded once; an edit can add it but never clears or re-dates it.
+      ...(input.termsAcceptedAt && !existing.termsAcceptedAt
+        ? { termsAcceptedAt: input.termsAcceptedAt, termsVersion: input.termsVersion ?? "" }
+        : {}),
       updatedAt: Date.now(),
     });
   };
