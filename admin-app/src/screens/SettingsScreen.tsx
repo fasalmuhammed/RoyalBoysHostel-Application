@@ -8,12 +8,6 @@ import Button from "@/components/Button";
 import Input from "@/components/Input";
 import { colors, fontSize, spacing, type } from "@/constants/theme";
 import { useApp } from "@/context/AppContext";
-import {
-  BiometricSupport,
-  biometricSupport,
-  isBiometricEnabled,
-  setBiometricEnabled,
-} from "@/services/security";
 import type { RootStackParamList } from "@/navigation/types";
 
 type Props = NativeStackScreenProps<RootStackParamList, "Settings">;
@@ -25,15 +19,8 @@ export default function SettingsScreen({ navigation }: Props) {
   const [countryCode, setCountryCode] = useState(settings.countryCode);
   const [currencySymbol, setCurrencySymbol] = useState(settings.currencySymbol);
 
-  const [biometrics, setBiometrics] = useState<BiometricSupport | null>(null);
-  const [biometricOn, setBiometricOn] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
-
-  useEffect(() => {
-    biometricSupport().then(setBiometrics);
-    isBiometricEnabled().then(setBiometricOn);
-  }, []);
 
   const onSave = async () => {
     setSaving(true);
@@ -51,13 +38,6 @@ export default function SettingsScreen({ navigation }: Props) {
     }
   };
 
-  const toggleBiometric = async (value: boolean) => {
-    setBiometricOn(value);
-    await setBiometricEnabled(value);
-  };
-
-  const canUseBiometrics = Boolean(biometrics?.available && biometrics.enrolled);
-
   return (
     <SafeAreaView style={styles.screen} edges={["left", "right", "bottom"]}>
       <ScrollView
@@ -65,7 +45,7 @@ export default function SettingsScreen({ navigation }: Props) {
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
-        {/* Hostel details are the admin's; a manager sees the app lock only. */}
+        {/* Hostel details; only the admin opens this screen. */}
         {access.isOwner ? (
           <>
         <SectionTitle title="Hostel" />
@@ -103,35 +83,6 @@ export default function SettingsScreen({ navigation }: Props) {
 
           </>
         ) : null}
-
-        <SectionTitle title="Security" />
-        <Card>
-          {canUseBiometrics ? (
-            <View style={styles.switchRow}>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.switchLabel}>{biometrics?.label}</Text>
-                <Text style={styles.switchHint}>Unlock without typing the PIN.</Text>
-              </View>
-              <Switch
-                value={biometricOn}
-                onValueChange={toggleBiometric}
-                trackColor={{ true: colors.primary, false: colors.borderStrong }}
-                thumbColor={colors.surface}
-              />
-            </View>
-          ) : (
-            <Text style={styles.switchHint}>
-              Fingerprint and face unlock are not available in the browser.
-            </Text>
-          )}
-          <Button
-            title="Change PIN"
-            variant="secondary"
-            icon="keypad-outline"
-            onPress={() => navigation.navigate("ChangePin")}
-            style={{ marginTop: spacing.md }}
-          />
-        </Card>
 
         {access.isOwner ? (
           <>

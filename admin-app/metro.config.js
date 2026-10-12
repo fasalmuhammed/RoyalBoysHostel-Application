@@ -27,8 +27,6 @@ const WEB_SHIMS = {
   "expo-image-picker": "image-picker.ts",
   "expo-document-picker": "document-picker.ts",
   "expo-print": "print.ts",
-  "expo-secure-store": "secure-store.ts",
-  "expo-local-authentication": "local-authentication.ts",
   "expo-notifications": "notifications.ts",
   "expo-haptics": "haptics.ts",
 };

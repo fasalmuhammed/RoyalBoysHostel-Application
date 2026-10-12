@@ -21,7 +21,7 @@ type Props = CompositeScreenProps<
 >;
 
 export default function MoreScreen({ navigation }: Props) {
-  const { lock, activeBranch, allHostels, access, user, signOut, hasPin } = useApp();
+  const { activeBranch, allHostels, access, user, signOut } = useApp();
   const displayName = user?.name || user?.username || "";
   // Recounted on every live refresh (the context re-renders this screen).
   const waiting = countApplications();
@@ -140,14 +140,15 @@ export default function MoreScreen({ navigation }: Props) {
 
         <Text style={styles.groupLabel}>THIS DEVICE</Text>
         <View style={styles.group}>
-          <Row
-            tone="neutral"
-            icon="settings-outline"
-            label="Settings"
-            sublabel={access.isOwner ? "Hostel details, PIN and app lock" : "PIN and app lock"}
-            onPress={() => navigation.navigate("Settings")}
-          />
-          {hasPin ? <Row tone="neutral" icon="lock-closed-outline" label="Lock the app now" onPress={lock} /> : null}
+          {access.isOwner ? (
+            <Row
+              tone="neutral"
+              icon="settings-outline"
+              label="Settings"
+              sublabel="Hostel name, country code and currency"
+              onPress={() => navigation.navigate("Settings")}
+            />
+          ) : null}
           <Row
             tone="danger"
             icon="log-out-outline"

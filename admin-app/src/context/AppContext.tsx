@@ -14,7 +14,6 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { AppSettings, Branch } from "@/types";
 import { DEFAULT_SETTINGS, loadSettings, saveSettings } from "@/services/settings";
 import { seedTemplates } from "@/services/messaging";
-import { hasPin as hasPinStored } from "@/services/security";
 import { getBranch, listBranches, seedBranches, setActiveBranchId } from "@/services/branches";
 import { closeStore, openStore, storePending, storeProblem, subscribeStore } from "@/store/cloud";
 import { currentPeriod, raiseDueBills } from "@/services/fees";
@@ -50,8 +49,6 @@ async function awayTooLong(): Promise<boolean> {
   }
 }
 
-/** Re-lock after this long in the background. */
-const AUTO_LOCK_MS = 2 * 60 * 1000;
 
 /** What the signed-in login may do, as the server decides it. */
 export interface Access {
@@ -89,8 +86,6 @@ interface AppContextValue {
   signOut: () => Promise<void>;
 
   settings: AppSettings;
-  hasPin: boolean;
-  locked: boolean;
 
   /** Every branch this login can work in. */
   branches: Branch[];
@@ -125,9 +120,6 @@ interface AppContextValue {
 
   updateSettings: (patch: Partial<AppSettings>) => Promise<void>;
   refreshSettings: () => Promise<void>;
-  refreshPinState: () => Promise<void>;
-  unlock: () => void;
-  lock: () => void;
 }
 
 const AppContext = createContext<AppContextValue | undefined>(undefined);
@@ -147,15 +139,12 @@ export function AppProvider({ children }: PropsWithChildren) {
   const [branches, setBranches] = useState<Branch[]>([]);
   const [activeBranch, setActiveBranch] = useState<Branch | null>(null);
   const [allHostels, setAllHostels] = useState(false);
-  const [hasPin, setHasPin] = useState(false);
-  const [locked, setLocked] = useState(true);
   const [dataVersion, setDataVersion] = useState(0);
   const [access, setAccess] = useState<Access>(NO_ACCESS);
   const [syncProblem, setSyncProblem] = useState<string | null>(null);
   const [pendingSync, setPendingSync] = useState(0);
 
   const backendRef = useRef<FirebaseBackend | null>(null);
-  const backgroundedAt = useRef<number | null>(null);
   /** The login whose records are open, so the same session is not opened twice. */
   const openedFor = useRef<string | null>(null);
   /** The month automatic billing last ran for, so it runs once per month per session. */
@@ -204,14 +193,11 @@ export function AppProvider({ children }: PropsWithChildren) {
         await seedBranches().catch(() => undefined);
         await seedTemplates().catch(() => undefined);
       }
-      const [loaded, pinExists, allBranches] = await Promise.all([loadSettings(), hasPinStored(), listBranches()]);
+      const [loaded, allBranches] = await Promise.all([loadSettings(), listBranches()]);
 
       setAccess(nextAccess);
       setSettings(loaded);
       setBranches(allBranches);
-      setHasPin(pinExists);
-      // With no PIN on this device there is nothing to unlock.
-      setLocked(pinExists);
 
       // A manager works in their own hostel. The admin opens on the hostel
       // they last worked in (the first one on a new device) and switches
@@ -345,29 +331,13 @@ export function AppProvider({ children }: PropsWithChildren) {
     });
   }, [user]);
 
-  /**
-   * Locks again after a spell in the background. Time-based rather than
-   * immediate, so glancing at WhatsApp to send a reminder and coming straight
-   * back does not force a PIN every time. The hostel being worked in stays
-   * as it was.
-   */
+  /** Monthly bills are checked again whenever the app is brought back to the front. */
   useEffect(() => {
-    const onChange = (state: AppStateStatus) => {
-      if (state === "active") {
-        autoBill();
-        const since = backgroundedAt.current;
-        backgroundedAt.current = null;
-        if (since !== null && Date.now() - since > AUTO_LOCK_MS && hasPin) {
-          setLocked(true);
-        }
-      } else if (state === "background") {
-        backgroundedAt.current = Date.now();
-      }
-    };
-
-    const subscription = AppState.addEventListener("change", onChange);
+    const subscription = AppState.addEventListener("change", (state: AppStateStatus) => {
+      if (state === "active") autoBill();
+    });
     return () => subscription.remove();
-  }, [hasPin, autoBill]);
+  }, [autoBill]);
 
   const refreshSettings = useCallback(async () => {
     setSettings(await loadSettings());
@@ -376,10 +346,6 @@ export function AppProvider({ children }: PropsWithChildren) {
   const updateSettings = useCallback(async (patch: Partial<AppSettings>) => {
     await saveSettings(patch);
     setSettings((current) => ({ ...current, ...patch }));
-  }, []);
-
-  const refreshPinState = useCallback(async () => {
-    setHasPin(await hasPinStored());
   }, []);
 
   /**
@@ -419,8 +385,6 @@ export function AppProvider({ children }: PropsWithChildren) {
   }, [access.branchId]);
 
   const invalidate = useCallback(() => setDataVersion((v) => v + 1), []);
-  const unlock = useCallback(() => setLocked(false), []);
-  const lock = useCallback(() => setLocked(true), []);
 
   const value = useMemo<AppContextValue>(
     () => ({
@@ -432,8 +396,6 @@ export function AppProvider({ children }: PropsWithChildren) {
       signIn,
       signOut,
       settings,
-      hasPin,
-      locked,
       branches,
       activeBranch,
       chooseBranch,
@@ -447,14 +409,11 @@ export function AppProvider({ children }: PropsWithChildren) {
       pendingSync,
       updateSettings,
       refreshSettings,
-      refreshPinState,
-      unlock,
-      lock,
     }),
     [
-      ready, startupError, user, loginNotice, opening, signIn, signOut, settings, hasPin, locked, branches,
+      ready, startupError, user, loginNotice, opening, signIn, signOut, settings, branches,
       activeBranch, chooseBranch, allHostels, chooseAll, clearBranch, dataVersion, invalidate, access, syncProblem, pendingSync,
-      updateSettings, refreshSettings, refreshPinState, unlock, lock,
+      updateSettings, refreshSettings,
     ]
   );
 
