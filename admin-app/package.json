@@ -13,7 +13,8 @@
     "build:artifact": "expo export -p web --output-dir build/web && node scripts/build-artifact.mjs build/web build/artifact/hostel.html \"Royal Boys Hostel\"",
     "test:firebase": "tsc -p tests/tsconfig.build.json && firebase emulators:exec --project demo-hostel --only auth,firestore,storage \"node tests/firebase.test.js\"",
     "build:site": "expo export -p web --clear --output-dir build/site && node -e \"require('fs').copyFileSync('hosting/join.html','build/site/join.html')\"",
-    "deploy:staging": "npm run build:site && firebase deploy --only firestore:rules,storage,functions,hosting --project royal-hostel-staging"
+    "deploy:staging": "npm run build:site && firebase deploy --only firestore:rules,storage,functions,hosting --project royal-hostel-staging",
+    "test:billing": "firebase emulators:exec --project demo-hostel --only firestore \"node functions/billing.test.js\""
   },
   "dependencies": {
     "@expo-google-fonts/inter": "^0.4.2",
