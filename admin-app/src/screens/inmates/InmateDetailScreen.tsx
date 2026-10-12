@@ -155,7 +155,7 @@ export default function InmateDetailScreen({ navigation, route }: Props) {
             ref={reportMenu.anchorRef}
             onPress={() => (access.isOwner ? reportMenu.open() : void downloadReport("standard"))}
             disabled={reporting !== null}
-            style={({ pressed }) => [styles.pdfButton, pressed && { opacity: 0.75 }]}
+            style={({ pressed }) => [styles.cornerButton, styles.cornerLeft, pressed && { opacity: 0.75 }]}
             accessibilityRole="button"
             accessibilityLabel="Download PDF report"
           >
@@ -164,7 +164,16 @@ export default function InmateDetailScreen({ navigation, route }: Props) {
             ) : (
               <Ionicons name="download-outline" size={17} color={colors.primary} />
             )}
-            <Text style={styles.pdfButtonText}>PDF</Text>
+            <Text style={styles.cornerButtonText}>PDF</Text>
+          </Pressable>
+          <Pressable
+            onPress={() => navigation.navigate("InmateForm", { studentId })}
+            style={({ pressed }) => [styles.cornerButton, styles.cornerRight, pressed && { opacity: 0.75 }]}
+            accessibilityRole="button"
+            accessibilityLabel="Edit inmate"
+          >
+            <Ionicons name="create-outline" size={17} color={colors.primary} />
+            <Text style={styles.cornerButtonText}>Edit</Text>
           </Pressable>
             <Avatar name={inmate.fullName} photoFile={inmate.photoFile} size={84} />
             <Text style={styles.name} numberOfLines={2}>
@@ -241,11 +250,6 @@ export default function InmateDetailScreen({ navigation, route }: Props) {
             label="Message"
             disabled={!inmate.phone}
             onPress={() => navigation.navigate("Compose", { kind: "custom", studentIds: [studentId] })}
-          />
-          <ActionButton
-            icon="create-outline"
-            label="Edit"
-            onPress={() => navigation.navigate("InmateForm", { studentId })}
           />
           <ActionButton
             icon="receipt-outline"
@@ -494,10 +498,11 @@ function ActionButton({
 }
 
 const styles = StyleSheet.create({
-  pdfButton: {
+  cornerLeft: { left: 0 },
+  cornerRight: { right: 0 },
+  cornerButton: {
     position: "absolute",
     top: 0,
-    right: 0,
     zIndex: 1,
     flexDirection: "row",
     alignItems: "center",
@@ -509,7 +514,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
   },
-  pdfButtonText: { ...type.bodyStrong, fontSize: type.support.fontSize, color: colors.primary },
+  cornerButtonText: { ...type.bodyStrong, fontSize: type.support.fontSize, color: colors.primary },
   screen: { flex: 1, backgroundColor: colors.background },
   content: { padding: spacing.lg, paddingBottom: spacing.xl * 2 },
 

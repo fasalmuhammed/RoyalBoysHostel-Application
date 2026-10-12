@@ -62,8 +62,11 @@ export default function PopoverMenu({
   if (!anchor) return null;
 
   const screen = Dimensions.get("window");
-  // Lined up with the control's right edge, but never off the screen.
-  const left = Math.min(Math.max(anchor.x + anchor.width - MENU_WIDTH, EDGE), screen.width - MENU_WIDTH - EDGE);
+  // Lined up with the control's nearer edge -- left for a control on the left
+  // half of the screen, right otherwise -- but never off the screen.
+  const onLeft = anchor.x + anchor.width / 2 < screen.width / 2;
+  const wanted = onLeft ? anchor.x : anchor.x + anchor.width - MENU_WIDTH;
+  const left = Math.min(Math.max(wanted, EDGE), screen.width - MENU_WIDTH - EDGE);
   const below = anchor.y + anchor.height + 8;
   // Opens upwards when there is no room underneath.
   const roomBelow = screen.height - below > items.length * 58 + (title ? 36 : 0) + 24;
