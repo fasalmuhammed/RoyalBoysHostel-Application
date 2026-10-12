@@ -26,7 +26,11 @@ export default function AdmissionReviewScreen({ navigation, route }: Props) {
   const { dataVersion, settings } = useApp();
   // Read on every refresh, so a form handled on another phone closes here too.
   const application = React.useMemo(() => getApplication(applicationId), [applicationId, dataVersion]);
-  const { data: rooms } = useAsyncData(() => listRooms(), [dataVersion]);
+  // Only rooms in the hostel the student applied to.
+  const { data: rooms } = useAsyncData(async () => {
+    const all = await listRooms();
+    return application ? all.filter((r) => r.branchId === application.branchId) : all;
+  }, [dataVersion, application?.branchId]);
 
   const [roomId, setRoomId] = useState<string | null>(application?.roomId ?? null);
   const [rent, setRent] = useState("");

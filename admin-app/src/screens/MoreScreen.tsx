@@ -11,6 +11,7 @@ import { Tone, colors, fontSize, radius, shadow, spacing, toneColor, type } from
 import { useApp } from "@/context/AppContext";
 import { initials } from "@/utils/format";
 import { countApplications } from "@/services/admissions";
+import HostelSwitch from "@/components/HostelSwitch";
 import type { MainTabParamList, RootStackParamList } from "@/navigation/types";
 
 type Props = CompositeScreenProps<
@@ -19,15 +20,7 @@ type Props = CompositeScreenProps<
 >;
 
 export default function MoreScreen({ navigation }: Props) {
-  const { lock, activeBranch, branches, chooseBranch, access, user, signOut, hasPin } = useApp();
-  // A manager works in one hostel; only the admin can switch.
-  const canSwitch = !access.branchId && branches.length > 1;
-  /** With two hostels, "Switch" simply goes to the other one. */
-  const switchBranch = () => {
-    const index = branches.findIndex((b) => b.id === activeBranch?.id);
-    const next = branches[(index + 1) % branches.length];
-    if (next) void chooseBranch(next.id);
-  };
+  const { lock, activeBranch, allHostels, access, user, signOut, hasPin } = useApp();
   const displayName = user?.name || user?.username || "";
   // Recounted on every live refresh (the context re-renders this screen).
   const waiting = countApplications();
@@ -47,25 +40,23 @@ export default function MoreScreen({ navigation }: Props) {
                 {displayName}
               </Text>
               <Text style={styles.profileRole} numberOfLines={1}>
-                {access.isOwner ? "Admin · both hostels" : "Branch manager"}
+                {access.isOwner ? (allHostels ? "Admin · showing both hostels" : "Admin") : "Branch manager"}
               </Text>
             </View>
           </View>
-          <Pressable style={styles.branchRow} onPress={switchBranch} disabled={!canSwitch}>
-            <Ionicons name="business-outline" size={17} color={colors.goldLight} />
-            <View style={{ flex: 1 }}>
-              <Text style={styles.branchLabel}>Operating</Text>
-              <Text style={styles.branchName} numberOfLines={1}>
-                {activeBranch?.name ?? "No hostel selected"}
-              </Text>
-            </View>
-            {canSwitch ? (
-              <View style={styles.switchPill}>
-                <Ionicons name="swap-horizontal" size={14} color={colors.primaryDark} />
-                <Text style={styles.switchPillText}>Switch</Text>
+          {access.isOwner ? (
+            <HostelSwitch variant="dark" />
+          ) : (
+            <View style={styles.branchRow}>
+              <Ionicons name="business-outline" size={17} color={colors.goldLight} />
+              <View style={{ flex: 1 }}>
+                <Text style={styles.branchLabel}>Your hostel</Text>
+                <Text style={styles.branchName} numberOfLines={1}>
+                  {activeBranch?.name ?? "No hostel"}
+                </Text>
               </View>
-            ) : null}
-          </Pressable>
+            </View>
+          )}
         </View>
 
         {access.canEdit ? (

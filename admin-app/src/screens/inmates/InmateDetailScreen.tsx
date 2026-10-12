@@ -310,31 +310,30 @@ export default function InmateDetailScreen({ navigation, route }: Props) {
         </Card>
 
         <SectionTitle title="Reports" />
-        <Card>
-          <Text style={styles.reportHint}>
-            {access.isOwner
-              ? "Standard has the inmate's details and what they owe. Master adds the Aadhaar photos, every bill and every payment."
-              : "A PDF with the inmate's details and what they owe."}
-          </Text>
+        <View style={styles.reportRow}>
           <Button
-            title="Download standard report (PDF)"
-            icon="document-text-outline"
+            title="Standard PDF"
+            icon="download-outline"
             variant="secondary"
+            compact
             onPress={() => downloadReport("standard")}
             loading={reporting === "standard"}
             disabled={reporting !== null}
+            style={styles.reportButton}
           />
           {access.isOwner ? (
             <Button
-              title="Download master report (PDF)"
-              icon="shield-checkmark-outline"
+              title="Master PDF"
+              icon="download-outline"
+              variant="secondary"
+              compact
               onPress={() => downloadReport("master")}
               loading={reporting === "master"}
               disabled={reporting !== null}
-              style={{ marginTop: spacing.sm }}
+              style={styles.reportButton}
             />
           ) : null}
-        </Card>
+        </View>
 
         <SectionTitle
           title={`Bills (${fees.length})`}
@@ -469,7 +468,8 @@ function ActionButton({
 }
 
 const styles = StyleSheet.create({
-  reportHint: { ...type.support, color: colors.textMuted, marginBottom: spacing.md },
+  reportRow: { flexDirection: "row", gap: spacing.sm, marginBottom: spacing.md },
+  reportButton: { flex: 1 },
   screen: { flex: 1, backgroundColor: colors.background },
   content: { padding: spacing.lg, paddingBottom: spacing.xl * 2 },
 

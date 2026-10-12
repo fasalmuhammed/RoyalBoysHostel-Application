@@ -13,6 +13,7 @@ import Avatar from "@/components/Avatar";
 import { HIT_TARGET, colors, radius, shadow, spacing, type } from "@/constants/theme";
 import { AnimatedBar, FadeIn, PressableScale, SkeletonList } from "@/components/Motion";
 import { useApp } from "@/context/AppContext";
+import HostelSwitch from "@/components/HostelSwitch";
 import { useAsyncData, useDebounced } from "@/utils/hooks";
 import { currentPeriod, FeeFilter, feeTotals, listFees } from "@/services/fees";
 import type { FeeRecordWithInmate } from "@/types";
@@ -55,6 +56,7 @@ export default function FeesScreen({ navigation, route }: Props) {
 
   return (
     <SafeAreaView style={styles.screen} edges={["top", "left", "right"]}>
+      <HostelSwitch style={styles.hostelSwitch} />
       <View style={styles.header}>
         <View style={{ flex: 1 }}>
           <Text style={styles.title}>Fees</Text>
@@ -248,6 +250,7 @@ function FeeRow({
 }
 
 const styles = StyleSheet.create({
+  hostelSwitch: { marginHorizontal: spacing.lg, marginTop: spacing.sm },
   screen: { flex: 1, backgroundColor: colors.background },
   header: {
     flexDirection: "row",

@@ -29,14 +29,15 @@ const CATEGORIES: NoticeCategory[] = ["general", "event", "maintenance", "urgent
 export default function NoticeFormScreen({ navigation, route }: Props) {
   const noticeId = route.params?.noticeId;
   const isEditing = Boolean(noticeId);
-  const { invalidate, activeBranch, access } = useApp();
+  const { invalidate, activeBranch, access, allHostels } = useApp();
   const branchLabel = activeBranch?.shortName ?? "this branch";
 
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
   const [category, setCategory] = useState<NoticeCategory>("general");
   const [pinned, setPinned] = useState(false);
-  const [allBranches, setAllBranches] = useState(false);
+  // Posted while both hostels are showing: for both, unless switched off below.
+  const [allBranches, setAllBranches] = useState(allHostels);
   const [postedOn, setPostedOn] = useState(toIsoDate());
   const [errors, setErrors] = useState<{ title?: string; body?: string }>({});
   const [saving, setSaving] = useState(false);
@@ -70,7 +71,7 @@ export default function NoticeFormScreen({ navigation, route }: Props) {
   const persist = async (): Promise<string | null> => {
     const payload = {
       // null means "every branch" -- the board shows it on both.
-      branchId: allBranches ? null : getActiveBranchId(),
+      branchId: allBranches ? null : (getActiveBranchId() ?? activeBranch?.id ?? null),
       title: title.trim(),
       body: body.trim(),
       category,

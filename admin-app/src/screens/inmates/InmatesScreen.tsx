@@ -18,6 +18,7 @@ import { listInmates, InmateFilter, inmateCounts, InmateWithRoom } from "@/servi
 import { formatInmateId } from "@/services/branches";
 import { formatDateTime, formatMoney } from "@/utils/format";
 import { Application, listApplications } from "@/services/admissions";
+import HostelSwitch from "@/components/HostelSwitch";
 import type { MainTabParamList, RootStackParamList } from "@/navigation/types";
 
 type Props = CompositeScreenProps<
@@ -85,6 +86,7 @@ export default function InmatesScreen({ navigation, route }: Props) {
 
   return (
     <SafeAreaView style={styles.screen} edges={["top", "left", "right"]}>
+      <HostelSwitch style={styles.hostelSwitch} />
       <View style={styles.header}>
         <View style={{ flex: 1 }}>
           <Text style={styles.title}>Inmates</Text>
@@ -290,6 +292,7 @@ function PendingRow({ application, onPress }: { application: Application; onPres
 }
 
 const styles = StyleSheet.create({
+  hostelSwitch: { marginHorizontal: spacing.lg, marginTop: spacing.sm },
   pendingHead: {
     flexDirection: "row",
     alignItems: "center",

@@ -34,10 +34,11 @@ export default function AssignInmatesScreen({ navigation, route }: Props) {
   const debounced = useDebounced(search);
 
   const { data: room, reload: reloadRoom } = useAsyncData(() => getRoom(roomId), [roomId]);
-  const { data: inmates, loading, reload } = useAsyncData(
-    () => listInmates(debounced, "active"),
-    [debounced]
-  );
+  // A bed can only go to someone in the same hostel as the room.
+  const { data: inmates, loading, reload } = useAsyncData(async () => {
+    const [target, everyone] = await Promise.all([getRoom(roomId), listInmates(debounced, "active")]);
+    return target ? everyone.filter((inmate) => inmate.branchId === target.branchId) : everyone;
+  }, [debounced, roomId]);
 
   const label = room ? `${room.block ? `${room.block}-` : ""}${room.roomNumber}` : "";
 

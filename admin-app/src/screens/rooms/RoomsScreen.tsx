@@ -12,6 +12,7 @@ import Button from "@/components/Button";
 import { colors, radius, spacing, type } from "@/constants/theme";
 import { AnimatedBar, FadeIn, SkeletonList, useCountUp } from "@/components/Motion";
 import { useApp } from "@/context/AppContext";
+import HostelSwitch from "@/components/HostelSwitch";
 import { useAsyncData, useDebounced } from "@/utils/hooks";
 import { listRooms, occupancyTotals } from "@/services/rooms";
 import type { RoomWithOccupancy } from "@/types";
@@ -40,6 +41,7 @@ export default function RoomsScreen({ navigation }: Props) {
 
   return (
     <SafeAreaView style={styles.screen} edges={["top", "left", "right"]}>
+      <HostelSwitch style={styles.hostelSwitch} />
       <View style={styles.header}>
         <Text style={styles.title}>Rooms</Text>
         <Text style={styles.subtitle}>
@@ -132,6 +134,8 @@ function RoomRow({
 }) {
   const full = room.vacant <= 0;
   const label = `Room ${room.block ? `${room.block}-` : ""}${room.roomNumber}`;
+  const { allHostels, branches } = useApp();
+  const hostel = allHostels ? branches.find((b) => b.id === room.branchId) : null;
 
   return (
     <Card
@@ -145,6 +149,7 @@ function RoomRow({
           </Text>
           <Text style={styles.roomMeta} numberOfLines={1}>
             {[
+              hostel ? hostel.shortName || hostel.name : null,
               room.floor ? `Floor ${room.floor}` : null,
               room.rent > 0 ? `${formatMoney(room.rent, symbol)}/mo` : null,
             ]
@@ -189,6 +194,7 @@ function BedPips({ occupied, capacity }: { occupied: number; capacity: number })
 }
 
 const styles = StyleSheet.create({
+  hostelSwitch: { marginHorizontal: spacing.lg, marginTop: spacing.sm },
   screen: { flex: 1, backgroundColor: colors.background },
   header: { paddingHorizontal: spacing.lg, paddingTop: spacing.sm },
   title: { ...type.title, color: colors.text },

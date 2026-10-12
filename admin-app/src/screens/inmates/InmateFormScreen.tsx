@@ -37,6 +37,7 @@ import { formatMoney, initials, toIsoDate } from "@/utils/format";
 import { isValidEmail, isValidPhone, parseAmount } from "@/utils/validate";
 import { createFee, DEFAULT_CYCLE_DAYS, DuplicateInvoiceError, stayDueDateFor } from "@/services/fees";
 import { formatInmateId } from "@/services/branches";
+import BranchChoice from "@/components/BranchChoice";
 import { successFeedback } from "@/utils/haptics";
 import { AdmissionType } from "@/types";
 import type { RootStackParamList } from "@/navigation/types";
@@ -85,7 +86,7 @@ function roomLabelOf(room: { block: string; roomNumber: string }): string {
 export default function InmateFormScreen({ navigation, route }: Props) {
   const studentId = route.params?.studentId;
   const isEditing = Boolean(studentId);
-  const { invalidate, activeBranch } = useApp();
+  const { invalidate, activeBranch, allHostels, branches } = useApp();
 
   const [form, setForm] = useState<InmateInput>({
     ...EMPTY,
@@ -135,9 +136,19 @@ export default function InmateFormScreen({ navigation, route }: Props) {
     kind === "photo" ? "inmate photo" : kind === "idProof" ? "Aadhaar front photo" : "Aadhaar back photo";
 
   const { data: rooms } = useAsyncData(() => listRooms(), []);
+  /**
+   * The hostel this inmate belongs to: their own when editing; otherwise the
+   * one being worked in, or -- with both hostels showing -- the one chosen on
+   * the form (or the hostel of the room they are being added to).
+   */
+  const presetRoom = rooms?.find((room) => room.id === route.params?.presetRoomId);
+  const formBranchId = form.branchId || (allHostels ? (presetRoom?.branchId ?? "") : (activeBranch?.id ?? ""));
+  const formBranch = branches.find((branch) => branch.id === formBranchId) ?? null;
+  const askBranch = !isEditing && allHostels && !route.params?.presetRoomId;
+  const branchRooms = (rooms ?? []).filter((room) => !formBranchId || room.branchId === formBranchId);
   const { data: nextAdmissionNo } = useAsyncData(
-    () => (isEditing ? Promise.resolve(null) : peekNextAdmissionNo()),
-    [isEditing]
+    () => (isEditing || !formBranchId ? Promise.resolve(null) : peekNextAdmissionNo(formBranchId)),
+    [isEditing, formBranchId]
   );
 
   useEffect(() => {
@@ -250,7 +261,7 @@ export default function InmateFormScreen({ navigation, route }: Props) {
       if (result.canceled || !result.assets?.[0]) return;
 
       // An ID card keeps more detail than a face, so its text stays readable.
-      const stored = await savePhoto(result.assets[0].uri, kind === "photo" ? "profile" : "document", form.branchId);
+      const stored = await savePhoto(result.assets[0].uri, kind === "photo" ? "profile" : "document", formBranchId);
       const { pending, original } = refsFor(kind);
       // Drop a photo taken earlier in this same session; it was never saved.
       const superseded = pending.current;
@@ -290,6 +301,7 @@ export default function InmateFormScreen({ navigation, route }: Props) {
 
   const validate = (): boolean => {
     const next: Partial<Record<keyof InmateInput, string>> = {};
+    if (!isEditing && !formBranchId) next.branchId = "Choose which hostel this inmate is joining.";
     if (!form.fullName.trim()) next.fullName = "A name is required.";
     if (form.phone.trim() && !isValidPhone(form.phone)) next.phone = "That phone number looks wrong.";
     if (form.guardianPhone.trim() && !isValidPhone(form.guardianPhone)) {
@@ -334,7 +346,7 @@ export default function InmateFormScreen({ navigation, route }: Props) {
       if (studentId) {
         await updateInmate(studentId, payload);
       } else {
-        newId = await createInmate(payload);
+        newId = await createInmate({ ...payload, branchId: formBranchId });
       }
 
       // Fixed-days stays are billed exactly once, immediately -- never on edit,
@@ -461,6 +473,14 @@ export default function InmateFormScreen({ navigation, route }: Props) {
             icon="person-outline"
             autoCapitalize="words"
           />
+          {askBranch ? (
+            <BranchChoice
+              value={form.branchId || null}
+              // Rooms belong to a hostel, so a room picked for the other one is dropped.
+              onChange={(branchId) => setForm((current) => ({ ...current, branchId, roomId: null }))}
+              error={errors.branchId}
+            />
+          ) : null}
           <View style={styles.admissionRow}>
             <Ionicons name="pricetag-outline" size={18} color={colors.primary} />
             <View style={{ flex: 1 }}>
@@ -469,15 +489,15 @@ export default function InmateFormScreen({ navigation, route }: Props) {
                 {isEditing
                   ? "Assigned when this inmate was added."
                   : `Assigned automatically when you save, counting within ${
-                      activeBranch?.shortName ?? "this branch"
+                      formBranch?.shortName ?? "the hostel"
                     }.`}
               </Text>
             </View>
             <Text style={styles.admissionValue}>
               {isEditing
-                ? formatInmateId(activeBranch?.code, form.admissionNo)
+                ? formatInmateId(formBranch?.code, form.admissionNo)
                 : nextAdmissionNo
-                  ? formatInmateId(activeBranch?.code, nextAdmissionNo)
+                  ? formatInmateId(formBranch?.code, nextAdmissionNo)
                   : "…"}
             </Text>
           </View>
@@ -746,7 +766,7 @@ export default function InmateFormScreen({ navigation, route }: Props) {
         emptyMessage="No rooms yet. Add a room first."
         options={[
           { key: "__none__", label: "No room", sublabel: "Leave unassigned for now" },
-          ...(rooms ?? []).map((room) => ({
+          ...branchRooms.map((room) => ({
             key: room.id,
             label: `Room ${room.block ? `${room.block}-` : ""}${room.roomNumber}`,
             sublabel:

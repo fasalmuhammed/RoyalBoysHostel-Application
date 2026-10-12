@@ -198,7 +198,7 @@ function buildModel() {
  */
 export default function BothHostelsOverview() {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
-  const { dataVersion, settings, chooseBranch, syncProblem } = useApp();
+  const { dataVersion, settings, syncProblem } = useApp();
   const [tab, setTab] = useState<Tab>("activity");
   const [query, setQuery] = useState("");
   const [batches, setBatches] = useState<MessageBatchSummary[]>([]);
@@ -235,11 +235,8 @@ export default function BothHostelsOverview() {
   const term = query.trim().toLowerCase();
   const me = currentUserId();
 
-  /** Opens a record in its usual screen, switching to its hostel first. */
-  const open = async (branchId: string | null | undefined, go: () => void) => {
-    if (branchId) await chooseBranch(branchId);
-    go();
-  };
+  /** Opens a record in its usual screen; both hostels stay showing. */
+  const open = (_branchId: string | null | undefined, go: () => void) => go();
 
   const who = (id: string | null) => (id && id === me ? "You" : (id && names[id]) || "Someone");
 

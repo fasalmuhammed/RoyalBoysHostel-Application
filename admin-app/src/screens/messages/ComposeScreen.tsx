@@ -47,9 +47,9 @@ export default function ComposeScreen({ navigation, route }: Props) {
   const presetBody = route.params?.presetBody;
   const noticeId = route.params?.noticeId;
 
-  const { settings, activeBranch } = useApp();
+  const { settings, activeBranch, allHostels } = useApp();
   // Inmates identify with their own hostel, not the parent organisation.
-  const hostelLabel = activeBranch?.name ?? settings.hostelName;
+  const hostelLabel = (allHostels ? null : activeBranch?.name) ?? settings.hostelName;
 
   const [body, setBody] = useState(presetBody ?? "");
   const [selected, setSelected] = useState<Set<string>>(new Set());

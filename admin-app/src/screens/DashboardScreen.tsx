@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React from "react";
 import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
@@ -29,7 +29,7 @@ import { currentPeriod, feeTotals, listDueForReminder } from "@/services/fees";
 import { formatMoney, formatPeriod, relativeDays, toIsoDate } from "@/utils/format";
 import { countApplications } from "@/services/admissions";
 import BothHostelsOverview from "@/components/BothHostelsOverview";
-import { useWideFrame } from "@/web/frame";
+import HostelSwitch from "@/components/HostelSwitch";
 import type { MainTabParamList, RootStackParamList } from "@/navigation/types";
 
 type Props = CompositeScreenProps<
@@ -41,13 +41,9 @@ type Props = CompositeScreenProps<
 const DUE_PREVIEW = 4;
 
 export default function DashboardScreen({ navigation }: Props) {
-  const { settings, activeBranch, access, branches, chooseBranch, user } = useApp();
+  const { settings, activeBranch, access, allHostels: both, user } = useApp();
   const insets = useSafeAreaInsets();
   const focused = useIsFocused();
-  // The admin can look at one hostel, or at both side by side.
-  const [bothChosen, setBothChosen] = useState(false);
-  const both = bothChosen && access.isOwner;
-  useWideFrame(both);
   const period = currentPeriod();
 
   const { data, loading, reload } = useAsyncData(async () => {
@@ -87,7 +83,7 @@ export default function DashboardScreen({ navigation }: Props) {
                 {user?.name ? `, ${user.name.split(" ")[0]}` : ""}
               </Text>
               <Text style={styles.branchName} numberOfLines={1}>
-                {both ? "Both hostels" : (activeBranch?.name ?? settings.hostelName)}
+                {both ? settings.hostelName : (activeBranch?.name ?? settings.hostelName)}
               </Text>
             </View>
             <IconButton
@@ -102,48 +98,12 @@ export default function DashboardScreen({ navigation }: Props) {
             />
           </View>
 
-          {/* The admin runs both hostels and switches between them here; a manager has only their own. */}
-          {access.isOwner && branches.length > 1 ? (
-            <View style={styles.branchSwitch}>
-              {branches.map((branch) => {
-                const active = !both && branch.id === activeBranch?.id;
-                return (
-                  <Pressable
-                    key={branch.id}
-                    onPress={() => {
-                      setBothChosen(false);
-                      void chooseBranch(branch.id);
-                    }}
-                    style={[styles.branchOption, active && styles.branchOptionActive]}
-                    accessibilityRole="button"
-                    accessibilityState={{ selected: active }}
-                  >
-                    <Text style={[styles.branchOptionText, active && styles.branchOptionTextActive]} numberOfLines={1}>
-                      {branch.shortName || branch.name}
-                    </Text>
-                  </Pressable>
-                );
-              })}
-              <Pressable
-                onPress={() => setBothChosen(true)}
-                style={[styles.branchOption, styles.branchOptionBoth, both && styles.branchOptionActive]}
-                accessibilityRole="button"
-                accessibilityState={{ selected: both }}
-              >
-                <Text style={[styles.branchOptionText, both && styles.branchOptionTextActive]} numberOfLines={1}>
-                  Both
-                </Text>
-              </Pressable>
-            </View>
-          ) : null}
+          {/* One hostel or both; the same drop-down sits at the top of every tab. */}
+          <HostelSwitch variant="dark" style={{ marginTop: spacing.md }} />
         </View>
 
-        <View style={[styles.content, both && styles.contentWide]}>
-        {both ? (
-          <View style={styles.bothCard}>
-            <BothHostelsOverview />
-          </View>
-        ) : loading && !data ? (
+        <View style={styles.content}>
+        {loading && !data ? (
           <DashboardSkeleton />
         ) : (
           <>
@@ -279,6 +239,12 @@ export default function DashboardScreen({ navigation }: Props) {
                     Remind all {data.due.length} on WhatsApp
                   </Text>
                 </PressableScale>
+              </>
+            ) : null}
+            {both ? (
+              <>
+                <SectionHeading title="Hostel by hostel" />
+                <BothHostelsOverview />
               </>
             ) : null}
           </>
@@ -636,34 +602,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  branchSwitch: {
-    flexDirection: "row",
-    backgroundColor: colors.glass,
-    borderRadius: radius.md + 2,
-    padding: 4,
-    marginTop: spacing.md + 2,
-  },
-  branchOption: {
-    flex: 1,
-    minHeight: HIT_TARGET - 6,
-    borderRadius: radius.md - 1,
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: spacing.sm,
-  },
-  // Shorter word, so it needs less of the row than a hostel's name.
-  branchOptionBoth: { flex: 0.6 },
-  contentWide: { maxWidth: undefined },
-  bothCard: {
-    backgroundColor: colors.background,
-    borderRadius: radius.xl,
-    padding: spacing.md,
-    paddingTop: spacing.lg,
-  },
-  branchOptionActive: { backgroundColor: colors.surface, ...shadow.subtle },
-  branchOptionText: { ...type.bodyStrong, fontSize: fontSize.sm, color: colors.onDarkMuted },
-  branchOptionTextActive: { color: colors.primaryDark },
-
   sectionHeading: {
     flexDirection: "row",
     alignItems: "center",

@@ -10,6 +10,7 @@ import Button from "@/components/Button";
 import { colors, radius, shadow, spacing, type } from "@/constants/theme";
 import { useApp } from "@/context/AppContext";
 import { joinLink } from "@/services/admissions";
+import BranchChoice from "@/components/BranchChoice";
 import type { RootStackParamList } from "@/navigation/types";
 
 type Props = NativeStackScreenProps<RootStackParamList, "JoinQr">;
@@ -55,11 +56,14 @@ function posterHtml(hostel: string, link: string, matrix: boolean[][]): string {
  * details and photos, and the form waits under "Admissions" for approval.
  */
 export default function JoinQrScreen(_: Props) {
-  const { activeBranch } = useApp();
+  const { activeBranch, allHostels, branches } = useApp();
   const [printing, setPrinting] = useState(false);
-  const link = joinLink(activeBranch?.id ?? null);
+  // With both hostels showing, pick whose code to show; each has its own.
+  const [chosenId, setChosenId] = useState<string | null>(activeBranch?.id ?? null);
+  const branch = allHostels ? (branches.find((b) => b.id === chosenId) ?? activeBranch) : activeBranch;
+  const link = joinLink(branch?.id ?? null);
   const matrix = useMemo(() => matrixFor(link), [link]);
-  const hostel = activeBranch?.name ?? "Hostel";
+  const hostel = branch?.name ?? "Hostel";
   // Whole pixels per square: fractions leave hairline gaps between them.
   const cell = Math.max(3, Math.floor(240 / matrix.length));
 
@@ -99,6 +103,7 @@ export default function JoinQrScreen(_: Props) {
   return (
     <SafeAreaView style={styles.screen} edges={["left", "right", "bottom"]}>
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+        {allHostels ? <BranchChoice value={branch?.id ?? null} onChange={setChosenId} label="QR code for" /> : null}
         <View style={styles.poster}>
           <View style={styles.posterTop}>
             <Text style={styles.posterHostel} numberOfLines={2}>{hostel}</Text>

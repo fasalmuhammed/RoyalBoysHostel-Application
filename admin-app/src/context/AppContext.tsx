@@ -69,6 +69,13 @@ interface AppContextValue {
    */
   activeBranch: Branch | null;
   chooseBranch: (branchId: string) => Promise<void>;
+  /**
+   * True while the admin is looking at both hostels together. Every list and
+   * total then covers both; `activeBranch` stays the last single hostel, for
+   * the few things that must belong to one.
+   */
+  allHostels: boolean;
+  chooseAll: () => void;
   clearBranch: () => void;
 
   /**
@@ -106,6 +113,7 @@ export function AppProvider({ children }: PropsWithChildren) {
   const [settings, setSettings] = useState<AppSettings>(DEFAULT_SETTINGS);
   const [branches, setBranches] = useState<Branch[]>([]);
   const [activeBranch, setActiveBranch] = useState<Branch | null>(null);
+  const [allHostels, setAllHostels] = useState(false);
   const [hasPin, setHasPin] = useState(false);
   const [locked, setLocked] = useState(true);
   const [dataVersion, setDataVersion] = useState(0);
@@ -140,6 +148,7 @@ export function AppProvider({ children }: PropsWithChildren) {
     closeStore();
     setActiveBranchId(null);
     setActiveBranch(null);
+    setAllHostels(false);
     setBranches([]);
     setUser(null);
     setAccess(NO_ACCESS);
@@ -179,6 +188,7 @@ export function AppProvider({ children }: PropsWithChildren) {
         : allBranches.find((b) => b.id === loaded.activeBranchId) ?? allBranches[0] ?? null;
       setActiveBranchId(start ? start.id : null);
       setActiveBranch(start);
+      setAllHostels(false);
 
       setUser({ username: session.staff.username, name: session.staff.name, role: session.staff.role });
       setDataVersion((v) => v + 1);
@@ -311,12 +321,21 @@ export function AppProvider({ children }: PropsWithChildren) {
       if (!branch) return;
       setActiveBranchId(branch.id);
       setActiveBranch(branch);
+      setAllHostels(false);
       await saveSettings({ activeBranchId: branch.id });
       setSettings((current) => ({ ...current, activeBranchId: branch.id }));
       setDataVersion((v) => v + 1);
     },
     [access.branchId]
   );
+
+  /** Both hostels together. With no hostel set, the services return everything. */
+  const chooseAll = useCallback(() => {
+    if (access.branchId || !access.isOwner) return;
+    setActiveBranchId(null);
+    setAllHostels(true);
+    setDataVersion((v) => v + 1);
+  }, [access.branchId, access.isOwner]);
 
   const clearBranch = useCallback(() => {
     if (access.branchId) return;
@@ -342,6 +361,8 @@ export function AppProvider({ children }: PropsWithChildren) {
       branches,
       activeBranch,
       chooseBranch,
+      allHostels,
+      chooseAll,
       clearBranch,
       dataVersion,
       invalidate,
@@ -356,7 +377,7 @@ export function AppProvider({ children }: PropsWithChildren) {
     }),
     [
       ready, startupError, user, opening, signIn, signOut, settings, hasPin, locked, branches,
-      activeBranch, chooseBranch, clearBranch, dataVersion, invalidate, access, syncProblem, pendingSync,
+      activeBranch, chooseBranch, allHostels, chooseAll, clearBranch, dataVersion, invalidate, access, syncProblem, pendingSync,
       updateSettings, refreshSettings, refreshPinState, unlock, lock,
     ]
   );
