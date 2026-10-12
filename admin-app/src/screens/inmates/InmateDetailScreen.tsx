@@ -217,7 +217,7 @@ export default function InmateDetailScreen({ navigation, route }: Props) {
               </Text>
               {oldestDue ? (
                 <Text style={styles.balanceNote} numberOfLines={1}>
-                  {oldestDue.promisedDate ? "Balance" : "Oldest bill"} {dueLabel(oldestDue).replace(/^balance /, "")}
+                  {oldestDue.promisedDate ? "Balance" : "Oldest bill"} {dueLabel(oldestDue)}
                 </Text>
               ) : null}
             </View>
@@ -285,7 +285,7 @@ export default function InmateDetailScreen({ navigation, route }: Props) {
 
         <SectionTitle title="Hostel" />
         <Card>
-          <DetailRow label="Branch" value={inmate.branchName ?? "—"} />
+          <DetailRow label="Hostel" value={inmate.branchName ?? "—"} />
           <Divider />
           <DetailRow label="Room" value={inmate.roomLabel ?? "Not assigned"} />
           <Divider />

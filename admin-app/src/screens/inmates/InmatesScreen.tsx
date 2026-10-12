@@ -7,7 +7,7 @@ import type { BottomTabScreenProps } from "@react-navigation/bottom-tabs";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 
 import { Badge, Card, EmptyState } from "@/components/Base";
-import { Fab, SearchBar, SegmentedTabs } from "@/components/Controls";
+import { HeaderAction, SearchBar, SegmentedTabs } from "@/components/Controls";
 import Button from "@/components/Button";
 import Avatar from "@/components/Avatar";
 import { HIT_TARGET, colors, radius, shadow, spacing, type } from "@/constants/theme";
@@ -102,15 +102,7 @@ export default function InmatesScreen({ navigation, route }: Props) {
             {counts ? `${counts.active} active · ${counts.total} on the register` : " "}
           </Text>
         </View>
-        <PressableScale
-          onPress={() => navigation.navigate("Search")}
-          scaleTo={0.9}
-          style={styles.headerIcon}
-          accessibilityRole="button"
-          accessibilityLabel="Search everything"
-        >
-          <Ionicons name="search" size={19} color={colors.text} />
-        </PressableScale>
+        <HeaderAction label="Add" onPress={() => navigation.navigate("InmateForm")} />
       </View>
 
       <View style={styles.controls}>
@@ -216,7 +208,6 @@ export default function InmatesScreen({ navigation, route }: Props) {
         />
       )}
 
-      <Fab label="Add" onPress={() => navigation.navigate("InmateForm")} />
     </SafeAreaView>
   );
 }
@@ -331,7 +322,7 @@ const styles = StyleSheet.create({
   title: { ...type.title, color: colors.text },
   subtitle: { ...type.support, color: colors.textMuted, marginTop: 2 },
   controls: { paddingHorizontal: spacing.lg, paddingTop: spacing.md, gap: spacing.sm },
-  list: { padding: spacing.lg, paddingBottom: 190 },
+  list: { padding: spacing.lg, paddingBottom: 130 },
   resultCount: { ...type.caption, color: colors.textMuted, marginBottom: spacing.sm },
 
   row: { flexDirection: "row", alignItems: "center", gap: spacing.sm + 4 },

@@ -146,8 +146,7 @@ export default function FeeDetailScreen({ navigation, route }: Props) {
           <View style={{ flex: 1 }}>
             <Text style={styles.studentName}>{fee.studentName}</Text>
             <Text style={styles.studentMeta}>
-              {fee.roomLabel ? `Room ${fee.roomLabel} · ` : ""}
-              {fee.admissionNo || "No admission no"}
+              {[fee.roomLabel ? `Room ${fee.roomLabel}` : null, fee.studentPhone || null].filter(Boolean).join(" · ") || "No room"}
             </Text>
           </View>
           <Ionicons name="chevron-forward" size={18} color={colors.textFaint} />

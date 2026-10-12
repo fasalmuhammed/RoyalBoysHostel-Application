@@ -185,14 +185,16 @@ export default function RoomDetailScreen({ navigation, route }: Props) {
         {room.vacant > 0 ? (
           <View style={styles.addRow}>
             <Button
-              title="Add existing inmate"
+              title="Add existing"
               variant="secondary"
+              compact
               icon="person-add-outline"
               onPress={() => navigation.navigate("AssignInmates", { roomId })}
               style={{ flex: 1 }}
             />
             <Button
               title="New inmate"
+              compact
               icon="add"
               onPress={() => navigation.navigate("InmateForm", { presetRoomId: roomId })}
               style={{ flex: 1 }}

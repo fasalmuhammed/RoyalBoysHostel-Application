@@ -30,7 +30,7 @@ export default function NoticeFormScreen({ navigation, route }: Props) {
   const noticeId = route.params?.noticeId;
   const isEditing = Boolean(noticeId);
   const { invalidate, activeBranch, access, allHostels } = useApp();
-  const branchLabel = activeBranch?.shortName ?? "this branch";
+  const branchLabel = activeBranch?.shortName ?? "this hostel";
 
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
@@ -179,7 +179,7 @@ export default function NoticeFormScreen({ navigation, route }: Props) {
         {/* Only the admin posts to both hostels; a manager's notices are their branch's. */}
         <View style={[styles.switchRow, access.isOwner ? null : { display: "none" }]}>
           <View style={{ flex: 1 }}>
-            <Text style={styles.switchLabel}>Applies to both branches</Text>
+            <Text style={styles.switchLabel}>Applies to both hostels</Text>
             <Text style={styles.switchHint}>
               {allBranches
                 ? "Shows on the board at both hostels."

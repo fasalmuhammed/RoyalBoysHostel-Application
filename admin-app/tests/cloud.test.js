@@ -144,7 +144,7 @@ async function singleDevice() {
   check("a promised bill leaves the reminder queue", !has(await fees.listDueForReminder(today)));
   check("it comes back on the promised day", has(await fees.listDueForReminder(day(5))));
   check("it is listed under this week, not overdue", (await inBucket("week")) && !(await inBucket("overdue")));
-  check("its label says when the balance is promised", fees.dueLabel(bill) === "balance promised in 5 days", fees.dueLabel(bill));
+  check("its label says when the balance is promised", fees.dueLabel(bill) === "promised in 5 days", fees.dueLabel(bill));
 
   await fees.setPromiseDate(billId, day(1));
   bill = await fees.getFee(billId);

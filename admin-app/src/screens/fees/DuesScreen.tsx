@@ -243,7 +243,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.primary,
     paddingHorizontal: spacing.md,
     minHeight: HIT_TARGET,
-    borderRadius: radius.md,
+    borderRadius: radius.pill,
   },
   remindAllText: { ...type.bodyStrong, color: colors.primaryOn },
 

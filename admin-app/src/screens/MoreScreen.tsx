@@ -44,7 +44,7 @@ export default function MoreScreen({ navigation }: Props) {
                 {displayName}
               </Text>
               <Text style={styles.profileRole} numberOfLines={1}>
-                {access.isOwner ? (allHostels ? "Admin · showing both hostels" : "Admin") : "Branch manager"}
+                {access.isOwner ? (allHostels ? "Full access · showing both hostels" : "Full access · both hostels") : "Hostel manager"}
               </Text>
             </View>
           </View>

@@ -66,14 +66,14 @@ export function promiseDateProblem(iso: string | null | undefined): string | nul
 
 /**
  * How a bill's deadline reads in a list: "due in 3 days", or -- for a
- * part-paid bill with a promise -- "balance promised tomorrow".
+ * part-paid bill with a promise -- "promised tomorrow".
  */
 export function dueLabel(fee: Pick<FeeRecordWithInmate, "dueDate" | "promisedDate" | "balance">): string {
   if (fee.balance <= 0.01) return "";
   if (fee.promisedDate) {
     return daysUntil(fee.promisedDate) < 0
-      ? `promised ${relativeDays(fee.promisedDate)}, not paid`
-      : `balance promised ${relativeDays(fee.promisedDate)}`;
+      ? `promise missed ${relativeDays(fee.promisedDate)}`
+      : `promised ${relativeDays(fee.promisedDate)}`;
   }
   return fee.dueDate ? `due ${relativeDays(fee.dueDate)}` : "no due date";
 }
