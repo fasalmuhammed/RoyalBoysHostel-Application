@@ -109,39 +109,19 @@ export default function DashboardScreen({ navigation }: Props) {
           <DashboardSkeleton />
         ) : (
           <>
-            {/* Critical first: things that cost the admin money or data if ignored. */}
-            {data && data.due.length > 0 ? (
-              <FadeIn index={1}>
-                <AlertRow
-                  tone="danger"
-                  icon="alarm-outline"
-                  title={`${data.due.length} ${data.due.length === 1 ? "bill is" : "bills are"} overdue`}
-                  body={`${formatMoney(
-                    data.due.reduce((sum, fee) => sum + fee.balance, 0),
-                    symbol
-                  )} outstanding right now.`}
-                  onPress={() => navigation.navigate("Dues")}
-                />
-              </FadeIn>
-            ) : null}
-
-            {data && data.waiting > 0 ? (
-              <FadeIn index={1}>
-                <AlertRow
-                  tone="warning"
-                  icon="person-add-outline"
-                  title={`${data.waiting} ${data.waiting === 1 ? "student is" : "students are"} waiting for approval`}
-                  body="Open the application, check the Aadhaar photos, then admit."
-                  onPress={() => navigation.navigate("Admissions")}
-                />
-              </FadeIn>
-            ) : null}
-
             <FadeIn index={2}>
               <View style={styles.quickCard}>
                 <QuickActionTile label="Add inmate" icon="person-add" tint={colors.primary} bg={colors.primaryLight} onPress={() => navigation.navigate("InmateForm")} />
                 <QuickActionTile label="Add room" icon="bed" tint={colors.info} bg={colors.infoBg} onPress={() => navigation.navigate("RoomForm")} />
-                <QuickActionTile label="Dues" icon="alarm" tint={colors.danger} bg={colors.dangerBg} onPress={() => navigation.navigate("Dues")} />
+                {/* The red number is how many bills are due today or overdue. */}
+                <QuickActionTile
+                  label="Dues"
+                  icon="alarm"
+                  tint={colors.danger}
+                  bg={colors.dangerBg}
+                  count={data?.due.length}
+                  onPress={() => navigation.navigate("Dues")}
+                />
                 <QuickActionTile label="WhatsApp" icon="logo-whatsapp" tint={colors.success} bg={colors.successBg} onPress={() => navigation.navigate("Messages")} />
                 <QuickActionTile
                   label="Applications"
