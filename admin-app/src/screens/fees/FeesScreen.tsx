@@ -58,7 +58,6 @@ export default function FeesScreen({ navigation, route }: Props) {
     <SafeAreaView style={styles.screen} edges={["top", "left", "right"]}>
       <View style={styles.header}>
         <Text style={[styles.title, { flex: 1 }]}>Fees</Text>
-        <HostelSwitch />
       </View>
       <View style={styles.subHeader}>
         <PressableScale
@@ -69,10 +68,14 @@ export default function FeesScreen({ navigation, route }: Props) {
           accessibilityLabel="Change month"
         >
           <Ionicons name="calendar-outline" size={15} color={colors.primary} />
-          <Text style={styles.periodText}>{period ? formatPeriod(period) : "All months"}</Text>
+          {/* Short month ("Oct 2026"), so the hostel name beside it is never cut off on a phone. */}
+          <Text style={styles.periodText}>{period ? formatPeriod(period).replace(/^([A-Za-z]{3})[A-Za-z]*/, "$1") : "All months"}</Text>
           <Ionicons name="chevron-down" size={14} color={colors.primary} />
         </PressableScale>
-        <View style={{ flex: 1 }} />
+        {/* Month on the left; hostel and the dues shortcut together on the right. */}
+        <View style={{ flexShrink: 1, marginLeft: "auto" }}>
+          <HostelSwitch />
+        </View>
         <PressableScale
           onPress={() => navigation.navigate("Dues")}
           scaleTo={0.9}
@@ -258,11 +261,11 @@ const styles = StyleSheet.create({
     paddingTop: spacing.sm,
   },
   title: { ...type.title, color: colors.text },
-  subHeader: { flexDirection: "row", alignItems: "center", paddingHorizontal: spacing.lg, paddingTop: spacing.sm },
+  subHeader: { flexDirection: "row", alignItems: "center", gap: spacing.sm, paddingHorizontal: spacing.lg, paddingTop: spacing.sm },
   subtitle: { ...type.support, color: colors.textMuted, marginTop: 2 },
   duesButton: {
-    width: HIT_TARGET,
-    height: HIT_TARGET,
+    width: HIT_TARGET - 4,
+    height: HIT_TARGET - 4,
     borderRadius: radius.md,
     backgroundColor: colors.surface,
     alignItems: "center",

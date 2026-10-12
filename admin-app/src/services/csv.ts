@@ -1,6 +1,7 @@
 import { Directory, File, Paths } from "expo-file-system";
 
 import { loadSettings } from "./settings";
+import { toXlsx } from "./xlsx";
 import { inActiveBranch } from "./branches";
 import {
   allBills,
@@ -17,9 +18,9 @@ import {
 } from "@/store/views";
 
 /**
- * CSV report export.
+ * Report export, as Excel workbooks (see ./xlsx).
  *
- * This is deliberately *not* the backup mechanism. CSV is a flat, lossy format:
+ * This is deliberately *not* a backup. A spreadsheet is a flat, lossy format:
  * it cannot carry photos, and spreading six related tables across separate
  * sheets loses the links between them. Use it for what a spreadsheet is good
  * at -- printing a register, totalling a month's collection, handing a list to
@@ -62,7 +63,7 @@ function reportsDirectory(): Directory {
   return dir;
 }
 
-function writeCsv(fileName: string, contents: string): string {
+function writeBook(fileName: string, contents: Uint8Array): string {
   const file = new File(reportsDirectory(), fileName);
   if (file.exists) file.delete();
   file.create({ overwrite: true, intermediates: true });
@@ -100,27 +101,32 @@ export async function exportReport(kind: ReportKind, period: string | null = nul
           room: roomLabelOf(roomById(inmate.roomId)) ?? "",
         };
       });
-    const csv = toCsv(rows, [
+    const book = toXlsx("Inmates", rows, [
       // Numbering restarts per branch, so the letter is what keeps an id
       // unambiguous in a sheet covering both hostels.
       { header: "ID", value: (r) => (r.branchCode ? `${r.branchCode}-${r.admissionNo}` : r.admissionNo) },
-      { header: "Branch", value: (r) => r.branch },
+      { header: "Hostel", value: (r) => r.branch },
       { header: "Name", value: (r) => r.fullName },
       { header: "Room", value: (r) => r.room },
       { header: "Phone", value: (r) => r.phone },
       { header: "Guardian", value: (r) => r.guardianName },
       { header: "Guardian Phone", value: (r) => r.guardianPhone },
+      { header: "Emergency Contact", value: (r) => r.emergencyPhone ?? "" },
       { header: "Email", value: (r) => r.email },
+      { header: "College / Company", value: (r) => r.institution ?? "" },
       { header: "Course", value: (r) => r.course },
       { header: "Year", value: (r) => r.year },
       { header: "Status", value: (r) => r.status },
       { header: "Joined On", value: (r) => r.joinedOn },
       { header: "Left On", value: (r) => r.leftOn },
+      { header: "Blood Group", value: (r) => r.bloodGroup ?? "" },
+      { header: "Monthly Rent", value: (r) => r.monthlyRent },
       { header: "Address", value: (r) => r.address },
+      { header: "Rules Accepted", value: (r) => (r.termsAcceptedAt ? "Yes" : "") },
       { header: "ID Proof", value: (r) => r.idProof },
     ]);
-    const fileName = `Inmates_${stamp()}.csv`;
-    return { uri: writeCsv(fileName, csv), fileName, rowCount: rows.length };
+    const fileName = `Inmates_${stamp()}.xlsx`;
+    return { uri: writeBook(fileName, book), fileName, rowCount: rows.length };
   }
 
   if (kind === "rooms") {
@@ -131,7 +137,7 @@ export async function exportReport(kind: ReportKind, period: string | null = nul
         const occupied = occupancyByRoom().get(room.id) ?? 0;
         return { ...room, occupied, vacant: Math.max(room.capacity - occupied, 0) };
       });
-    const csv = toCsv(rows, [
+    const book = toXlsx("Rooms", rows, [
       { header: "Block", value: (r) => r.block },
       { header: "Room", value: (r) => r.roomNumber },
       { header: "Floor", value: (r) => r.floor },
@@ -142,8 +148,8 @@ export async function exportReport(kind: ReportKind, period: string | null = nul
       { header: "Deposit", value: (r) => r.deposit },
       { header: "Amenities", value: (r) => r.amenities },
     ]);
-    const fileName = `Rooms_${stamp()}.csv`;
-    return { uri: writeCsv(fileName, csv), fileName, rowCount: rows.length };
+    const fileName = `Rooms_${stamp()}.xlsx`;
+    return { uri: writeBook(fileName, book), fileName, rowCount: rows.length };
   }
 
   // Bills and payments belong to the branch of the inmate they are for.
@@ -166,7 +172,7 @@ export async function exportReport(kind: ReportKind, period: string | null = nul
         status: bill.amountPaid >= bill.total - 0.01 ? "paid" : bill.amountPaid > 0.009 ? "partial" : "unpaid",
         room: roomLabelOf(roomById(inmate.roomId)) ?? "",
       }));
-    const csv = toCsv(rows, [
+    const book = toXlsx("Fees", rows, [
       { header: "Month", value: (r) => r.period },
       { header: "Admission No", value: (r) => r.admissionNo },
       { header: "Name", value: (r) => r.fullName },
@@ -183,8 +189,8 @@ export async function exportReport(kind: ReportKind, period: string | null = nul
       { header: "Due Date", value: (r) => r.dueDate },
       { header: "Balance Promised By", value: (r) => r.promisedDate ?? "" },
     ]);
-    const fileName = period ? `Fees_${period}.csv` : `Fees_All_${stamp()}.csv`;
-    return { uri: writeCsv(fileName, csv), fileName, rowCount: rows.length };
+    const fileName = period ? `Fees_${period}.xlsx` : `Fees_All_${stamp()}.xlsx`;
+    return { uri: writeBook(fileName, book), fileName, rowCount: rows.length };
   }
 
   const rows = billRows
@@ -197,7 +203,7 @@ export async function exportReport(kind: ReportKind, period: string | null = nul
       }))
     )
     .sort((a, b) => compareRaw(b.paidOn, a.paidOn) || b.createdAt - a.createdAt);
-  const csv = toCsv(rows, [
+  const book = toXlsx("Payments", rows, [
     { header: "Date", value: (r) => r.paidOn },
     { header: "Admission No", value: (r) => r.admissionNo },
     { header: "Name", value: (r) => r.fullName },
@@ -207,6 +213,6 @@ export async function exportReport(kind: ReportKind, period: string | null = nul
     { header: "Reference", value: (r) => r.reference },
     { header: "Note", value: (r) => r.note },
   ]);
-  const fileName = `Payments_${stamp()}.csv`;
-  return { uri: writeCsv(fileName, csv), fileName, rowCount: rows.length };
+  const fileName = `Payments_${stamp()}.xlsx`;
+  return { uri: writeBook(fileName, book), fileName, rowCount: rows.length };
 }

@@ -135,7 +135,7 @@ export default function MoreScreen({ navigation }: Props) {
           <Row
             icon="document-text-outline"
             label="Reports"
-            sublabel="Download spreadsheets for printing and accounts"
+            sublabel="Excel sheets for printing and accounts"
             onPress={() => navigation.navigate("Reports")}
             last
           />

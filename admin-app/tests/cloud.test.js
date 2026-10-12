@@ -59,6 +59,23 @@ async function pureLogic() {
   check("notice keeps placeholders", notices.noticeToMessage({ title: "T", body: "B" }).includes("{{name}}"));
   const out = csv.toCsv([{ a: "=SUM(1)", b: 'x,"y"' }], [{ header: "A", value: (r) => r.a }, { header: "B", value: (r) => r.b }]);
   check("CSV guards formulas and quotes commas", out.includes("'=SUM(1)") && out.includes('"x,""y"""'));
+
+  {
+    const { unzipSync, strFromU8 } = require("fflate");
+    const bytes = app.xlsx.toXlsx("Inmates / 2026", [{ n: "Arun <K>", rent: 6000, note: "=SUM(1)" }, { n: "Bala", rent: 4500.5, note: null }], [
+      { header: "Name", value: (r) => r.n },
+      { header: "Rent", value: (r) => r.rent },
+      { header: "Note", value: (r) => r.note },
+    ]);
+    const files = unzipSync(bytes);
+    const sheet = strFromU8(files["xl/worksheets/sheet1.xml"]);
+    check("an Excel report is a real workbook", bytes[0] === 0x50 && bytes[1] === 0x4b && Boolean(files["[Content_Types].xml"]) && Boolean(files["xl/styles.xml"]));
+    check("its header row is styled and frozen", sheet.includes('<c r="A1" s="1"') && sheet.includes('state="frozen"') && sheet.includes('<autoFilter ref="A1:C3"/>'));
+    check("numbers are stored as numbers, so Excel can total them", sheet.includes('<c r="B2" s="0"><v>6000</v></c>') && sheet.includes("<v>4500.5</v>"));
+    check("text is stored as text, so it can never run as a formula", sheet.includes('<c r="C2" s="0" t="inlineStr"><is><t xml:space="preserve">=SUM(1)</t>'));
+    check("special characters are escaped", sheet.includes("Arun &lt;K&gt;"));
+    check("the tab name drops characters Excel refuses", strFromU8(files["xl/workbook.xml"]).includes('name="Inmates   2026"'));
+  }
 }
 
 async function singleDevice() {
