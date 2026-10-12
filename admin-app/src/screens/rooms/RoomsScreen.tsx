@@ -7,7 +7,7 @@ import type { BottomTabScreenProps } from "@react-navigation/bottom-tabs";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 
 import { Badge, Card, EmptyState } from "@/components/Base";
-import { Fab, SearchBar } from "@/components/Controls";
+import { Fab, SearchBar, SegmentedTabs } from "@/components/Controls";
 import Button from "@/components/Button";
 import { colors, radius, spacing, type } from "@/constants/theme";
 import { AnimatedBar, FadeIn, SkeletonList, useCountUp } from "@/components/Motion";
@@ -34,6 +34,34 @@ export default function RoomsScreen({ navigation }: Props) {
 
   const { data: totals } = useAsyncData(() => occupancyTotals(), []);
   const { data: rooms, loading } = useAsyncData(() => listRooms(debounced), [debounced]);
+
+  /**
+   * "all", "vacant" (any bed free), or a sharing size such as "share-4".
+   * The sharing sizes offered are the ones the hostel actually has.
+   */
+  const [filter, setFilter] = useState("all");
+  const all = rooms ?? [];
+  const sizes = [...new Set(all.map((room) => room.capacity))].sort((a, b) => a - b);
+  const options = [
+    { key: "all", label: "All", count: all.length },
+    { key: "vacant", label: "Vacant", count: all.filter((room) => room.vacant > 0).length },
+    ...sizes.map((size) => ({
+      key: `share-${size}`,
+      label: size === 1 ? "Single" : `${size} sharing`,
+      count: all.filter((room) => room.capacity === size).length,
+    })),
+  ];
+  // A sharing size that no longer exists (its last room was edited) falls back to everything.
+  const active = options.some((option) => option.key === filter) ? filter : "all";
+  const shown = all
+    .filter((room) =>
+      active === "all" ? true : active === "vacant" ? room.vacant > 0 : room.capacity === Number(active.slice(6))
+    )
+    // Most free beds first, so the place for the next inmate is at the top;
+    // full rooms sink to the bottom. Ties keep the room-number order.
+    .map((room, index) => ({ room, index }))
+    .sort((a, b) => b.room.vacant - a.room.vacant || a.index - b.index)
+    .map((entry) => entry.room);
 
   const occupied = useCountUp(totals?.occupied ?? 0);
   const beds = totals?.beds ?? 0;
@@ -66,13 +94,14 @@ export default function RoomsScreen({ navigation }: Props) {
 
       <View style={styles.searchWrap}>
         <SearchBar value={search} onChangeText={setSearch} placeholder="Search room number" />
+        <SegmentedTabs options={options} value={active} onChange={setFilter} />
       </View>
 
       {loading && !rooms ? (
         <SkeletonList />
       ) : (
         <FlatList
-          data={rooms ?? []}
+          data={shown}
           keyExtractor={(item) => item.id}
           contentContainerStyle={styles.list}
           keyboardShouldPersistTaps="handled"
@@ -81,15 +110,17 @@ export default function RoomsScreen({ navigation }: Props) {
           windowSize={9}
           ListEmptyComponent={
             <EmptyState
-              icon={search ? "search-outline" : "home-outline"}
-              title={search ? "No matching rooms" : "No rooms yet"}
+              icon={search ? "search-outline" : active === "vacant" ? "checkmark-circle-outline" : "home-outline"}
+              title={search ? "No matching rooms" : active === "vacant" ? "Every bed is taken" : "No rooms yet"}
               message={
                 search
                   ? `Nothing matches "${search}".`
-                  : "Add your rooms first, then assign inmates to them."
+                  : active === "vacant"
+                    ? "No room has a free bed right now."
+                    : "Add your rooms first, then assign inmates to them."
               }
               action={
-                search ? undefined : (
+                search || active !== "all" ? undefined : (
                   <Button
                     title="Add room"
                     icon="add-circle-outline"
@@ -214,7 +245,7 @@ const styles = StyleSheet.create({
   summaryOf: { ...type.support, color: colors.textMuted },
   summaryFoot: { ...type.caption, color: colors.textMuted },
 
-  searchWrap: { paddingHorizontal: spacing.lg, paddingTop: spacing.md },
+  searchWrap: { paddingHorizontal: spacing.lg, paddingTop: spacing.md, gap: spacing.sm },
   list: { padding: spacing.lg, paddingBottom: 190 },
 
   row: { gap: spacing.sm + 2 },
