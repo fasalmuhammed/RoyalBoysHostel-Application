@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Alert, Image, Linking, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Alert, Image, Linking, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
@@ -15,6 +15,7 @@ import { deleteInmate, getInmate, markLeft, reinstate } from "@/services/inmates
 import { listFeesForStudent } from "@/services/fees";
 import { savePhotoToDevice, usePhotoUri } from "@/services/photos";
 import PhotoViewer, { ViewedPhoto } from "@/components/PhotoViewer";
+import { OptionPicker } from "@/components/Controls";
 import { ReportKind, shareInmateReport } from "@/services/inmateReport";
 import { formatInmateId } from "@/services/branches";
 import { formatDate, formatMoney, formatPeriod, relativeDays } from "@/utils/format";
@@ -33,6 +34,8 @@ export default function InmateDetailScreen({ navigation, route }: Props) {
 
   // The report being prepared, if any (it can take a few seconds with photos).
   const [reporting, setReporting] = useState<ReportKind | null>(null);
+  // The admin chooses between the two reports; a manager has only the standard one.
+  const [choosingReport, setChoosingReport] = useState(false);
   // Which photo is open full screen, if any.
   const [viewing, setViewing] = useState<ViewedPhoto | null>(null);
 
@@ -135,6 +138,20 @@ export default function InmateDetailScreen({ navigation, route }: Props) {
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <FadeIn>
           <View style={styles.hero}>
+          <Pressable
+            onPress={() => (access.isOwner ? setChoosingReport(true) : void downloadReport("standard"))}
+            disabled={reporting !== null}
+            style={({ pressed }) => [styles.pdfButton, pressed && { opacity: 0.75 }]}
+            accessibilityRole="button"
+            accessibilityLabel="Download PDF report"
+          >
+            {reporting ? (
+              <ActivityIndicator size="small" color={colors.primary} />
+            ) : (
+              <Ionicons name="download-outline" size={17} color={colors.primary} />
+            )}
+            <Text style={styles.pdfButtonText}>PDF</Text>
+          </Pressable>
             <Avatar name={inmate.fullName} photoFile={inmate.photoFile} size={84} />
             <Text style={styles.name} numberOfLines={2}>
               {inmate.fullName}
@@ -309,32 +326,6 @@ export default function InmateDetailScreen({ navigation, route }: Props) {
           />
         </Card>
 
-        <SectionTitle title="Reports" />
-        <View style={styles.reportRow}>
-          <Button
-            title="Standard PDF"
-            icon="download-outline"
-            variant="secondary"
-            compact
-            onPress={() => downloadReport("standard")}
-            loading={reporting === "standard"}
-            disabled={reporting !== null}
-            style={styles.reportButton}
-          />
-          {access.isOwner ? (
-            <Button
-              title="Master PDF"
-              icon="download-outline"
-              variant="secondary"
-              compact
-              onPress={() => downloadReport("master")}
-              loading={reporting === "master"}
-              disabled={reporting !== null}
-              style={styles.reportButton}
-            />
-          ) : null}
-        </View>
-
         <SectionTitle
           title={`Bills (${fees.length})`}
           action={
@@ -402,6 +393,17 @@ export default function InmateDetailScreen({ navigation, route }: Props) {
         />
       </ScrollView>
       <PhotoViewer photo={viewing} onClose={() => setViewing(null)} />
+      <OptionPicker
+        visible={choosingReport}
+        title="Download PDF report"
+        options={[
+          { key: "standard", label: "Standard report", sublabel: "Details and what they owe" },
+          { key: "master", label: "Master report", sublabel: "Everything, with Aadhaar, bills and payments" },
+        ]}
+        selectedKey={null}
+        onSelect={(key) => void downloadReport(key as ReportKind)}
+        onClose={() => setChoosingReport(false)}
+      />
     </SafeAreaView>
   );
 }
@@ -468,12 +470,26 @@ function ActionButton({
 }
 
 const styles = StyleSheet.create({
-  reportRow: { flexDirection: "row", gap: spacing.sm, marginBottom: spacing.md },
-  reportButton: { flex: 1 },
+  pdfButton: {
+    position: "absolute",
+    top: 0,
+    right: 0,
+    zIndex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.xs + 2,
+    minHeight: 38,
+    paddingHorizontal: spacing.sm + 4,
+    borderRadius: radius.pill,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  pdfButtonText: { ...type.bodyStrong, fontSize: type.support.fontSize, color: colors.primary },
   screen: { flex: 1, backgroundColor: colors.background },
   content: { padding: spacing.lg, paddingBottom: spacing.xl * 2 },
 
-  hero: { alignItems: "center", marginBottom: spacing.md },
+  hero: { alignItems: "center", marginBottom: spacing.md, alignSelf: "stretch" },
   name: { ...type.title, color: colors.text, marginTop: spacing.sm, textAlign: "center" },
   meta: { ...type.support, color: colors.textMuted, marginTop: 2 },
   heroBadges: {
