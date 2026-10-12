@@ -95,6 +95,18 @@
   }
   .center h2 { font-size: 20px; margin-bottom: 6px; }
   .center p { color: var(--muted); margin: 0; }
+  .rules {
+    margin: 0 0 16px; padding: 14px 14px 14px 38px; max-height: 320px; overflow-y: auto; -webkit-overflow-scrolling: touch;
+    border: 1px solid var(--border); border-radius: 14px; background: #F8FAFD; font-size: 14px; line-height: 1.7;
+  }
+  .rules li { margin-bottom: 10px; padding-left: 2px; }
+  .rules li:last-child { margin-bottom: 0; }
+  .rules li::marker { color: var(--primary); font-weight: 700; }
+  .accept { display: flex; gap: 12px; align-items: flex-start; cursor: pointer; padding: 12px 14px; border: 1px solid var(--border); border-radius: 14px; }
+  .accept input { flex: none; width: 22px; height: 22px; margin: 1px 0 0; accent-color: var(--primary); }
+  .accept b { display: block; font-size: 14px; }
+  .accept span span { display: block; color: var(--muted); font-size: 13px; margin-top: 4px; line-height: 1.6; }
+  .bad .accept { border-color: var(--danger); }
   .foot { text-align: center; color: var(--faint); font-size: 12px; }
   [hidden] { display: none !important; }
   @media (max-width: 360px) { .row { grid-template-columns: 1fr; } }
@@ -199,6 +211,44 @@
       </div>
     </div>
 
+    <div class="card">
+      <h2><span class="step">4</span>Rules and regulations</h2>
+      <p class="sub">Read all 23 rules before you accept. നിബന്ധനകൾ മുഴുവൻ വായിക്കുക.</p>
+      <!-- The hostel's printed rules. Version: see TERMS_VERSION in the script below and in functions/join.js. -->
+      <ol class="rules" lang="ml" tabindex="0" aria-label="Hostel rules and regulations">
+        <li>താങ്കളുടെ ഹോസ്റ്റൽ ഫീ ……………… തുകയാണ്. അതാത് മാസം കൃത്യമായി തന്നെ നൽകേണ്ടതാണ്. ഹോസ്റ്റൽ ഫീ മുഴുവനായും അടയ്ക്കാതെ താമസിക്കാൻ അനുവദിക്കുന്നതല്ല.</li>
+        <li>താങ്കളുടെ ഐഡി പ്രൂഫ് കോപ്പി, ഫോട്ടോ കോപ്പി, ഫോട്ടോ എന്നിവ നൽകേണ്ടതാണ്.</li>
+        <li>വാടക നിങ്ങളുടെ ഡ്യൂഡേറ്റിന് മുമ്പ് നൽകേണ്ടതാണ്. അല്ലാത്തപക്ഷം റൂം വെക്കേറ്റു ചെയ്യേണ്ടതാണ്.</li>
+        <li>ചില പ്രത്യേക സാഹചര്യങ്ങളിൽ പരിശോധന ആവശ്യമായി വന്നാൽ താങ്കളുടെ സാന്നിധ്യത്തിൽ ബാഗുകൾ പരിശോധിക്കുന്നതാണ്.</li>
+        <li>താങ്കൾക്ക് അനുവദിച്ചിട്ടുള്ള റൂമിൽ പ്രവേശിക്കാൻ പാടുള്ളൂ. പുറത്തുനിന്നും ആരേയും റൂമിൽ മാനേജ്മെന്റിന്റെ അനുവാദമില്ലാതെ പ്രവേശിപ്പിക്കരുത്.</li>
+        <li>പുകവലി, മദ്യപാനം, മറ്റു ലഹരി വസ്തുക്കൾ എന്നിവയുടെ ഉപയോഗം കർശനമായി നിരോധിച്ചിരിക്കുന്നു.</li>
+        <li>ഹോസ്റ്റലിൽ ഇരുന്നു മദ്യപിക്കുകയോ, മദ്യപിച്ചു ഹോസ്റ്റലിൽ വരുകയോ ചെയ്യുന്നവർക്കെതിരെ കർശന നടപടി (പുറത്താക്കുന്നതുൾപ്പെടെ) സ്വീകരിക്കുന്നതാണ്.</li>
+        <li>സ്വമേധയാ ഒഴിഞ്ഞുപോകുമ്പോൾ 15 ദിവസം മുമ്പ് അറിയിക്കേണ്ടതാണ്. അല്ലാത്തപക്ഷം Caution Deposit റീഫണ്ട് ചെയ്യുന്നതല്ല.</li>
+        <li>താങ്കളുടെകൂടെ ഗസ്റ്റ് ഉണ്ടെങ്കിൽ മാനേജ്മെന്റിനോട് അനുവാദം വാങ്ങുകയും ഗസ്റ്റ് ഫീ ………… നൽകേണ്ടതുമാണ്.</li>
+        <li>മാനേജ്മെന്റ് റൂം ഒഴിയാൻ പറഞ്ഞാൽ ഒഴിയാൻ നിങ്ങൾ ബാധ്യസ്ഥനാണ്. റൂം വെക്കേറ്റ് ചെയ്യാതെ വീട്ടിൽ പോയാൽ ഡ്യൂ ഡേറ്റിന് നിർബന്ധമായും ഫീസ് തരണം.</li>
+        <li>ഹോസ്റ്റലിലെ സാധനങ്ങൾക്കോ മറ്റു വസ്തുക്കൾക്കോ കേടുപാടുകൾ, നാശനഷ്ടങ്ങൾ ഉണ്ടായാൽ ആ വസ്തുക്കളുടെ വില അതാത് റൂം മേറ്റ്സിൽ നിന്നും ഈടാക്കുന്നതാണ്.</li>
+        <li>ഹോസ്റ്റലും, റൂമും വൃത്തിയായി സൂക്ഷിക്കേണ്ടതാണ്. പേപ്പർ, പ്ലാസ്റ്റിക് എന്നിവ വേസ്റ്റ് ബിന്നിൽ നിക്ഷേപിക്കേണ്ടതാണ്.</li>
+        <li>ഹോസ്റ്റലിന് പുറത്ത് കൂട്ടംകൂടുകയോ, റോഡിൽ നിന്ന് ഫോൺ ചെയ്യുകയോ സമീപവാസികൾക്ക് എന്തെങ്കിലും ബുദ്ധിമുട്ടുകളുണ്ടാക്കുന്ന പ്രവർത്തികൾ ആരിൽ നിന്ന് ഉണ്ടായാലും അവർക്കെതിരെ കർശന നടപടി സ്വീകരിക്കുന്നതാണ്.</li>
+        <li>ലാപ്ടോപ്, അയേൺ ബോക്സ്, എന്നിവ ഉപയോഗിക്കുന്നതിനുള്ള തുകയായി ……………… രൂപ ഓരോരുത്തരിൽ നിന്നും ഈടാക്കുന്നതാണ്.</li>
+        <li>അയേൺ ബോക്സ്, വാട്ടർ ഹീറ്റർ തുടങ്ങിയ ഇലക്ട്രിക് സാധനങ്ങൾ റൂമിൽ ഉപയോഗിക്കാൻ പാടുള്ളതല്ല.</li>
+        <li>വിലപിടിപ്പുള്ള സാധനങ്ങൾ സ്വന്തം ഉത്തരവാദിത്തിൽ സൂക്ഷിക്കേണ്ടതാണ്.</li>
+        <li>ഹോസ്റ്റലിലെ ഭക്ഷണ സമയത്തിനുള്ളിൽ തന്നെ മുഴുവൻ ആളുകളും ഭക്ഷണം കഴിക്കുക. സമയശേഷം യാതൊരു കാരണവശാലും ഭക്ഷണം നൽകുന്നതല്ല. (രാവിലെ ………… ഉച്ചയ്ക്ക് ………… രാത്രി …………)</li>
+        <li>നിങ്ങൾക്ക് ഇവിടെ എന്തെങ്കിലും അസൗകര്യങ്ങളോ പരാതികളോ ഉണ്ടെങ്കിൽ മാനേജ്മെന്റിനെ അറിയിക്കേണ്ടതാണ്.</li>
+        <li>ഹോസ്റ്റൽ ഫീ ആയി അടച്ച തുക റീ ഫണ്ട് ചെയ്യുന്നതല്ല ………… മാസമെങ്കിലും താമസിച്ചാൽ മാത്രമേ തിരിച്ചു തരുകയുള്ളൂ.</li>
+        <li>മേൽപറഞ്ഞ നിബന്ധനകൾക്ക് വിരുദ്ധമായി പ്രവർത്തിച്ചാൽ ഒരു മുന്നറിയിപ്പും ഇല്ലാതെ ഹോസ്റ്റലിൽ നിന്നും പുറത്താക്കുന്നതും യാതൊരു ഫീസും തിരിച്ചു നൽകുന്നതല്ല.</li>
+        <li>പൊതു അവധി ദിനങ്ങൾ മുൻകൂട്ടി അറിയിക്കുന്നത് പ്രകാരമുള്ള ദിവസങ്ങളിൽ ഹോസ്റ്റൽ അവധിയായിരിക്കും.</li>
+        <li>ഗേറ്റിന് വെളിയിൽ യാതൊരു കാരണവശാലും പാർക്കിംഗ് അനുവദിക്കുന്നതല്ല.</li>
+        <li>ഡ്യൂ ഡേറ്റ് കഴിഞ്ഞു നൽകുന്ന ദിവസങ്ങളിൽ ഡെയ്‌ലി റെന്റ് ഈടാക്കുന്നതാണ്.</li>
+      </ol>
+      <div class="field" data-f="acceptTerms" style="margin-bottom:0">
+        <label class="accept">
+          <input type="checkbox" name="acceptTerms" value="yes">
+          <span><b>I have read, understood and accept these rules and regulations.</b><span lang="ml">മേൽപറഞ്ഞ നിബന്ധനകളെല്ലാം വായിച്ചു മനസിലാക്കുകയും, അംഗീകരിക്കുകയും ചെയ്തിട്ടുള്ളതാണ്.</span></span>
+        </label>
+        <span class="err"></span>
+      </div>
+    </div>
+
     <div class="hp" aria-hidden="true"><label>Website <input type="text" name="website" tabindex="-1" autocomplete="off"></label></div>
 
     <div id="formError" class="notice error" hidden></div>
@@ -213,6 +263,8 @@
 (function () {
   "use strict";
   var API = "/api/join";
+  /** Which wording of the rules the student accepted; change it whenever the rules above change. */
+  var TERMS_VERSION = "2026-10";
   var branchId = new URLSearchParams(location.search).get("b") || "";
   var $ = function (id) { return document.getElementById(id); };
   var form = $("form");
@@ -309,6 +361,7 @@
     if (!photos.photo) problems.photo = "Add your photo.";
     if (!photos.idFront) problems.idFront = "Add the front side.";
     if (!photos.idBack) problems.idBack = "Add the back side.";
+    if (!form.elements.acceptTerms.checked) problems.acceptTerms = "Tick the box to accept the rules before you send.";
     return problems;
   }
 
@@ -331,6 +384,8 @@
     button.disabled = true;
     button.textContent = "Sending…";
     values.branchId = branchId;
+    values.acceptTerms = true;
+    values.termsVersion = TERMS_VERSION;
     values.photo = photos.photo;
     values.idFront = photos.idFront;
     values.idBack = photos.idBack;

@@ -18,7 +18,7 @@ import PhotoViewer, { ViewedPhoto } from "@/components/PhotoViewer";
 import PopoverMenu, { usePopoverMenu } from "@/components/PopoverMenu";
 import { ReportKind, shareInmateReport } from "@/services/inmateReport";
 import { formatInmateId } from "@/services/branches";
-import { formatDate, formatMoney, formatPeriod, relativeDays } from "@/utils/format";
+import { formatDate, formatDateTime, formatMoney, formatPeriod, relativeDays } from "@/utils/format";
 import type { RootStackParamList } from "@/navigation/types";
 
 type Props = NativeStackScreenProps<RootStackParamList, "InmateDetail">;
@@ -246,6 +246,12 @@ export default function InmateDetailScreen({ navigation, route }: Props) {
           <DetailRow label="Guardian mobile" value={inmate.guardianPhone} />
           <Divider />
           <DetailRow label="Emergency contact" value={inmate.emergencyPhone} />
+          {inmate.termsAcceptedAt ? (
+            <>
+              <Divider />
+              <DetailRow label="Rules accepted" value={formatDateTime(inmate.termsAcceptedAt)} tone="success" />
+            </>
+          ) : null}
           <Divider />
           <DetailRow label="College / company" value={inmate.institution} />
           <Divider />

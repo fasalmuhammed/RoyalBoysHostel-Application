@@ -50,6 +50,10 @@ export interface Inmate {
   bloodGroup?: string;
   /** College or company. Optional. */
   institution?: string;
+  /** When they accepted the hostel's rules on the registration form; null if added by staff. */
+  termsAcceptedAt?: number | null;
+  /** Which wording of the rules that was. */
+  termsVersion?: string;
   /** Legacy free-text field (e.g. "Aadhaar last 4 digits"). Kept for old records; no longer editable. */
   idProof: string;
   /** Filename (not a full URI) inside the app's photos directory. */

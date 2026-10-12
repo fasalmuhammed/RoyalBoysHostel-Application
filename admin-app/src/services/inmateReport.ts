@@ -179,6 +179,7 @@ export function inmateReportHtml(data: ReportData): string {
       <h2>RECORD</h2>
       ${rows([
         ["Added to the register", esc(formatDateTime(inmate.createdAt))],
+        ["Rules and regulations", inmate.termsAcceptedAt ? `Accepted ${esc(formatDateTime(inmate.termsAcceptedAt))}` : "Not recorded"],
         ["Last changed", esc(formatDateTime(inmate.updatedAt))],
         ["Notes", inmate.notes ? `<span class="note">${esc(inmate.notes)}</span>` : "&mdash;"],
       ])}

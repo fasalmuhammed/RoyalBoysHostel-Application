@@ -138,6 +138,12 @@ export default function AdmissionReviewScreen({ navigation, route }: Props) {
           <DetailRow label="Guardian mobile" value={application.guardianPhone} />
           <Divider />
           <DetailRow label="Emergency contact" value={application.emergencyPhone} />
+          <Divider />
+          <DetailRow
+            label="Rules and regulations"
+            value={application.termsAcceptedAt ? `Accepted ${formatDateTime(application.termsAcceptedAt)}` : "Not recorded"}
+            tone={application.termsAcceptedAt ? "success" : undefined}
+          />
         </Card>
 
         <SectionTitle title="Aadhaar card" />

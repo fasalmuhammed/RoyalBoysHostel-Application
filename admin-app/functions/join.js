@@ -98,6 +98,9 @@ async function saveApplication(body) {
   const email = text(body.email, "Email", { max: 120 });
   if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new FormError("That email address looks wrong.");
 
+  // The form will not send without the box ticked; this is the server's own check.
+  if (body.acceptTerms !== true) throw new FormError("Tick the box to accept the rules and regulations.");
+
   const application = {
     branchId: info.branch.id,
     status: "pending",
@@ -113,6 +116,9 @@ async function saveApplication(body) {
     address: text(body.address, "Address", { max: 400, required: true }),
     bloodGroup,
     roomId: roomId || null,
+    // When they accepted the rules, and which wording of them.
+    termsAcceptedAt: Date.now(),
+    termsVersion: text(body.termsVersion, "Rules version", { max: 20 }) || "unknown",
   };
   const photos = {
     photoFile: ["profile", jpeg(body.photo, "Your photo")],

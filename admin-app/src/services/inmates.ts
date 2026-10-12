@@ -169,6 +169,8 @@ export async function createInmate(input: InmateInput): Promise<string> {
       emergencyPhone: input.emergencyPhone ?? "",
       bloodGroup: input.bloodGroup ?? "",
       institution: input.institution ?? "",
+      termsAcceptedAt: input.termsAcceptedAt ?? null,
+      termsVersion: input.termsVersion ?? "",
       idProof: input.idProof,
       photoFile: input.photoFile,
       idProofFile: input.idProofFile,
