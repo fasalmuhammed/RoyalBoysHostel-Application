@@ -23,6 +23,7 @@ export interface Application {
   course: string;
   year: string;
   institution: string;
+  institutionType?: "college" | "company";
   guardianName: string;
   guardianPhone: string;
   emergencyPhone: string;
@@ -106,6 +107,7 @@ export async function approveApplication(id: string, options: ApproveOptions): P
     emergencyPhone: application.emergencyPhone,
     bloodGroup: application.bloodGroup,
     institution: application.institution,
+    institutionType: application.institutionType ?? "",
     email: application.email,
     course: application.course,
     year: application.year,

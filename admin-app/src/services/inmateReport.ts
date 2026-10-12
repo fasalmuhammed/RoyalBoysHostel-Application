@@ -109,8 +109,10 @@ export function inmateReportHtml(data: ReportData): string {
   const personal = rows([
     ["Mobile", or(inmate.phone)],
     ["Email", or(inmate.email)],
-    ["College / company", or(inmate.institution)],
-    ["Course", or([inmate.course, inmate.year].filter(Boolean).join(" · "))],
+    [inmate.institutionType === "company" ? "Company" : inmate.institutionType === "college" ? "College" : "College / company", or(inmate.institution)],
+    ...(inmate.institutionType === "company"
+      ? []
+      : ([["Course", or([inmate.course, inmate.year].filter(Boolean).join(" · "))]] as [string, string][])),
     ["Blood group", or(inmate.bloodGroup)],
     ["Address", or(inmate.address)],
   ]);

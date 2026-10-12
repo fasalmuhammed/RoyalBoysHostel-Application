@@ -67,7 +67,13 @@ async function hostelInfo(branchId) {
     .map((doc) => {
       const room = doc.data();
       const label = [room.block, room.roomNumber].filter(Boolean).join("-");
-      return { id: doc.id, label, free: Math.max(0, (Number(room.capacity) || 0) - (taken.get(doc.id) ?? 0)) };
+      return {
+        id: doc.id,
+        label,
+        free: Math.max(0, (Number(room.capacity) || 0) - (taken.get(doc.id) ?? 0)),
+        // Shown to the student in rule 1 ("your hostel fee is ...").
+        rent: Number(room.rent) || 0,
+      };
     })
     .sort((a, b) => a.label.localeCompare(b.label, undefined, { numeric: true }));
   return { branch: { id: branch.id, name: branch.data().name }, rooms: list };
@@ -101,15 +107,19 @@ async function saveApplication(body) {
   // The form will not send without the box ticked; this is the server's own check.
   if (body.acceptTerms !== true) throw new FormError("Tick the box to accept the rules and regulations.");
 
+  // A college student gives college, course and year; someone working gives their company.
+  const company = body.institutionType === "company";
+
   const application = {
     branchId: info.branch.id,
     status: "pending",
     fullName: text(body.fullName, "Your name", { max: 80, required: true }),
     phone: phone(body.phone, "Your mobile", true),
     email,
-    course: text(body.course, "Course", { max: 80 }),
-    year: text(body.year, "Year", { max: 20 }),
-    institution: text(body.institution, "College / company", { max: 100 }),
+    institutionType: company ? "company" : "college",
+    institution: text(body.institution, company ? "Company name" : "College name", { max: 100, required: true }),
+    course: company ? "" : text(body.course, "Course", { max: 80, required: true }),
+    year: company ? "" : text(body.year, "Year", { max: 20, required: true }),
     guardianName: text(body.guardianName, "Guardian name", { max: 80, required: true }),
     guardianPhone: phone(body.guardianPhone, "Guardian mobile", true),
     emergencyPhone: phone(body.emergencyPhone, "Emergency contact number", true),

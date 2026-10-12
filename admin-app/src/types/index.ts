@@ -50,6 +50,8 @@ export interface Inmate {
   bloodGroup?: string;
   /** College or company. Optional. */
   institution?: string;
+  /** Which of the two `institution` names; blank on older records. */
+  institutionType?: "college" | "company" | "";
   /** When they accepted the hostel's rules on the registration form; null if added by staff. */
   termsAcceptedAt?: number | null;
   /** Which wording of the rules that was. */

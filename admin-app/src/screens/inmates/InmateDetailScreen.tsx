@@ -15,6 +15,7 @@ import { deleteInmate, getInmate, markLeft, reinstate } from "@/services/inmates
 import { dueLabel, listFeesForStudent } from "@/services/fees";
 import { savePhotoToDevice, usePhotoUri } from "@/services/photos";
 import PhotoViewer, { ViewedPhoto } from "@/components/PhotoViewer";
+import { toWhatsAppNumber } from "@/utils/validate";
 import PopoverMenu, { usePopoverMenu } from "@/components/PopoverMenu";
 import { ReportKind, shareInmateReport } from "@/services/inmateReport";
 import { formatInmateId } from "@/services/branches";
@@ -60,6 +61,18 @@ export default function InmateDetailScreen({ navigation, route }: Props) {
     .filter((fee) => fee.balance > 0.01 && fee.chaseDate)
     .sort((a, b) => a.chaseDate.localeCompare(b.chaseDate))[0];
   const symbol = settings.currencySymbol;
+
+  /** Opens their WhatsApp chat as it is, to read back through it or type freely. */
+  const openChat = (number: string) => {
+    const whatsapp = toWhatsAppNumber(number, settings.countryCode);
+    if (!whatsapp) {
+      Alert.alert("Check the mobile number", "This inmate's number does not look like a WhatsApp number.");
+      return;
+    }
+    Linking.openURL(`https://wa.me/${whatsapp}`).catch(() => {
+      Alert.alert("Could not open WhatsApp");
+    });
+  };
 
   const call = (number: string) => {
     if (!number.trim()) return;
@@ -219,6 +232,12 @@ export default function InmateDetailScreen({ navigation, route }: Props) {
           />
           <ActionButton
             icon="logo-whatsapp"
+            label="Chat"
+            disabled={!inmate.phone}
+            onPress={() => openChat(inmate.phone)}
+          />
+          <ActionButton
+            icon="chatbox-ellipses-outline"
             label="Message"
             disabled={!inmate.phone}
             onPress={() => navigation.navigate("Compose", { kind: "custom", studentIds: [studentId] })}
@@ -253,7 +272,7 @@ export default function InmateDetailScreen({ navigation, route }: Props) {
             </>
           ) : null}
           <Divider />
-          <DetailRow label="College / company" value={inmate.institution} />
+          <DetailRow label={inmate.institutionType === "company" ? "Company" : inmate.institutionType === "college" ? "College" : "College / company"} value={inmate.institution} />
           <Divider />
           <DetailRow label="Blood group" value={inmate.bloodGroup} />
           <Divider />
