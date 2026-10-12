@@ -7,6 +7,7 @@ import { Ionicons } from "@expo/vector-icons";
 
 import Button from "@/components/Button";
 import Input from "@/components/Input";
+import { LiquidBlobs, Surface } from "@/components/Liquid";
 import { colors, fontSize, gradients, radius, shadow, spacing, type } from "@/constants/theme";
 import { useApp } from "@/context/AppContext";
 
@@ -50,8 +51,7 @@ export default function LoginScreen() {
       >
         <View style={[styles.hero, { paddingTop: insets.top + spacing.xl + spacing.md }]}>
           <LinearGradient colors={[...gradients.hero]} start={gradients.heroStart} end={gradients.heroEnd} style={StyleSheet.absoluteFill} />
-          <View style={styles.glowA} />
-          <View style={styles.glowB} />
+          <LiquidBlobs />
           <View style={styles.logo}>
             <Ionicons name="business" size={30} color={colors.goldLight} />
           </View>
@@ -59,7 +59,7 @@ export default function LoginScreen() {
           <Text style={styles.subtitle}>Hostel management</Text>
         </View>
 
-        <View style={styles.card}>
+        <Surface style={styles.card} distance={28}>
           <Text style={styles.cardTitle}>Welcome back</Text>
           <Text style={styles.cardSubtitle}>Log in to open the hostel records.</Text>
           {loginNotice ? (
@@ -101,7 +101,7 @@ export default function LoginScreen() {
           </View>
 
           <Button title="Log in" icon="log-in-outline" onPress={onSubmit} loading={busy} />
-        </View>
+        </Surface>
 
         <View style={styles.note}>
           <Ionicons name="help-circle-outline" size={16} color={colors.textMuted} />

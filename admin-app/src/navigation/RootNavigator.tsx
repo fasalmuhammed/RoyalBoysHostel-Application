@@ -66,7 +66,7 @@ const navTheme = {
 
 function MainTabs() {
   return (
-    <Tab.Navigator tabBar={(props) => <GlassTabBar {...props} />} screenOptions={{ headerShown: false }}>
+    <Tab.Navigator tabBar={(props) => <GlassTabBar {...props} />} screenOptions={{ headerShown: false, animation: "fade" }}>
       <Tab.Screen name="Dashboard" component={DashboardScreen} />
       <Tab.Screen name="Inmates" component={InmatesScreen} />
       <Tab.Screen name="Rooms" component={RoomsScreen} />

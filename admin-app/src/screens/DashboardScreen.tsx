@@ -32,6 +32,7 @@ import { formatMoney, formatPeriod, relativeDays, toIsoDate } from "@/utils/form
 import { countApplications } from "@/services/admissions";
 import BothHostelsOverview from "@/components/BothHostelsOverview";
 import HostelSwitch from "@/components/HostelSwitch";
+import { LiquidBlobs } from "@/components/Liquid";
 import type { MainTabParamList, RootStackParamList } from "@/navigation/types";
 
 type Props = CompositeScreenProps<
@@ -73,8 +74,7 @@ export default function DashboardScreen({ navigation }: Props) {
       >
         <View style={[styles.hero, { paddingTop: insets.top + spacing.md }]}>
           <LinearGradient colors={[...gradients.hero]} start={gradients.heroStart} end={gradients.heroEnd} style={StyleSheet.absoluteFill} />
-          <View style={styles.heroGlowA} />
-          <View style={styles.heroGlowB} />
+          <LiquidBlobs />
 
           <View style={styles.header}>
             <Text style={[styles.greeting, { flex: 1 }]} numberOfLines={1}>

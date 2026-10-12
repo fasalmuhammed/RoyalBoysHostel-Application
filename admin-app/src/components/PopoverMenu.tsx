@@ -3,6 +3,7 @@ import { Dimensions, Modal, Pressable, ScrollView, StyleSheet, Text, View } from
 import { Ionicons } from "@expo/vector-icons";
 
 import Glass from "./Glass";
+import { Surface } from "./Liquid";
 import { colors, spacing, type } from "@/constants/theme";
 
 export interface MenuItem {
@@ -78,7 +79,7 @@ export default function PopoverMenu({
   return (
     <Modal visible transparent animationType="none" onRequestClose={onClose} statusBarTranslucent>
       <Pressable style={StyleSheet.absoluteFill} onPress={onClose} accessibilityLabel="Close menu" />
-      <View style={{ position: "absolute", width: MENU_WIDTH, left, ...position }}>
+      <Surface from={roomBelow ? "above" : "below"} distance={10} style={{ position: "absolute", width: MENU_WIDTH, left, ...position }}>
         <Glass thick radius={20} intensity={60} style={styles.menu}>
           {title ? <Text style={styles.title}>{title}</Text> : null}
           <ScrollView style={{ maxHeight: maxHeight - (title ? 36 : 0) }} showsVerticalScrollIndicator={false}>
@@ -108,7 +109,7 @@ export default function PopoverMenu({
           })}
           </ScrollView>
         </Glass>
-      </View>
+      </Surface>
     </Modal>
   );
 }

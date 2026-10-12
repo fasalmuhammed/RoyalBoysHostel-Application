@@ -13,6 +13,7 @@ import { useApp } from "@/context/AppContext";
 import { initials } from "@/utils/format";
 import { countApplications } from "@/services/admissions";
 import HostelSwitch from "@/components/HostelSwitch";
+import { LiquidBlobs } from "@/components/Liquid";
 import type { MainTabParamList, RootStackParamList } from "@/navigation/types";
 
 type Props = CompositeScreenProps<
@@ -33,6 +34,7 @@ export default function MoreScreen({ navigation }: Props) {
 
         <View style={styles.profile}>
           <LinearGradient colors={[...gradients.hero]} start={gradients.heroStart} end={gradients.heroEnd} style={StyleSheet.absoluteFill} />
+          <LiquidBlobs scale={0.7} />
           <View style={styles.profileTop}>
             <View style={styles.profileAvatar}>
               <Text style={styles.profileInitials}>{initials(displayName || "?")}</Text>

@@ -16,6 +16,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { colors, font, fontSize, radius, shadow, spacing } from "@/constants/theme";
 import Button from "./Button";
 import Glass from "./Glass";
+import { Surface } from "./Liquid";
 import { TAB_BAR_SPACE } from "./GlassTabBar";
 import { BottomTabBarHeightContext } from "@react-navigation/bottom-tabs";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -129,7 +130,7 @@ export function OptionPicker({
     <Modal visible={visible} animationType="fade" transparent onRequestClose={onClose} statusBarTranslucent>
       <View style={styles.sheetStage}>
       <Pressable style={styles.backdrop} onPress={onClose} />
-      <View style={styles.sheetDock}>
+      <Surface distance={40} style={styles.sheetDock}>
         <Glass thick radius={30} intensity={70} style={styles.sheet}>
         <View style={styles.sheetHandle} />
         <Text style={styles.sheetTitle}>{title}</Text>
@@ -170,7 +171,7 @@ export function OptionPicker({
 
         <Button title="Cancel" variant="ghost" onPress={onClose} />
         </Glass>
-      </View>
+      </Surface>
       </View>
     </Modal>
   );
