@@ -323,7 +323,7 @@ const styles = StyleSheet.create({
   title: { ...type.title, color: colors.text },
   subtitle: { ...type.support, color: colors.textMuted, marginTop: 2 },
   controls: { paddingHorizontal: spacing.lg, paddingTop: spacing.md, gap: spacing.sm },
-  list: { padding: spacing.lg, paddingBottom: 110 },
+  list: { padding: spacing.lg, paddingBottom: 190 },
   resultCount: { ...type.caption, color: colors.textMuted, marginBottom: spacing.sm },
 
   row: { flexDirection: "row", alignItems: "center", gap: spacing.sm + 4 },

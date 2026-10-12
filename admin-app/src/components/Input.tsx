@@ -143,8 +143,8 @@ const styles = StyleSheet.create({
     // A hairline at rest, thickening only on focus: a permanently heavy border
     // on every field makes a form look like a spreadsheet.
     borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: radius.md + 2,
+    borderColor: "transparent",
+    borderRadius: radius.md,
     backgroundColor: colors.surface,
     paddingHorizontal: spacing.md,
     minHeight: HIT_TARGET + 8,

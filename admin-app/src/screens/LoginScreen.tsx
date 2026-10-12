@@ -2,11 +2,12 @@ import React, { useState } from "react";
 import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
+import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
 
 import Button from "@/components/Button";
 import Input from "@/components/Input";
-import { colors, fontSize, radius, shadow, spacing, type } from "@/constants/theme";
+import { colors, fontSize, gradients, radius, shadow, spacing, type } from "@/constants/theme";
 import { useApp } from "@/context/AppContext";
 
 /**
@@ -48,6 +49,7 @@ export default function LoginScreen() {
         contentContainerStyle={styles.scroll}
       >
         <View style={[styles.hero, { paddingTop: insets.top + spacing.xl + spacing.md }]}>
+          <LinearGradient colors={[...gradients.hero]} start={gradients.heroStart} end={gradients.heroEnd} style={StyleSheet.absoluteFill} />
           <View style={styles.glowA} />
           <View style={styles.glowB} />
           <View style={styles.logo}>
@@ -119,7 +121,7 @@ const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.background },
   scroll: { paddingBottom: spacing.xl * 2 },
   hero: {
-    backgroundColor: colors.primaryDark,
+    backgroundColor: colors.primary,
     alignItems: "center",
     paddingHorizontal: spacing.lg,
     // Room for the card to ride up over the bottom edge.
@@ -133,8 +135,8 @@ const styles = StyleSheet.create({
     width: 280,
     height: 280,
     borderRadius: 140,
-    backgroundColor: colors.primary,
-    opacity: 0.35,
+    backgroundColor: "#FFFFFF",
+    opacity: 0.14,
     top: -140,
     right: -80,
   },
@@ -143,7 +145,8 @@ const styles = StyleSheet.create({
     width: 220,
     height: 220,
     borderRadius: 110,
-    backgroundColor: colors.primaryDeep,
+    backgroundColor: "#FFFFFF",
+    opacity: 0.1,
     bottom: -120,
     left: -70,
   },

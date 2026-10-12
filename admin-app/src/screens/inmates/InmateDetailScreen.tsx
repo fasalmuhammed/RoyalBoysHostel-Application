@@ -15,7 +15,7 @@ import { deleteInmate, getInmate, markLeft, reinstate } from "@/services/inmates
 import { listFeesForStudent } from "@/services/fees";
 import { savePhotoToDevice, usePhotoUri } from "@/services/photos";
 import PhotoViewer, { ViewedPhoto } from "@/components/PhotoViewer";
-import { OptionPicker } from "@/components/Controls";
+import PopoverMenu, { usePopoverMenu } from "@/components/PopoverMenu";
 import { ReportKind, shareInmateReport } from "@/services/inmateReport";
 import { formatInmateId } from "@/services/branches";
 import { formatDate, formatMoney, formatPeriod, relativeDays } from "@/utils/format";
@@ -35,7 +35,7 @@ export default function InmateDetailScreen({ navigation, route }: Props) {
   // The report being prepared, if any (it can take a few seconds with photos).
   const [reporting, setReporting] = useState<ReportKind | null>(null);
   // The admin chooses between the two reports; a manager has only the standard one.
-  const [choosingReport, setChoosingReport] = useState(false);
+  const reportMenu = usePopoverMenu();
   // Which photo is open full screen, if any.
   const [viewing, setViewing] = useState<ViewedPhoto | null>(null);
 
@@ -139,7 +139,8 @@ export default function InmateDetailScreen({ navigation, route }: Props) {
         <FadeIn>
           <View style={styles.hero}>
           <Pressable
-            onPress={() => (access.isOwner ? setChoosingReport(true) : void downloadReport("standard"))}
+            ref={reportMenu.anchorRef}
+            onPress={() => (access.isOwner ? reportMenu.open() : void downloadReport("standard"))}
             disabled={reporting !== null}
             style={({ pressed }) => [styles.pdfButton, pressed && { opacity: 0.75 }]}
             accessibilityRole="button"
@@ -393,16 +394,14 @@ export default function InmateDetailScreen({ navigation, route }: Props) {
         />
       </ScrollView>
       <PhotoViewer photo={viewing} onClose={() => setViewing(null)} />
-      <OptionPicker
-        visible={choosingReport}
-        title="Download PDF report"
-        options={[
-          { key: "standard", label: "Standard report", sublabel: "Details and what they owe" },
-          { key: "master", label: "Master report", sublabel: "Everything, with Aadhaar, bills and payments" },
+      <PopoverMenu
+        {...reportMenu.props}
+        title="Download PDF"
+        items={[
+          { key: "standard", label: "Standard", sublabel: "Details and what they owe", icon: "document-text-outline" },
+          { key: "master", label: "Master", sublabel: "Everything, with Aadhaar and payments", icon: "shield-checkmark-outline" },
         ]}
-        selectedKey={null}
         onSelect={(key) => void downloadReport(key as ReportKind)}
-        onClose={() => setChoosingReport(false)}
       />
     </SafeAreaView>
   );

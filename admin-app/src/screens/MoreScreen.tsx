@@ -2,12 +2,13 @@ import React from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
+import { LinearGradient } from "expo-linear-gradient";
 import Constants from "expo-constants";
 import type { CompositeScreenProps } from "@react-navigation/native";
 import type { BottomTabScreenProps } from "@react-navigation/bottom-tabs";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 
-import { Tone, colors, fontSize, radius, shadow, spacing, toneColor, type } from "@/constants/theme";
+import { Tone, colors, gradients, fontSize, radius, shadow, spacing, toneColor, type } from "@/constants/theme";
 import { useApp } from "@/context/AppContext";
 import { initials } from "@/utils/format";
 import { countApplications } from "@/services/admissions";
@@ -31,6 +32,7 @@ export default function MoreScreen({ navigation }: Props) {
         <Text style={styles.title}>More</Text>
 
         <View style={styles.profile}>
+          <LinearGradient colors={[...gradients.hero]} start={gradients.heroStart} end={gradients.heroEnd} style={StyleSheet.absoluteFill} />
           <View style={styles.profileTop}>
             <View style={styles.profileAvatar}>
               <Text style={styles.profileInitials}>{initials(displayName || "?")}</Text>
@@ -207,12 +209,13 @@ function Row({
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.background },
-  content: { padding: spacing.lg, paddingBottom: spacing.xl * 2 },
+  content: { padding: spacing.lg, paddingBottom: 130 },
   title: { ...type.title, color: colors.text, marginBottom: spacing.md },
 
   profile: {
-    backgroundColor: colors.primaryDark,
+    backgroundColor: colors.primary,
     borderRadius: radius.xl,
+    overflow: "hidden",
     padding: spacing.md,
     marginBottom: spacing.lg,
     gap: spacing.md,
@@ -263,8 +266,6 @@ const styles = StyleSheet.create({
   group: {
     backgroundColor: colors.surface,
     borderRadius: radius.lg,
-    borderWidth: 1,
-    borderColor: colors.border,
     marginBottom: spacing.lg,
     overflow: "hidden",
   },
@@ -283,7 +284,7 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.md - 1,
     minHeight: 60,
   },
-  rowBorder: { borderBottomWidth: 1, borderBottomColor: colors.border },
+  rowBorder: { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.borderStrong },
   rowPressed: { backgroundColor: colors.surfaceAlt },
   rowIcon: {
     width: 38,

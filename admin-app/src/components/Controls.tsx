@@ -15,6 +15,10 @@ import { Ionicons } from "@expo/vector-icons";
 
 import { colors, font, fontSize, radius, shadow, spacing } from "@/constants/theme";
 import Button from "./Button";
+import Glass from "./Glass";
+import { TAB_BAR_SPACE } from "./GlassTabBar";
+import { BottomTabBarHeightContext } from "@react-navigation/bottom-tabs";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { AnimatedBar, FadeIn, PressableScale } from "./Motion";
 
 // --- search -----------------------------------------------------------------
@@ -122,9 +126,11 @@ export function OptionPicker({
   emptyMessage?: string;
 }) {
   return (
-    <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
+    <Modal visible={visible} animationType="fade" transparent onRequestClose={onClose} statusBarTranslucent>
+      <View style={styles.sheetStage}>
       <Pressable style={styles.backdrop} onPress={onClose} />
-      <FadeIn offsetY={24} style={styles.sheet}>
+      <FadeIn offsetY={24} style={styles.sheetDock}>
+        <Glass radius={30} intensity={70} style={styles.sheet}>
         <View style={styles.sheetHandle} />
         <Text style={styles.sheetTitle}>{title}</Text>
 
@@ -163,7 +169,9 @@ export function OptionPicker({
         )}
 
         <Button title="Cancel" variant="ghost" onPress={onClose} />
+        </Glass>
       </FadeIn>
+      </View>
     </Modal>
   );
 }
@@ -208,15 +216,21 @@ export function Fab({
   label?: string;
   onPress: () => void;
 }) {
+  // On a tab the button floats above the glass tab bar; elsewhere it sits near the bottom edge.
+  const onTab = React.useContext(BottomTabBarHeightContext) !== undefined;
+  const insets = useSafeAreaInsets();
+  const bottom = onTab ? TAB_BAR_SPACE + Math.max(insets.bottom, 10) + 6 : insets.bottom + spacing.lg;
   return (
     <Pressable
       onPress={onPress}
-      style={({ pressed }) => [styles.fab, pressed && { opacity: 0.88 }]}
+      style={({ pressed }) => [styles.fabWrap, { bottom }, pressed && { opacity: 0.88, transform: [{ scale: 0.97 }] }]}
       accessibilityRole="button"
       accessibilityLabel={label ?? "Add"}
     >
-      <Ionicons name={icon} size={22} color={colors.primaryOn} />
-      {label ? <Text style={styles.fabLabel}>{label}</Text> : null}
+      <Glass tone="tinted" radius={28} style={styles.fab}>
+        <Ionicons name={icon} size={22} color={colors.primaryOn} />
+        {label ? <Text style={styles.fabLabel}>{label}</Text> : null}
+      </Glass>
     </Pressable>
   );
 }
@@ -226,12 +240,10 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: spacing.sm,
-    backgroundColor: colors.surface,
-    borderRadius: radius.md + 2,
+    borderRadius: radius.md,
     paddingHorizontal: spacing.md,
-    height: 48,
-    borderWidth: 1,
-    borderColor: colors.border,
+    height: 44,
+    backgroundColor: "rgba(118, 118, 128, 0.12)",
   },
   searchInput: {
     flex: 1,
@@ -247,21 +259,16 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.sm,
     borderRadius: radius.pill,
     backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
   },
-  tabActive: { backgroundColor: colors.primaryDark, borderColor: colors.primaryDark },
+  tabActive: { backgroundColor: colors.primary },
   tabText: { fontSize: fontSize.sm, fontFamily: font.semibold, color: colors.textMuted },
   tabTextActive: { color: colors.primaryOn },
 
-  backdrop: { flex: 1, backgroundColor: colors.overlay },
-  sheet: {
-    backgroundColor: colors.surface,
-    borderTopLeftRadius: radius.xl,
-    borderTopRightRadius: radius.xl,
-    padding: spacing.lg,
-    paddingBottom: spacing.xl,
-  },
+  backdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: colors.overlay },
+  sheetStage: { flex: 1, justifyContent: "flex-end" },
+  // The sheet floats clear of the edges, and on a wide screen stays the width of the app.
+  sheetDock: { paddingHorizontal: spacing.sm + 2, paddingBottom: spacing.sm + 2, width: "100%", maxWidth: 560, alignSelf: "center" },
+  sheet: { padding: spacing.lg, paddingBottom: spacing.md },
   sheetHandle: {
     width: 40,
     height: 4,
@@ -324,20 +331,13 @@ const styles = StyleSheet.create({
     textAlign: "right",
   },
 
+  fabWrap: { position: "absolute", right: spacing.lg },
   fab: {
-    position: "absolute",
-    right: spacing.lg,
-    bottom: spacing.lg,
     flexDirection: "row",
     alignItems: "center",
     gap: spacing.sm,
-    backgroundColor: colors.primary,
     paddingHorizontal: spacing.md + 4,
-    height: 54,
-    borderRadius: radius.lg,
-    ...shadow.raised,
-    shadowColor: colors.primary,
-    shadowOpacity: 0.35,
+    height: 56,
   },
   fabLabel: { color: colors.primaryOn, fontFamily: font.bold, fontSize: fontSize.md },
 });

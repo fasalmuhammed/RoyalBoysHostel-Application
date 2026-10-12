@@ -302,7 +302,7 @@ const styles = StyleSheet.create({
   summaryFoot: { ...type.caption, color: colors.textMuted },
 
   controls: { paddingHorizontal: spacing.lg, paddingTop: spacing.md, gap: spacing.sm },
-  list: { padding: spacing.lg, paddingBottom: 110 },
+  list: { padding: spacing.lg, paddingBottom: 190 },
 
   row: { flexDirection: "row", alignItems: "center", gap: spacing.sm + 4 },
   rowBody: { flex: 1, gap: 2 },

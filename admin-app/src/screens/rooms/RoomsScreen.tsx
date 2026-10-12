@@ -215,7 +215,7 @@ const styles = StyleSheet.create({
   summaryFoot: { ...type.caption, color: colors.textMuted },
 
   searchWrap: { paddingHorizontal: spacing.lg, paddingTop: spacing.md },
-  list: { padding: spacing.lg, paddingBottom: 110 },
+  list: { padding: spacing.lg, paddingBottom: 190 },
 
   row: { gap: spacing.sm + 2 },
   rowTop: { flexDirection: "row", alignItems: "flex-start", gap: spacing.sm },

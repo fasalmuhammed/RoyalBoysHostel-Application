@@ -2,6 +2,7 @@ import React from "react";
 import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
+import { LinearGradient } from "expo-linear-gradient";
 import { useIsFocused } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
 import type { CompositeScreenProps } from "@react-navigation/native";
@@ -13,6 +14,7 @@ import Avatar from "@/components/Avatar";
 import {
   HIT_TARGET,
   colors,
+  gradients,
   fontSize,
   layout,
   radius,
@@ -70,22 +72,15 @@ export default function DashboardScreen({ navigation }: Props) {
         }
       >
         <View style={[styles.hero, { paddingTop: insets.top + spacing.md }]}>
+          <LinearGradient colors={[...gradients.hero]} start={gradients.heroStart} end={gradients.heroEnd} style={StyleSheet.absoluteFill} />
           <View style={styles.heroGlowA} />
           <View style={styles.heroGlowB} />
 
           <View style={styles.header}>
-            <View style={styles.brandBadge}>
-              <Text style={styles.brandBadgeText}>{both ? "R" : (activeBranch?.code ?? "R")}</Text>
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.greeting} numberOfLines={1}>
-                {greeting()}
-                {user?.name ? `, ${user.name.split(" ")[0]}` : ""}
-              </Text>
-              <Text style={styles.branchName} numberOfLines={1}>
-                {both ? settings.hostelName : (activeBranch?.name ?? settings.hostelName)}
-              </Text>
-            </View>
+            <Text style={[styles.greeting, { flex: 1 }]} numberOfLines={1}>
+              {greeting()}
+              {user?.name ? `, ${user.name.split(" ")[0]}` : ""}
+            </Text>
             <IconButton
               icon="notifications-outline"
               label="Notifications"
@@ -98,8 +93,15 @@ export default function DashboardScreen({ navigation }: Props) {
             />
           </View>
 
+          <Text style={styles.heroTitle} numberOfLines={1} adjustsFontSizeToFit>
+            {settings.hostelName}
+          </Text>
           {/* One hostel or both; the same drop-down sits at the top of every tab. */}
-          <HostelSwitch variant="dark" style={{ marginTop: spacing.md }} />
+          {access.isOwner ? (
+            <HostelSwitch variant="dark" style={{ marginTop: spacing.sm + 2 }} />
+          ) : (
+            <Text style={styles.branchName} numberOfLines={1}>{activeBranch?.name ?? ""}</Text>
+          )}
         </View>
 
         <View style={styles.content}>
@@ -540,7 +542,7 @@ function greeting(): string {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.background },
-  scroll: { paddingBottom: spacing.xl * 2 },
+  scroll: { paddingBottom: 130 },
   content: {
     paddingHorizontal: spacing.lg,
     // The first card rides up over the bottom edge of the header.
@@ -550,7 +552,7 @@ const styles = StyleSheet.create({
   },
 
   hero: {
-    backgroundColor: colors.primaryDark,
+    backgroundColor: colors.primary,
     paddingHorizontal: spacing.lg,
     paddingBottom: spacing.xl + spacing.lg,
     borderBottomLeftRadius: radius.xl + 6,
@@ -563,8 +565,8 @@ const styles = StyleSheet.create({
     width: 260,
     height: 260,
     borderRadius: 130,
-    backgroundColor: colors.primary,
-    opacity: 0.35,
+    backgroundColor: "#FFFFFF",
+    opacity: 0.14,
     top: -130,
     right: -70,
   },
@@ -573,7 +575,8 @@ const styles = StyleSheet.create({
     width: 200,
     height: 200,
     borderRadius: 100,
-    backgroundColor: colors.primaryDeep,
+    backgroundColor: "#FFFFFF",
+    opacity: 0.1,
     bottom: -110,
     left: -60,
   },
@@ -590,8 +593,9 @@ const styles = StyleSheet.create({
     marginRight: spacing.xs,
   },
   brandBadgeText: { ...type.section, color: colors.goldLight },
-  greeting: { ...type.support, color: colors.onDarkMuted },
-  branchName: { ...type.section, color: colors.onDark, marginTop: 1 },
+  greeting: { ...type.body, color: colors.onDarkMuted },
+  heroTitle: { ...type.display, color: colors.onDark, marginTop: spacing.xs },
+  branchName: { ...type.body, color: colors.onDarkMuted, marginTop: 2 },
   iconButton: {
     width: HIT_TARGET - 4,
     height: HIT_TARGET - 4,

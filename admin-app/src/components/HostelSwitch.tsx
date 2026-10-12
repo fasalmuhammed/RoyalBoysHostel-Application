@@ -1,8 +1,8 @@
-import React, { useState } from "react";
+import React from "react";
 import { Pressable, StyleSheet, Text, View, ViewStyle } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 
-import { OptionPicker } from "./Controls";
+import PopoverMenu, { usePopoverMenu } from "./PopoverMenu";
 import { HIT_TARGET, colors, radius, spacing, type } from "@/constants/theme";
 import { useApp } from "@/context/AppContext";
 
@@ -22,7 +22,7 @@ export default function HostelSwitch({
   style?: ViewStyle;
 }) {
   const { access, branches, activeBranch, allHostels, chooseBranch, chooseAll } = useApp();
-  const [open, setOpen] = useState(false);
+  const menu = usePopoverMenu();
 
   if (!access.isOwner || branches.length < 2) return null;
 
@@ -33,7 +33,8 @@ export default function HostelSwitch({
   return (
     <>
       <Pressable
-        onPress={() => setOpen(true)}
+        ref={menu.anchorRef}
+        onPress={menu.open}
         style={({ pressed }) => [styles.pill, dark ? styles.pillDark : styles.pillLight, pressed && { opacity: 0.8 }, style]}
         accessibilityRole="button"
         accessibilityLabel={`Hostel: ${label}. Change`}
@@ -47,16 +48,15 @@ export default function HostelSwitch({
         <Ionicons name="chevron-down" size={16} color={dark ? colors.onDarkMuted : colors.textMuted} />
       </Pressable>
 
-      <OptionPicker
-        visible={open}
-        title="Show hostel"
-        options={[
-          ...branches.map((branch) => ({ key: branch.id, label: branch.shortName || branch.name, sublabel: branch.name })),
-          { key: ALL, label: "Both hostels", sublabel: "Everything from both, combined" },
+      <PopoverMenu
+        {...menu.props}
+        title="Show"
+        items={[
+          ...branches.map((branch) => ({ key: branch.id, label: branch.shortName || branch.name })),
+          { key: ALL, label: "Both hostels", sublabel: "Everything, combined" },
         ]}
         selectedKey={allHostels ? ALL : (activeBranch?.id ?? null)}
         onSelect={(key) => (key === ALL ? chooseAll() : void chooseBranch(key))}
-        onClose={() => setOpen(false)}
       />
     </>
   );

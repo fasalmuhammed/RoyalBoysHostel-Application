@@ -272,7 +272,8 @@ function StaffSheet({ sheet, onClose }: { sheet: Sheet | null; onClose: () => vo
   };
 
   return (
-    <Modal visible transparent animationType="slide" onRequestClose={onClose}>
+    <Modal visible transparent animationType="fade" onRequestClose={onClose} statusBarTranslucent>
+      <View style={styles.sheetStage}>
       <Pressable style={styles.backdrop} onPress={onClose} />
       <View style={styles.sheet}>
         <View style={styles.sheetHandle} />
@@ -360,6 +361,7 @@ function StaffSheet({ sheet, onClose }: { sheet: Sheet | null; onClose: () => vo
           <Button title="Cancel" variant="ghost" onPress={onClose} />
         </ScrollView>
       </View>
+      </View>
     </Modal>
   );
 }
@@ -411,14 +413,19 @@ const styles = StyleSheet.create({
   },
   chipText: { ...type.bodyStrong, fontSize: fontSize.xs + 1 },
 
-  backdrop: { flex: 1, backgroundColor: colors.overlay },
+  sheetStage: { flex: 1, justifyContent: "flex-end" },
+  backdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: colors.overlay },
+  // An iOS form sheet: floats clear of the edges, and no wider than the app.
   sheet: {
-    backgroundColor: colors.surface,
-    borderTopLeftRadius: radius.xl,
-    borderTopRightRadius: radius.xl,
+    backgroundColor: colors.background,
+    borderRadius: radius.xl,
     padding: spacing.lg,
-    paddingBottom: spacing.xl,
+    paddingBottom: spacing.md,
     maxHeight: "88%",
+    width: "100%",
+    maxWidth: 540,
+    alignSelf: "center",
+    margin: spacing.sm + 2,
   },
   sheetHandle: {
     width: 40,

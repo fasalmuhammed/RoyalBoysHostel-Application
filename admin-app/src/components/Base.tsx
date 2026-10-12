@@ -175,8 +175,6 @@ const styles = StyleSheet.create({
     borderRadius: radius.lg,
     padding: spacing.md,
     marginBottom: spacing.md,
-    borderWidth: 1,
-    borderColor: colors.border,
     // Tablet only: cap the column so a card does not stretch into an
     // unreadable band. Left untouched on phones, where the default stretch is
     // what every screen already relies on -- setting `alignSelf` there would
@@ -189,8 +187,8 @@ const styles = StyleSheet.create({
   cardPressed: { opacity: 0.85, transform: [{ scale: 0.995 }] },
   badge: {
     alignSelf: "flex-start",
-    borderRadius: radius.sm - 2,
-    paddingHorizontal: spacing.sm,
+    borderRadius: radius.pill,
+    paddingHorizontal: spacing.sm + 2,
     paddingVertical: 3,
   },
   badgeText: { ...type.label, fontSize: fontSize.xs },
@@ -235,7 +233,7 @@ const styles = StyleSheet.create({
     flexShrink: 1,
     textAlign: "right",
   },
-  divider: { height: 1, backgroundColor: colors.border, marginVertical: spacing.sm },
+  divider: { height: StyleSheet.hairlineWidth, backgroundColor: colors.borderStrong, marginVertical: spacing.sm },
   loading: { paddingVertical: spacing.xl * 2, alignItems: "center", gap: spacing.md },
   loadingText: { color: colors.textMuted, fontSize: fontSize.sm },
   callout: {

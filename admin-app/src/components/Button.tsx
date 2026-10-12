@@ -77,10 +77,10 @@ const styles = StyleSheet.create({
   base: {
     paddingVertical: spacing.md - 2,
     paddingHorizontal: spacing.md,
-    borderRadius: radius.md + 2,
+    borderRadius: radius.pill,
     alignItems: "center",
     justifyContent: "center",
-    minHeight: HIT_TARGET + 8,
+    minHeight: HIT_TARGET + 6,
   },
   compact: { paddingVertical: spacing.sm, minHeight: HIT_TARGET - 6, paddingHorizontal: spacing.md },
   content: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
@@ -88,11 +88,12 @@ const styles = StyleSheet.create({
     backgroundColor: colors.primary,
     ...shadow.card,
     shadowColor: colors.primary,
-    shadowOpacity: 0.28,
+    shadowOpacity: 0.22,
   },
   // A hairline neutral border reads as a secondary action; a heavy coloured
   // outline competes with the primary button sitting next to it.
-  secondary: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border },
+  // iOS "tinted" style: the brand colour at low strength, no outline.
+  secondary: { backgroundColor: colors.primaryLight },
   ghost: { backgroundColor: "transparent" },
   danger: { backgroundColor: colors.danger },
   disabled: { opacity: 0.45 },

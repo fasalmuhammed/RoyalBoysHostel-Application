@@ -1,7 +1,7 @@
 import { Dimensions, PixelRatio, Platform } from "react-native";
 
 /**
- * Design tokens. A royal-blue primary and a navy header on a cool
+ * Design tokens. iOS system colours with "liquid glass" controls on a cool
  * near-white canvas, with semantic tones reused for every status pill so a
  * colour always means the same thing across Students / Rooms / Fees.
  *
@@ -62,47 +62,59 @@ export function scaleSpace(size: number): number {
   return PixelRatio.roundToNearestPixel(size * spaceFactor);
 }
 export const colors = {
-  /** Royal blue: buttons, links, active tabs. */
-  primary: "#2F55E8",
-  /** Deep navy for the dashboard header, hero panels and the splash. */
-  primaryDark: "#0F1B45",
-  /** A step lighter than the navy, for shapes drawn on top of it. */
+  /** iOS system blue: buttons, links, the active tab. */
+  primary: "#007AFF",
+  /** Deep ink for text sitting on glass and for dark panels. */
+  primaryDark: "#0B1B3F",
+  /** A step lighter than the ink, for shapes drawn on top of it. */
   primaryDeep: "#1B2C6B",
   /** Tint behind icons and chips. */
-  primaryLight: "#EAF0FF",
+  primaryLight: "#E5F1FF",
   primaryOn: "#FFFFFF",
-  /** Text on the navy header. */
+  /** Text on the coloured header. */
   onDark: "#FFFFFF",
-  onDarkMuted: "rgba(255, 255, 255, 0.68)",
-  /** Translucent fill for buttons and tracks sitting on the navy. */
-  glass: "rgba(255, 255, 255, 0.12)",
-  glassBorder: "rgba(255, 255, 255, 0.16)",
+  onDarkMuted: "rgba(255, 255, 255, 0.74)",
+  /** Translucent fill for controls sitting on the coloured header. */
+  glass: "rgba(255, 255, 255, 0.18)",
+  glassBorder: "rgba(255, 255, 255, 0.32)",
 
-  /** Gold from the app icon, kept for branch badges and other brand accents. */
+  /** Gold from the app icon, kept for brand accents. */
   gold: "#B98A32",
-  goldLight: "#F0C97A",
-  goldBg: "#FBF2E0",
+  goldLight: "#FFE2A6",
+  goldBg: "#FFF4DC",
 
-  background: "#F3F5FA",
+  /** The grey iOS puts behind grouped lists. */
+  background: "#F2F2F7",
   surface: "#FFFFFF",
-  surfaceAlt: "#F8FAFD",
+  surfaceAlt: "#F7F7FA",
 
-  text: "#0F172A",
-  textMuted: "#5A6478",
-  textFaint: "#97A1B4",
-  border: "#E5E9F1",
-  borderStrong: "#CFD6E3",
+  text: "#0B0B0F",
+  textMuted: "#6C6C70",
+  textFaint: "#AEAEB2",
+  border: "#E5E5EA",
+  borderStrong: "#D1D1D6",
 
-  success: "#0E9F6E",
-  successBg: "#E3F7EF",
-  warning: "#D97706",
-  warningBg: "#FDF3E3",
-  danger: "#DC2626",
-  dangerBg: "#FDECEC",
-  info: "#0284C7",
-  infoBg: "#E3F3FC",
+  success: "#1F9D45",
+  successBg: "#E3F8E9",
+  warning: "#D97A00",
+  warningBg: "#FFF1DC",
+  danger: "#FF3B30",
+  dangerBg: "#FFECEA",
+  info: "#0A7EA4",
+  infoBg: "#E0F4FB",
 
-  overlay: "rgba(15, 23, 42, 0.5)",
+  overlay: "rgba(0, 0, 0, 0.32)",
+} as const;
+
+/**
+ * Colour washes for the big headers (dashboard, login, profile). The glass
+ * controls on top of them pick up these colours, which is what makes them
+ * read as glass rather than grey plastic.
+ */
+export const gradients = {
+  hero: ["#0A84FF", "#5E5CE6", "#AF52DE"],
+  heroStart: { x: 0, y: 0 },
+  heroEnd: { x: 1, y: 1 },
 } as const;
 
 export const spacing = {
@@ -114,10 +126,10 @@ export const spacing = {
 } as const;
 
 export const radius = {
-  sm: scaleSpace(8),
-  md: scaleSpace(12),
-  lg: scaleSpace(16),
-  xl: scaleSpace(22),
+  sm: scaleSpace(10),
+  md: scaleSpace(14),
+  lg: scaleSpace(20),
+  xl: scaleSpace(28),
   pill: 999,
 } as const;
 
@@ -163,15 +175,15 @@ export const fontSize = {
 export const type = {
   /** One per screen at most: a page title or a headline figure. */
   display: {
-    fontFamily: font.extrabold,
-    fontSize: scaleFont(30),
-    lineHeight: scaleFont(36),
+    fontFamily: font.bold,
+    fontSize: scaleFont(34),
+    lineHeight: scaleFont(40),
     letterSpacing: -0.5,
   },
   title: {
-    fontFamily: font.extrabold,
-    fontSize: scaleFont(22),
-    lineHeight: scaleFont(28),
+    fontFamily: font.bold,
+    fontSize: scaleFont(28),
+    lineHeight: scaleFont(34),
     letterSpacing: -0.3,
   },
   section: {
@@ -209,7 +221,7 @@ export const type = {
   },
   /** Tabular figures: money, counts, anything scanned in a column. */
   metric: {
-    fontFamily: font.extrabold,
+    fontFamily: font.bold,
     fontSize: scaleFont(24),
     lineHeight: scaleFont(29),
     letterSpacing: -0.6,
@@ -230,21 +242,21 @@ export const type = {
 export const shadow = {
   /** Barely-there lift for list rows and inline surfaces. */
   subtle: {
-    shadowColor: "#0F1B45",
+    shadowColor: "#000000",
     shadowOpacity: 0.04,
     shadowRadius: 6,
     shadowOffset: { width: 0, height: 2 },
     elevation: 1,
   },
   card: {
-    shadowColor: "#0F1B45",
-    shadowOpacity: 0.07,
-    shadowRadius: 12,
+    shadowColor: "#000000",
+    shadowOpacity: 0.05,
+    shadowRadius: 20,
     shadowOffset: { width: 0, height: 4 },
     elevation: 2,
   },
   raised: {
-    shadowColor: "#0F1B45",
+    shadowColor: "#000000",
     shadowOpacity: 0.12,
     shadowRadius: 18,
     shadowOffset: { width: 0, height: 8 },
@@ -260,5 +272,5 @@ export const toneColor: Record<Tone, { fg: string; bg: string }> = {
   warning: { fg: colors.warning, bg: colors.warningBg },
   danger: { fg: colors.danger, bg: colors.dangerBg },
   info: { fg: colors.info, bg: colors.infoBg },
-  neutral: { fg: colors.textMuted, bg: "#EEF1F6" },
+  neutral: { fg: colors.textMuted, bg: "#EFEFF4" },
 };
