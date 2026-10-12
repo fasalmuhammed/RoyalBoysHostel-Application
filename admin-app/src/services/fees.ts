@@ -575,10 +575,13 @@ export async function deletePayment(paymentId: string): Promise<void> {
     if (!doc || !bill || !bill.payments?.[paymentId]) return;
     const payments = { ...bill.payments };
     delete payments[paymentId];
+    // A promise is about the balance of a part payment. With no payment left
+    // on the bill there is no part payment, so the bill is due as it was.
+    const promisedDate = Object.keys(payments).length > 0 ? (bill.promisedDate ?? "") : "";
     await put("fees", current.docId, {
       ...doc,
       ...ownerOf(current.docId),
-      bills: { ...doc.bills, [bill.period]: { ...bill, payments, updatedAt: Date.now() } },
+      bills: { ...doc.bills, [bill.period]: { ...bill, payments, promisedDate, updatedAt: Date.now() } },
     });
   });
 

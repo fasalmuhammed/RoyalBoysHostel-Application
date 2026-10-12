@@ -13,10 +13,14 @@ const { getFirestore } = require("firebase-admin/firestore");
 const { getStorage } = require("firebase-admin/storage");
 
 const MAX_PHOTO_BYTES = 1200 * 1024;
-/** One phone or Wi-Fi network may send this many forms an hour. */
-const MAX_PER_HOUR = 8;
+/**
+ * One phone or Wi-Fi network may send this many forms an hour. Generous on
+ * purpose: when a hostel registers its existing students, they all send from
+ * the office Wi-Fi, which the server sees as a single place.
+ */
+const MAX_PER_HOUR = 80;
 /** A hostel never has this many forms waiting; beyond it, something is wrong. */
-const MAX_PENDING = 150;
+const MAX_PENDING = 300;
 const BLOOD_GROUPS = ["", "A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"];
 
 class FormError extends Error {}
@@ -137,6 +141,21 @@ async function saveApplication(body) {
   };
 
   const db = getFirestore();
+
+  // One form per person: a second one from the same mobile number is a double
+  // tap or a retry, and someone already living here needs the office, not a form.
+  const lastTen = (value) => String(value ?? "").replace(/\D/g, "").slice(-10);
+  const [sameNumber, residents] = await Promise.all([
+    db.collection("applications").where("branchId", "==", info.branch.id).where("phone", "==", application.phone).limit(1).get(),
+    db.collection("inmates").where("branchId", "==", info.branch.id).get(),
+  ]);
+  if (!sameNumber.empty) {
+    throw new FormError("Your details were already sent from this mobile number. The hostel office will confirm your admission.");
+  }
+  if (residents.docs.some((doc) => doc.data().status === "active" && lastTen(doc.data().phone) === application.phone)) {
+    throw new FormError("This mobile number is already registered at this hostel. Please speak to the hostel office.");
+  }
+
   const pending = await db.collection("applications").where("branchId", "==", info.branch.id).count().get();
   if (pending.data().count >= MAX_PENDING) {
     throw new FormError("Registration is paused for now. Please tell the hostel office.");

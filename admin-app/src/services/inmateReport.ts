@@ -20,7 +20,6 @@ import { formatInmateId, getBranch } from "./branches";
 import { readPhotoBase64 } from "./photos";
 import { loadSettings } from "./settings";
 import { formatDate, formatDateTime, formatMoney, formatPeriod } from "@/utils/format";
-import { registerDownloadName } from "@/web/shims/sharing";
 
 export type ReportKind = "standard" | "master";
 
@@ -252,7 +251,11 @@ export async function shareInmateReport(studentId: string, kind: ReportKind, mad
 
   const { uri } = await Print.printToFileAsync({ html });
   const title = `${inmate.fullName} - ${master ? "master report" : "report"}`;
-  if (Platform.OS === "web") registerDownloadName(uri, `${title}.pdf`);
+  if (Platform.OS === "web") {
+    // Browser only: gives the download a readable file name.
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    require("@/web/shims/sharing").registerDownloadName(uri, `${title}.pdf`);
+  }
   if (!(await Sharing.isAvailableAsync())) throw new Error("This device cannot save or share files.");
   await Sharing.shareAsync(uri, { mimeType: "application/pdf", dialogTitle: title, UTI: "com.adobe.pdf" });
 }

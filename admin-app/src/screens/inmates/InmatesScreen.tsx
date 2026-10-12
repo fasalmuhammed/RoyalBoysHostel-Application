@@ -81,7 +81,15 @@ export default function InmatesScreen({ navigation, route }: Props) {
     (a) => !term || a.fullName.toLowerCase().includes(term) || a.phone.includes(term)
   );
 
-  const empty = emptyCopy(inmateFilter, debouncedSearch);
+  // "No inmates yet" is wrong once there is a register: they have simply all left.
+  const noneActive = inmateFilter === "active" && !debouncedSearch && (counts?.total ?? 0) > 0;
+  const empty = noneActive
+    ? {
+        icon: "people-outline" as const,
+        title: "No active inmates",
+        message: "Everyone on the register has left. They are under Left, with their fee history.",
+      }
+    : emptyCopy(inmateFilter, debouncedSearch);
   const resultCount = inmates?.length ?? 0;
 
   return (

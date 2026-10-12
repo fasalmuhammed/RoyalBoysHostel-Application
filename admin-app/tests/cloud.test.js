@@ -168,6 +168,15 @@ async function singleDevice() {
   bill = await fees.getFee(billId);
   check("reversing everything leaves an ordinary unpaid bill", bill.status === "unpaid" && bill.balance === 5000 && !bill.promisedDate);
 
+  await fees.recordPayment(billId, 1000, "cash", today, "", "", day(4));
+  await fees.recordPayment(billId, 500, "cash", today, "", "");
+  let [first, second] = await fees.listPayments(billId);
+  await fees.deletePayment(second.id);
+  check("reversing one of two part payments keeps the promise", (await fees.getFee(billId)).promisedDate === day(4));
+  await fees.deletePayment(first.id);
+  bill = await fees.getFee(billId);
+  check("reversing the only part payment drops its promise", !bill.promisedDate && bill.chaseDate === "2026-03-15" && bill.status === "unpaid");
+
   await inmates.createInmate(inmate("Stay guest", null, { admissionType: "stay", stayDays: 5 }));
   const gen = await fees.generateInvoices("2026-04");
   check("monthly bills raised for active monthly inmates only", gen.created === 2, JSON.stringify(gen));
