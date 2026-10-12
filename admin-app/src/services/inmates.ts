@@ -1,7 +1,7 @@
 import { Complaint, Inmate, InmateStatus, Room } from "@/types";
 import { newId } from "@/utils/id";
 import { toIsoDate } from "@/utils/format";
-import { entries, find, fresh, freshWhere, list, logActivity, patch, put, remove, withLock } from "@/store/cloud";
+import { entries, find, fresh, freshWhere, list, logActivity, patch, put, remove, withLock, limitedToBranch } from "@/store/cloud";
 import {
   FeeYearDoc,
   allInmates,
@@ -342,7 +342,13 @@ export async function moveToBranch(studentId: string, branchId: string): Promise
 }
 
 /** Permanently removes an inmate, their photos, and their fee history. */
+/** Thrown when a manager tries something only the admin may do. */
+export class AdminOnlyError extends Error {}
+
 export async function deleteInmate(studentId: string): Promise<void> {
+  // Deleting takes the inmate's bills and payments with it, so only the admin
+  // does it; a manager marks them as left. The server refuses a manager too.
+  if (limitedToBranch()) throw new AdminOnlyError("Only the admin can delete an inmate. Mark them as left instead.");
   const existing = inmateById(studentId);
 
   // Bills and payments go with the inmate, as the database cascade did. The

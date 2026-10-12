@@ -63,8 +63,15 @@ service cloud.firestore {
       // manager: moving an inmate between hostels is the admin's.
       allow update: if branchScoped()
         && inBranch(resource.data.branchId)
-        && inBranch(request.resource.data.branchId);
-      allow delete: if branchScoped() && inBranch(resource.data.branchId);
+        && inBranch(request.resource.data.branchId)
+        // Deleting a bill is the admin's alone. A manager's change to a year
+        // of bills must leave every month that was there still there.
+        && (collection != 'fees' || isAdmin()
+            || request.resource.data.get('bills', {}).keys().hasAll(resource.data.get('bills', {}).keys()));
+      // Deleting an inmate, or their bills, is the admin's alone. A manager
+      // marks an inmate as left instead, which keeps the record.
+      allow delete: if branchScoped() && inBranch(resource.data.branchId)
+        && (!(collection in ['inmates', 'fees']) || isAdmin());
     }
 
     // Notices: a branch's own, plus those posted to every branch (branchId

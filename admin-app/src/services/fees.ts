@@ -10,7 +10,7 @@ import {
   toIsoDate,
   toPeriod,
 } from "@/utils/format";
-import { fresh, logActivity, patch, put, remove, runThrottled, withLock } from "@/store/cloud";
+import { fresh, logActivity, patch, put, remove, runThrottled, withLock, limitedToBranch } from "@/store/cloud";
 import {
   BillDoc,
   BillEntry,
@@ -296,7 +296,13 @@ export async function updateFee(id: string, input: FeeInput): Promise<void> {
   });
 }
 
+/** Thrown when a manager tries something only the admin may do. */
+export class AdminOnlyError extends Error {}
+
 export async function deleteFee(id: string): Promise<void> {
+  // A deleted bill is money no longer asked for, so only the admin removes
+  // one. The server refuses a manager as well (see firestore.rules).
+  if (limitedToBranch()) throw new AdminOnlyError("Only the admin can delete a bill.");
   const current = billById(id);
   if (!current) return;
   await withLock("fees", current.docId, async () => {

@@ -414,13 +414,15 @@ export default function InmateDetailScreen({ navigation, route }: Props) {
             }}
           />
         )}
-        <Button
-          title="Delete permanently"
-          variant="danger"
-          icon="trash-outline"
-          onPress={onDelete}
-          style={{ marginTop: spacing.sm }}
-        />
+        {access.isOwner ? (
+          <Button
+            title="Delete permanently"
+            variant="danger"
+            icon="trash-outline"
+            onPress={onDelete}
+            style={{ marginTop: spacing.sm }}
+          />
+        ) : null}
       </ScrollView>
       <PhotoViewer photo={viewing} onClose={() => setViewing(null)} />
       <PopoverMenu

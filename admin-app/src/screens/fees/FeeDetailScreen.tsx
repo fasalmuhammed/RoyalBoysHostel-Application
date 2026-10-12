@@ -22,7 +22,7 @@ type Props = NativeStackScreenProps<RootStackParamList, "FeeDetail">;
 
 export default function FeeDetailScreen({ navigation, route }: Props) {
   const { feeId } = route.params;
-  const { settings, invalidate, activeBranch, allHostels } = useApp();
+  const { settings, invalidate, activeBranch, allHostels, access } = useApp();
   // Changing the day the balance is promised for.
   const [promiseOpen, setPromiseOpen] = useState(false);
   const [promiseDraft, setPromiseDraft] = useState("");
@@ -297,13 +297,15 @@ export default function FeeDetailScreen({ navigation, route }: Props) {
           onPress={() => navigation.navigate("FeeForm", { feeId })}
           style={{ marginTop: spacing.sm }}
         />
-        <Button
-          title="Delete bill"
-          variant="danger"
-          icon="trash-outline"
-          onPress={onDeleteBill}
-          style={{ marginTop: spacing.sm }}
-        />
+        {access.isOwner ? (
+          <Button
+            title="Delete bill"
+            variant="danger"
+            icon="trash-outline"
+            onPress={onDeleteBill}
+            style={{ marginTop: spacing.sm }}
+          />
+        ) : null}
       </ScrollView>
       <Modal visible={promiseOpen} transparent animationType="fade" onRequestClose={() => setPromiseOpen(false)} statusBarTranslucent>
         <View style={styles.sheetStage}>
