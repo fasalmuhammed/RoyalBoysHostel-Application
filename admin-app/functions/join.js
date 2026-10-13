@@ -51,6 +51,13 @@ function jpeg(value, label) {
   return bytes;
 }
 
+/** As in the app (src/store/views.ts): a building's name in front of a room number becomes its initials. */
+function shortBlock(block) {
+  const text = String(block ?? "").trim();
+  if (text.length <= 4) return text;
+  return text.split(/[^A-Za-z0-9]+/).filter(Boolean).map((word) => word[0].toUpperCase()).join("");
+}
+
 /** The hostel a form is for, with its rooms and how many beds each has free. */
 async function hostelInfo(branchId) {
   const db = getFirestore();
@@ -70,7 +77,7 @@ async function hostelInfo(branchId) {
   const list = rooms.docs
     .map((doc) => {
       const room = doc.data();
-      const label = [room.block, room.roomNumber].filter(Boolean).join("-");
+      const label = [shortBlock(room.block), room.roomNumber].filter(Boolean).join("-");
       return {
         id: doc.id,
         label,

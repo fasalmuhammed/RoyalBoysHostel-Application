@@ -42,6 +42,7 @@ import BranchChoice from "@/components/BranchChoice";
 import { successFeedback } from "@/utils/haptics";
 import { AdmissionType } from "@/types";
 import type { RootStackParamList } from "@/navigation/types";
+import { roomLabelOf } from "@/store/views";
 
 type Props = NativeStackScreenProps<RootStackParamList, "InmateForm">;
 
@@ -82,10 +83,6 @@ const BILLING_OPTIONS: { key: AdmissionType; label: string }[] = [
   { key: "monthly", label: "Monthly" },
   { key: "stay", label: "Fixed days" },
 ];
-
-function roomLabelOf(room: { block: string; roomNumber: string }): string {
-  return room.block ? `${room.block}-${room.roomNumber}` : room.roomNumber;
-}
 
 export default function InmateFormScreen({ navigation, route }: Props) {
   const studentId = route.params?.studentId;
@@ -590,7 +587,7 @@ export default function InmateFormScreen({ navigation, route }: Props) {
             icon="bed-outline"
             value={
               selectedRoom
-                ? `${selectedRoom.block ? `${selectedRoom.block}-` : ""}${selectedRoom.roomNumber}` +
+                ? `${roomLabelOf(selectedRoom) ?? ""}` +
                   ` · ${selectedRoom.vacant} free`
                 : null
             }
@@ -851,7 +848,7 @@ export default function InmateFormScreen({ navigation, route }: Props) {
           { key: "__none__", label: "No room", sublabel: "Leave unassigned for now" },
           ...branchRooms.map((room) => ({
             key: room.id,
-            label: `Room ${room.block ? `${room.block}-` : ""}${room.roomNumber}`,
+            label: `Room ${roomLabelOf(room) ?? ""}`,
             sublabel:
               room.vacant > 0
                 ? `${room.vacant} of ${room.capacity} beds free`

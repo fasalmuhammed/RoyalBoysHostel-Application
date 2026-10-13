@@ -105,7 +105,7 @@ async function assertRoomHasSpace(roomId: string, excludeInmateId: string | null
   ).length;
 
   if (occupied >= room.capacity) {
-    const label = room.block ? `${room.block}-${room.roomNumber}` : room.roomNumber;
+    const label = roomLabelOf(room) ?? room.roomNumber;
     throw new RoomFullError(
       `Room ${label} is full (${room.capacity} of ${room.capacity} beds taken). ` +
         "Free a bed or pick another room."

@@ -14,6 +14,7 @@ import { getRoom } from "@/services/rooms";
 import { assignRoom, listInmates, RoomFullError, setInmateRent } from "@/services/inmates";
 import { formatMoney } from "@/utils/format";
 import type { RootStackParamList } from "@/navigation/types";
+import { roomLabelOf } from "@/store/views";
 
 type Props = NativeStackScreenProps<RootStackParamList, "AssignInmates">;
 
@@ -40,7 +41,7 @@ export default function AssignInmatesScreen({ navigation, route }: Props) {
     return target ? everyone.filter((inmate) => inmate.branchId === target.branchId) : everyone;
   }, [debounced, roomId]);
 
-  const label = room ? `${room.block ? `${room.block}-` : ""}${room.roomNumber}` : "";
+  const label = roomLabelOf(room) ?? "";
 
   /**
    * Rent follows the inmate, not the bed, so a move never rewrites it

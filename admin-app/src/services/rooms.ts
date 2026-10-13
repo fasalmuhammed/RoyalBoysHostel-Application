@@ -94,7 +94,7 @@ export async function roomLabel(id: string | null): Promise<string | null> {
 }
 
 export function formatRoomLabel(room: Pick<Room, "block" | "roomNumber">): string {
-  return room.block ? `${room.block}-${room.roomNumber}` : room.roomNumber;
+  return roomLabelOf(room) ?? room.roomNumber;
 }
 
 export interface OccupancyTotals {

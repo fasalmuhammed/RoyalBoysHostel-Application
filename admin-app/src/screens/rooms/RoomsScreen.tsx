@@ -19,6 +19,7 @@ import { listRooms, occupancyTotals } from "@/services/rooms";
 import type { RoomWithOccupancy } from "@/types";
 import { formatMoney } from "@/utils/format";
 import type { MainTabParamList, RootStackParamList } from "@/navigation/types";
+import { roomLabelOf } from "@/store/views";
 
 type Props = CompositeScreenProps<
   BottomTabScreenProps<MainTabParamList, "Rooms">,
@@ -202,7 +203,7 @@ function RoomRow({
   onPress: () => void;
 }) {
   const full = room.vacant <= 0;
-  const label = `Room ${room.block ? `${room.block}-` : ""}${room.roomNumber}`;
+  const label = `Room ${roomLabelOf(room) ?? ""}`;
   const { allHostels, branches } = useApp();
   const hostel = allHostels ? branches.find((b) => b.id === room.branchId) : null;
 
@@ -219,6 +220,7 @@ function RoomRow({
           <Text style={styles.roomMeta} numberOfLines={1}>
             {[
               hostel ? hostel.shortName || hostel.name : null,
+              room.block.trim().length > 4 ? room.block : null,
               room.floor ? `Floor ${room.floor}` : null,
               room.rent > 0 ? `${formatMoney(room.rent, symbol)}/mo` : null,
             ]

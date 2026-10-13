@@ -145,15 +145,54 @@ const feeIndex = memo<FeeIndex>(() => {
   return { bills, byId, byStudent, byPayment };
 });
 
-export const allBills = (): BillEntry[] => feeIndex().bills;
+// --- one building of a hostel --------------------------------------------------
+//
+// When a single building is chosen at the top of the app, everything read
+// through the three lists below is narrowed to it, so every screen, total and
+// report follows without knowing about buildings at all. A room is in a
+// building by its block; an inmate by their room; a bill by its inmate. An
+// inmate with no room yet belongs to no building and shows only when the
+// whole hostel is selected.
+
+let activeHouse: string | null = null;
+
+/** Letters only, without vowels: "PUSHPAMANGLAM" and "Pushpamangalam" match. */
+const houseKey = (name: string | null | undefined): string =>
+  String(name ?? "").toLowerCase().replace(/[^a-z]/g, "").replace(/[aeiou]/g, "");
+
+/** Whether a room's block names the given building, forgiving spelling slips. */
+export function isHouse(block: string | null | undefined, house: string): boolean {
+  return houseKey(block) !== "" && houseKey(block) === houseKey(house);
+}
+
+export function setActiveHouse(house: string | null): void {
+  activeHouse = house;
+}
+
+export function getActiveHouse(): string | null {
+  return activeHouse;
+}
+
+const roomInHouse = (room: Room | null): boolean => !activeHouse || (room !== null && isHouse(room.block, activeHouse));
+const inmateInHouse = (inmate: Inmate | null): boolean =>
+  !activeHouse || (inmate !== null && roomInHouse(find<Room>("rooms", inmate.roomId)));
+
+/** Whether a room (by id) is in the building being looked at. */
+export function roomIdInActiveHouse(roomId: string | null | undefined): boolean {
+  return !activeHouse || roomInHouse(find<Room>("rooms", roomId));
+}
+
+export const allBills = (): BillEntry[] =>
+  activeHouse ? feeIndex().bills.filter((bill) => inmateInHouse(find<Inmate>("inmates", bill.studentId))) : feeIndex().bills;
 export const billById = (id: string): BillEntry | null => feeIndex().byId.get(id) ?? null;
 export const billsForStudent = (studentId: string): BillEntry[] => feeIndex().byStudent.get(studentId) ?? [];
 export const billForPayment = (paymentId: string): BillEntry | null => feeIndex().byPayment.get(paymentId) ?? null;
 
 // --- people and places --------------------------------------------------------
 
-export const allInmates = (): Inmate[] => list<Inmate>("inmates");
-export const allRooms = (): Room[] => list<Room>("rooms");
+export const allInmates = (): Inmate[] =>
+  activeHouse ? list<Inmate>("inmates").filter(inmateInHouse) : list<Inmate>("inmates");
+export const allRooms = (): Room[] => (activeHouse ? list<Room>("rooms").filter(roomInHouse) : list<Room>("rooms"));
 export const allBranches = (): Branch[] => list<Branch>("branches");
 export const inmateById = (id: string | null | undefined): Inmate | null => find<Inmate>("inmates", id);
 export const roomById = (id: string | null | undefined): Room | null => find<Room>("rooms", id);
@@ -162,7 +201,7 @@ export const branchById = (id: string | null | undefined): Branch | null => find
 /** Active inmates per room. Occupancy is always derived, never stored. */
 export const occupancyByRoom = memo<Map<string, number>>(() => {
   const counts = new Map<string, number>();
-  for (const inmate of allInmates()) {
+  for (const inmate of list<Inmate>("inmates")) {
     if (inmate.status === "active" && inmate.roomId) {
       counts.set(inmate.roomId, (counts.get(inmate.roomId) ?? 0) + 1);
     }
@@ -173,7 +212,7 @@ export const occupancyByRoom = memo<Map<string, number>>(() => {
 /** Unpaid balance per inmate across every bill raised for them. */
 export const outstandingByStudent = memo<Map<string, number>>(() => {
   const totals = new Map<string, number>();
-  for (const bill of allBills()) {
+  for (const bill of feeIndex().bills) {
     if (bill.amountPaid < bill.total - 0.01) {
       totals.set(bill.studentId, (totals.get(bill.studentId) ?? 0) + (bill.total - bill.amountPaid));
     }
@@ -184,9 +223,21 @@ export const outstandingByStudent = memo<Map<string, number>>(() => {
 // --- shared formatting and ordering ------------------------------------------
 
 /** `A-101`, or the bare number when the room has no block. */
+/** A block as written in front of a room number: "A" stays "A"; a building's name becomes its initials. */
+export function shortBlock(block: string | null | undefined): string {
+  const text = String(block ?? "").trim();
+  if (text.length <= 4) return text;
+  return text
+    .split(/[^A-Za-z0-9]+/)
+    .filter(Boolean)
+    .map((word) => word[0].toUpperCase())
+    .join("");
+}
+
 export function roomLabelOf(room: Pick<Room, "block" | "roomNumber"> | null | undefined): string | null {
   if (!room) return null;
-  return room.block === "" ? room.roomNumber : `${room.block}-${room.roomNumber}`;
+  const block = shortBlock(room.block);
+  return block === "" ? room.roomNumber : `${block}-${room.roomNumber}`;
 }
 
 /** SQLite's `COLLATE NOCASE`: case-insensitive for ASCII letters. */

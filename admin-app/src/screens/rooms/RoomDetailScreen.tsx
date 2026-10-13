@@ -14,6 +14,7 @@ import { deleteRoom, getRoom } from "@/services/rooms";
 import { assignRoom, listInmatesInRoom } from "@/services/inmates";
 import { formatMoney } from "@/utils/format";
 import type { RootStackParamList } from "@/navigation/types";
+import { roomLabelOf } from "@/store/views";
 
 type Props = NativeStackScreenProps<RootStackParamList, "RoomDetail">;
 
@@ -54,7 +55,7 @@ export default function RoomDetailScreen({ navigation, route }: Props) {
       Alert.alert("Could not place the call");
     });
   };
-  const label = `${room.block ? `${room.block}-` : ""}${room.roomNumber}`;
+  const label = roomLabelOf(room) ?? "";
 
   const onVacate = (studentId: string, name: string) => {
     Alert.alert("Move out", `Free up ${name}'s bed in room ${label}?`, [

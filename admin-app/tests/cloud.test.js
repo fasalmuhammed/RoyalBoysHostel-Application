@@ -116,6 +116,42 @@ async function singleDevice() {
   const tNotices = (await notices.listNotices()).map((n) => n.id);
   check("shared notices show on both boards", tNotices.includes(shared) && tNotices.length === 1);
 
+  // One building of a hostel. Thammanam is Pushpamangalam and Royal House;
+  // a room is in a building by its block, an inmate by their room.
+  {
+    const { views } = app;
+    const before = { rooms: (await rooms.listRooms()).length, inmates: (await inmates.listInmates("", "all")).length };
+    const pRoom = await rooms.createRoom({ ...room("101", 2), block: "PUSHPAMANGLAM" });
+    const rRoom = await rooms.createRoom({ ...room("101", 3), block: "Royal House" });
+    const pInmate = await inmates.createInmate(inmate("In Pushpa", pRoom));
+    const rInmate = await inmates.createInmate(inmate("In Royal", rRoom));
+    const names = async () => (await inmates.listInmates("", "all")).map((i) => i.fullName);
+
+    check("a building's name matches despite a spelling slip", views.isHouse("PUSHPAMANGLAM", "Pushpamangalam") && !views.isHouse("A", "Pushpamangalam") && !views.isHouse("", "Royal House"));
+    check("a long building name is shortened in room labels", (await rooms.getRoom(pRoom)) && views.roomLabelOf({ block: "PUSHPAMANGLAM", roomNumber: "101" }) === "P-101" && views.roomLabelOf({ block: "Royal House", roomNumber: "101" }) === "RH-101");
+    check("a short block is left as it is", views.roomLabelOf({ block: "A", roomNumber: "7" }) === "A-7" && views.roomLabelOf({ block: "", roomNumber: "7" }) === "7");
+
+    views.setActiveHouse("Royal House");
+    const royalRooms = await rooms.listRooms();
+    check("one building: only its rooms", royalRooms.length === 1 && royalRooms[0].id === rRoom);
+    check("one building: only its inmates", JSON.stringify(await names()) === JSON.stringify(["In Royal"]));
+    check("one building: occupancy counts only its beds", (await rooms.occupancyTotals()).beds === 3 && (await rooms.occupancyTotals()).occupied === 1);
+    check("one building: only its bills", (await fees.listFees("all", null)).every((fee) => fee.studentId === rInmate) && (await fees.listFees("all", null)).length === 1);
+
+    views.setActiveHouse("Pushpamangalam");
+    check("the other building shows the other inmate", JSON.stringify(await names()) === JSON.stringify(["In Pushpa"]));
+    check("a record opens by its id whichever building is showing", (await inmates.getInmate(rInmate)) !== null && (await rooms.getRoom(rRoom)).occupied === 1);
+
+    views.setActiveHouse(null);
+    check("the whole hostel shows both buildings and everyone else", (await rooms.listRooms()).length === before.rooms + 2 && (await inmates.listInmates("", "all")).length === before.inmates + 2);
+
+    // Left as found, so the checks below count what they always counted.
+    await inmates.deleteInmate(pInmate);
+    await inmates.deleteInmate(rInmate);
+    await rooms.deleteRoom(pRoom);
+    await rooms.deleteRoom(rRoom);
+  }
+
   // Fees
   const billId = await fees.createFee({ studentId: b, period: "2026-03", rent: 5000, electricity: 200, water: 0, other: 0, discount: 200, dueDate: "2026-03-15", note: "" });
   check("bill total is rent + charges - discount", (await fees.getFee(billId)).total === 5000);

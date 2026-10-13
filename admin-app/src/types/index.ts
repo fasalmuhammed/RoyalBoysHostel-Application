@@ -19,6 +19,12 @@ export interface Branch {
   /** Single letter prefixed to inmate ids, e.g. "T" -> T-14. */
   code: string;
   sortOrder: number;
+  /**
+   * The separate buildings that make up this hostel, when it has more than
+   * one (Thammanam is "Pushpamangalam" and "Royal House"). A room belongs to
+   * a building through its `block`; an inmate, through their room.
+   */
+  houses?: string[];
   createdAt: number;
   updatedAt: number;
 }
