@@ -535,7 +535,7 @@ export default function InmateFormScreen({ navigation, route }: Props) {
               }
               options={[
                 { key: "college", label: "College student" },
-                { key: "company", label: "Working at a company" },
+                { key: "company", label: "Working" },
               ]}
             />
           </View>

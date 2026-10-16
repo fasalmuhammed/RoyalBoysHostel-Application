@@ -19,7 +19,10 @@ const SEP = "::";
 export default function HostelSwitch({
   variant = "light",
   style,
+  compact = false,
 }: {
+  /** Leaves out the round icon, for a crowded row. */
+  compact?: boolean;
   /** "dark" for the navy header, "light" for a normal page. */
   variant?: "light" | "dark";
   style?: ViewStyle;
@@ -69,10 +72,11 @@ export default function HostelSwitch({
       <Pressable
         ref={menu.anchorRef}
         onPress={menu.open}
-        style={({ pressed }) => [styles.pill, dark ? styles.pillDark : styles.pillLight, pressed && { opacity: 0.8 }, style]}
+        style={({ pressed }) => [styles.pill, compact && styles.pillCompact, dark ? styles.pillDark : styles.pillLight, pressed && { opacity: 0.8 }, style]}
         accessibilityRole="button"
         accessibilityLabel={`Hostel: ${label}. Change`}
       >
+        {compact ? null : (
         <View style={[styles.icon, dark ? styles.iconDark : styles.iconLight]}>
           <Ionicons
             name={allHostels ? "layers" : activeHouse ? "home" : "business"}
@@ -80,6 +84,7 @@ export default function HostelSwitch({
             color={dark ? colors.goldLight : colors.primary}
           />
         </View>
+        )}
         <Text style={[styles.label, { color: tint }]} numberOfLines={1}>
           {label}
         </Text>
@@ -92,6 +97,7 @@ export default function HostelSwitch({
 }
 
 const styles = StyleSheet.create({
+  pillCompact: { paddingLeft: spacing.sm + 4 },
   pill: {
     flexDirection: "row",
     alignItems: "center",

@@ -687,7 +687,8 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   quickTileCountText: { ...type.caption, fontSize: 10, lineHeight: 13, color: colors.primaryOn },
-  quickTileLabel: { ...type.caption, color: colors.text, textAlign: "center" },
+  // On a narrow phone a quarter of the row is ~80px: small enough type that "Applications" never breaks mid-word.
+  quickTileLabel: { ...type.caption, color: colors.text, textAlign: "center", fontSize: 10.5, letterSpacing: -0.2 },
 
   dueCard: { flexDirection: "row", alignItems: "center", gap: spacing.sm + 4 },
   dueBody: { flex: 1, gap: 2 },

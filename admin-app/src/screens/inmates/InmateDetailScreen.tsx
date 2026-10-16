@@ -216,7 +216,7 @@ export default function InmateDetailScreen({ navigation, route }: Props) {
                 {outstanding > 0.01 ? formatMoney(outstanding, symbol) : "All settled"}
               </Text>
               {oldestDue ? (
-                <Text style={styles.balanceNote} numberOfLines={1}>
+                <Text style={styles.balanceNote} numberOfLines={2}>
                   {oldestDue.promisedDate ? "Balance" : "Oldest bill"} {dueLabel(oldestDue)}
                 </Text>
               ) : null}

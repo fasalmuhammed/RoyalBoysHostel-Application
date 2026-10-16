@@ -67,14 +67,13 @@ export default function FeesScreen({ navigation, route }: Props) {
           accessibilityRole="button"
           accessibilityLabel="Change month"
         >
-          <Ionicons name="calendar-outline" size={15} color={colors.primary} />
           {/* Short month ("Oct 2026"), so the hostel name beside it is never cut off on a phone. */}
           <Text style={styles.periodText}>{period ? formatPeriod(period).replace(/^([A-Za-z]{3})[A-Za-z]*/, "$1") : "All months"}</Text>
           <Ionicons name="chevron-down" size={14} color={colors.primary} />
         </PressableScale>
         {/* Month on the left; hostel and the dues shortcut together on the right. */}
         <View style={{ flexShrink: 1, marginLeft: "auto" }}>
-          <HostelSwitch />
+          <HostelSwitch compact />
         </View>
         <PressableScale
           onPress={() => navigation.navigate("Dues")}

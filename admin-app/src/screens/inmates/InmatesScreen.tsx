@@ -98,7 +98,7 @@ export default function InmatesScreen({ navigation, route }: Props) {
         <View style={{ flex: 1 }}>
           <Text style={styles.title}>Inmates</Text>
           <Text style={styles.subtitle}>
-            {counts ? `${counts.active} active · ${counts.total} on the register` : " "}
+            {counts ? `${counts.active} active · ${counts.total} in all` : " "}
           </Text>
         </View>
         <HostelSwitch />
