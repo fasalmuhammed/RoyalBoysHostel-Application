@@ -7,7 +7,7 @@
  * photo's own private link. Safe to run twice.
  *
  *   set GOOGLE_APPLICATION_CREDENTIALS=keys\<key file>.json
- *   node scripts/allow-photo-downloads.mjs royal-hostel-staging.firebasestorage.app
+ *   node scripts/allow-photo-downloads.mjs royal-hostel-staging.firebasestorage.app [extra https://address ...]
  */
 import { applicationDefault, initializeApp } from "firebase-admin/app";
 import { getStorage } from "firebase-admin/storage";
@@ -19,7 +19,11 @@ if (!bucketName) {
 }
 initializeApp({ credential: applicationDefault(), storageBucket: bucketName });
 const bucket = getStorage().bucket();
-await bucket.setCorsConfiguration([{ origin: ["*"], method: ["GET", "HEAD"], responseHeader: ["Content-Type"], maxAgeSeconds: 3600 }]);
+// The app's own addresses (Hosting gives each project two), plus the local
+// development server. Anything else is refused by the browser.
+const project = bucketName.replace(/\.(firebasestorage\.app|appspot\.com)$/, "");
+const origins = [`https://${project}.web.app`, `https://${project}.firebaseapp.com`, "http://localhost:8081", ...process.argv.slice(3)];
+await bucket.setCorsConfiguration([{ origin: origins, method: ["GET", "HEAD"], responseHeader: ["Content-Type"], maxAgeSeconds: 3600 }]);
 const [metadata] = await bucket.getMetadata();
 console.log(`Browser downloads allowed on ${bucketName}:`, JSON.stringify(metadata.cors));
 process.exit(0);

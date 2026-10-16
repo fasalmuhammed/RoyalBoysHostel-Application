@@ -90,6 +90,18 @@ async function hostelInfo(branchId) {
   return { branch: { id: branch.id, name: branch.data().name }, rooms: list };
 }
 
+/**
+ * The visitor's own address. Requests arrive through Firebase Hosting, so the
+ * connection itself comes from Google's front end; Hosting passes the
+ * visitor's address along in a header. A forged header only changes which
+ * bucket a sender counts against -- the per-hostel cap on waiting forms still
+ * bounds any flood.
+ */
+function clientAddress(req) {
+  const fromHosting = req.get("fastly-client-ip") || String(req.get("x-forwarded-for") || "").split(",")[0].trim();
+  return fromHosting || req.ip || "unknown";
+}
+
 /** Refuses a flood from one place without keeping the address itself. */
 async function throttle(ip) {
   const key = crypto.createHash("sha256").update(String(ip)).digest("hex").slice(0, 32);
@@ -199,7 +211,7 @@ exports.join = onRequest({ memory: "512MiB", timeoutSeconds: 60 }, async (req, r
     const body = req.body && typeof req.body === "object" ? req.body : {};
     // A field people never see; only a script fills it in.
     if (body.website) return res.json({ ok: true });
-    await throttle(req.ip);
+    await throttle(clientAddress(req));
     const id = await saveApplication(body);
     return res.json({ ok: true, id });
   } catch (error) {
