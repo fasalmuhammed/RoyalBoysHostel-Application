@@ -1,17 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
-import {
-  ActivityIndicator,
-  Alert,
-  Image,
-  KeyboardAvoidingView,
-  Platform,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Switch,
-  Text,
-  View,
-} from "react-native";
+import { ActivityIndicator, Image, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Switch, Text, View } from "react-native";
+import { Alert } from "@/web/dialog";
 import { SafeAreaView } from "react-native-safe-area-context";
 import * as ImagePicker from "expo-image-picker";
 import { Ionicons } from "@expo/vector-icons";
@@ -255,9 +244,10 @@ export default function InmateFormScreen({ navigation, route }: Props) {
 
       const options: ImagePicker.ImagePickerOptions = {
         mediaTypes: ["images"],
-        allowsEditing: true,
-        // The profile photo is a square headshot; ID cards are landscape.
-        aspect: kind === "photo" ? [1, 1] : [1.6, 1],
+        // The profile photo is cropped to a square headshot. Aadhaar sides are
+        // kept exactly as taken, so no part of the card is ever cut off.
+        allowsEditing: kind === "photo",
+        aspect: [1, 1],
         quality: 1,
       };
 

@@ -357,7 +357,7 @@ export async function generateInvoices(period: string): Promise<GenerateResult> 
       other: 0,
       discount: 0,
       total: rent,
-      dueDate: dueDateFor(period, anchorDayFor(inmate.joinedOn)),
+      dueDate: dueDateFor(period, billingDayOf(inmate)),
       note: "",
       createdAt: now,
       updatedAt: now,
@@ -407,7 +407,7 @@ function monthlyBill(inmate: Inmate, period: string): BillDoc {
     other: 0,
     discount: 0,
     total: rent,
-    dueDate: dueDateFor(period, anchorDayFor(inmate.joinedOn)),
+    dueDate: dueDateFor(period, billingDayOf(inmate)),
     note: "",
     createdAt: now,
     updatedAt: now,
@@ -433,6 +433,102 @@ export async function raiseBillFor(inmate: Inmate, period = currentPeriod()): Pr
     if (error instanceof DuplicateInvoiceError) return false;
     throw error;
   }
+}
+
+function paidSoFar(bill: BillEntry): number {
+  return bill.payments.reduce((sum, payment) => sum + (Number(payment.amount) || 0), 0);
+}
+
+export interface RentChange {
+  rent: number;
+  /** "this": this month's bill is re-priced too. "next": only bills from next month on. */
+  from: "this" | "next";
+  /** A new day of the month for bills to fall due (e.g. today's), or null to keep it. */
+  billingDay: number | null;
+}
+
+/**
+ * Changes an inmate's rent -- typically when they move into a room priced
+ * differently, or were admitted before a rent was agreed (₹0).
+ *
+ * Changing only the inmate's rent would leave this month's bill at the old
+ * amount: a ₹0 bill reads as paid, so no due would ever appear. With
+ * `from: "this"` this month's bill is re-priced (or raised, if there is none
+ * yet), keeping its electricity, water, extras and discount, and any payment
+ * already taken stays against it -- so the difference shows as due.
+ */
+export async function changeRent(studentId: string, change: RentChange): Promise<void> {
+  const inmate = inmateById(studentId) ?? (await fresh<Inmate>("inmates", studentId));
+  if (!inmate) throw new OverpaymentError("That inmate no longer exists.");
+  const rent = Math.max(Math.round(change.rent * 100) / 100, 0);
+  const billingDay = change.billingDay && change.billingDay >= 1 && change.billingDay <= 31 ? change.billingDay : null;
+  const period = currentPeriod();
+  const existing = billsForStudent(studentId).find((bill) => bill.period === period);
+
+  // Checked before anything is saved, so a refusal leaves everything as it was.
+  if (change.from === "this" && existing) {
+    const paid = paidSoFar(existing);
+    const total = sumTotal({ ...existing, rent });
+    if (total < paid - 0.01) {
+      throw new OverpaymentError(
+        `${formatMoney(paid, (await loadSettings()).currencySymbol)} is already paid this month, more than the new bill. ` +
+          "Choose \"From next month\" instead."
+      );
+    }
+  }
+
+  await patch("inmates", studentId, {
+    monthlyRent: rent,
+    ...(billingDay ? { billingDay } : {}),
+    updatedAt: Date.now(),
+  });
+  const updated: Inmate = { ...inmate, monthlyRent: rent, ...(billingDay ? { billingDay } : {}) };
+
+  if (change.from === "this") {
+    if (existing) {
+      await withLock("fees", existing.docId, async () => {
+        const doc = await readYear(existing.docId);
+        const bill = findBill(doc, existing.id);
+        if (!bill) return;
+        if (sumTotal({ ...bill, rent }) < sumPayments(bill.payments) - 0.01) {
+          throw new OverpaymentError("A payment was taken meanwhile. Please try again.");
+        }
+        await patch("fees", existing.docId, {
+          ...ownerOf(existing.docId),
+          bills: {
+            [period]: {
+              rent,
+              total: sumTotal({ ...bill, rent }),
+              ...(billingDay ? { dueDate: dueDateFor(period, billingDay) } : {}),
+              updatedAt: Date.now(),
+            },
+          },
+        });
+      });
+    } else {
+      await raiseBillFor(updated, period);
+    }
+  } else if (billingDay && existing && existing.total - paidSoFar(existing) > 0.01) {
+    // New rent waits for next month, but an unpaid bill this month still
+    // moves to the new due day, so the inmate has one date to remember.
+    await withLock("fees", existing.docId, () =>
+      patch("fees", existing.docId, {
+        ...ownerOf(existing.docId),
+        bills: { [period]: { dueDate: dueDateFor(period, billingDay), updatedAt: Date.now() } },
+      })
+    );
+  }
+
+  logActivity({
+    action: "updated",
+    entity: "inmate",
+    entityId: studentId,
+    label:
+      `${inmate.fullName}: rent ${formatMoney(rent, (await loadSettings()).currencySymbol)} ` +
+      `from ${change.from === "this" ? formatPeriod(period) : "next month"}` +
+      (billingDay ? `, due on day ${billingDay} each month` : ""),
+    branchId: inmate.branchId ?? null,
+  });
 }
 
 /**
@@ -731,6 +827,12 @@ export const DEFAULT_CYCLE_DAYS = 30;
 export function anchorDayFor(joinedOn: string): number {
   const day = Number(joinedOn.slice(8, 10));
   return Number.isFinite(day) && day > 0 ? day : 1;
+}
+
+/** The day-of-month an inmate's bills fall due: a moved billing day, else their joining day. */
+export function billingDayOf(inmate: Pick<Inmate, "joinedOn" | "billingDay">): number {
+  const moved = Number(inmate.billingDay);
+  return Number.isFinite(moved) && moved >= 1 && moved <= 31 ? Math.round(moved) : anchorDayFor(inmate.joinedOn ?? "");
 }
 
 /**

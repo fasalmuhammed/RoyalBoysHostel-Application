@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
-import { Alert, ScrollView, StyleSheet, Text, View } from "react-native";
+import { ScrollView, StyleSheet, Text, View } from "react-native";
+import { Alert } from "@/web/dialog";
 import { SafeAreaView } from "react-native-safe-area-context";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 
@@ -11,7 +12,7 @@ import { colors, spacing, type } from "@/constants/theme";
 import { useApp } from "@/context/AppContext";
 import { useAsyncData } from "@/utils/hooks";
 import {
-  anchorDayFor,
+  billingDayOf,
   createFee,
   currentPeriod,
   DuplicateInvoiceError,
@@ -81,7 +82,7 @@ export default function FeeFormScreen({ navigation, route }: Props) {
       if (!inmate) return;
       setInmateName(inmate.fullName);
       setRent(String(inmate.monthlyRent > 0 ? inmate.monthlyRent : (inmate.roomRent ?? 0)));
-      const anchor = anchorDayFor(inmate.joinedOn);
+      const anchor = billingDayOf(inmate);
       setAnchorDay(anchor);
       setDueDate(dueDateFor(period, anchor));
     })();

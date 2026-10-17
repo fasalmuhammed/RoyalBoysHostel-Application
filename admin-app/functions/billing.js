@@ -28,10 +28,14 @@ function indiaDate(now = new Date()) {
   return `${india.getUTCFullYear()}-${two(india.getUTCMonth() + 1)}-${two(india.getUTCDate())}`;
 }
 
-/** The due date in a month for someone who joined on a given day of the month. */
+/**
+ * The due date in a month for someone billed on a given day of the month:
+ * the day they joined (a yyyy-mm-dd date), or a day number when the admin
+ * moved their billing day (an inmate's `billingDay`).
+ */
 function dueDateFor(period, joinedOn) {
   const [year, month] = period.split("-").map(Number);
-  const joinedDay = Number(String(joinedOn ?? "").slice(8, 10));
+  const joinedDay = typeof joinedOn === "number" ? joinedOn : Number(String(joinedOn ?? "").slice(8, 10));
   const anchor = Number.isFinite(joinedDay) && joinedDay > 0 ? joinedDay : 1;
   const daysInMonth = new Date(Date.UTC(year, month, 0)).getUTCDate();
   return `${period}-${two(Math.min(anchor, daysInMonth))}`;
@@ -76,7 +80,7 @@ async function raiseMonthlyBills(db, period) {
         other: 0,
         discount: 0,
         total: rent,
-        dueDate: dueDateFor(period, inmate.joinedOn),
+        dueDate: dueDateFor(period, Number(inmate.billingDay) > 0 ? Number(inmate.billingDay) : inmate.joinedOn),
         note: "",
         createdAt: now,
         updatedAt: now,

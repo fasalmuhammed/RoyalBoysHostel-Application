@@ -94,6 +94,11 @@ export interface Inmate {
   billingCycleDays: number;
   /** ISO yyyy-mm-dd. */
   joinedOn: string;
+  /**
+   * Day of the month this inmate's bills fall due, when the admin moved it
+   * away from their joining day (e.g. on a rent change). Absent: the joining day.
+   */
+  billingDay?: number | null;
   leftOn: string | null;
   notes: string;
   createdAt: number;

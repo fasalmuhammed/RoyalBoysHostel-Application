@@ -32,6 +32,8 @@ const billsOf = async (id, year = "2026") => (await db.collection("fees").doc(`$
   check("a leap February has 29 days", dueDateFor("2028-02", "2026-01-31") === "2028-02-29");
   check("a 30-day month uses the 30th", dueDateFor("2026-04", "2026-01-31") === "2026-04-30");
   check("no join date falls back to the 1st", dueDateFor("2026-02", "") === "2026-02-01");
+  check("a moved billing day is used as given", dueDateFor("2026-02", 17) === "2026-02-17");
+  check("a moved billing day still fits a short month", dueDateFor("2026-02", 30) === "2026-02-28");
   check("the day rolls over at midnight in India, not in London", indiaDate(new Date("2026-01-31T18:45:00Z")) === "2026-02-01");
   check("and has not rolled over just before", indiaDate(new Date("2026-01-31T18:15:00Z")) === "2026-01-31");
 
@@ -41,9 +43,11 @@ const billsOf = async (id, year = "2026") => (await db.collection("fees").doc(`$
   await inmate("short-stay", { admissionType: "stay", stayDays: 5 });
   await inmate("has-left", { status: "left" });
   await inmate("joins-march", { joinedOn: "2026-03-05" });
+  await inmate("moved-day", { joinedOn: "2026-01-14", billingDay: 20 });
   await inmate("kala", { branchId: "branch-Kalamassery", joinedOn: "2025-12-31" });
 
-  check("first run bills the three who are due", (await raiseMonthlyBills(db, "2026-02")) === 3);
+  check("first run bills the four who are due", (await raiseMonthlyBills(db, "2026-02")) === 4);
+  check("a moved billing day sets the due date", (await billsOf("moved-day"))["2026-02"]?.dueDate === "2026-02-20");
   const arun = (await billsOf("arun"))["2026-02"];
   check("billed the inmate's own rent", arun && arun.total === 6000 && arun.rent === 6000);
   check("due on the 14th", arun && arun.dueDate === "2026-02-14");
@@ -64,13 +68,13 @@ const billsOf = async (id, year = "2026") => (await db.collection("fees").doc(`$
     { bills: { "2026-02": { payments: { p1: { id: "p1", amount: 2000, method: "cash", paidOn: "2026-02-10", reference: "", note: "", createdAt: 1 } } } } },
     { merge: true }
   );
-  check("next month bills the newcomer too", (await raiseMonthlyBills(db, "2026-03")) === 4);
+  check("next month bills the newcomer too", (await raiseMonthlyBills(db, "2026-03")) === 5);
   const after = await billsOf("arun");
   check("earlier months and their payments are untouched", after["2026-02"].payments.p1.amount === 2000 && Boolean(after["2026-03"]));
   check("the newcomer is due on the day they joined", (await billsOf("joins-march"))["2026-03"]?.dueDate === "2026-03-05");
 
-  check("two runs at the same moment do not bill twice", (await Promise.all([raiseMonthlyBills(db, "2026-04"), raiseMonthlyBills(db, "2026-04")])).reduce((a, b) => a + b, 0) === 4);
-  check("a new year starts a new record", (await raiseMonthlyBills(db, "2027-01")) === 4 && Boolean((await billsOf("arun", "2027"))["2027-01"]));
+  check("two runs at the same moment do not bill twice", (await Promise.all([raiseMonthlyBills(db, "2026-04"), raiseMonthlyBills(db, "2026-04")])).reduce((a, b) => a + b, 0) === 5);
+  check("a new year starts a new record", (await raiseMonthlyBills(db, "2027-01")) === 5 && Boolean((await billsOf("arun", "2027"))["2027-01"]));
 
   console.log(`\n${passed} passed, ${failed} failed`);
   process.exit(failed ? 1 : 0);

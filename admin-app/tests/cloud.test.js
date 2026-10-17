@@ -302,6 +302,26 @@ async function automaticBilling() {
   check("an inmate who has left is not billed", (await fees.raiseDueBills()) === 0);
   await inmates.reinstate(roomPriced);
   check("reinstating an inmate bills them for this month", billsOf(roomPriced).length === 1);
+
+  // Admitted before a rent was agreed: a ₹0 bill, which reads as paid.
+  const noRent = await inmates.createInmate(inmate("No rent yet", null, { joinedOn: `${now}-01`, monthlyRent: 0 }));
+  check("admitted with no rent and no room: a ₹0 bill", billsOf(noRent)[0]?.total === 0);
+  await fees.changeRent(noRent, { rent: 6000, from: "this", billingDay: null });
+  let bill = await fees.getFee(billsOf(noRent)[0].id);
+  check("changing rent from this month re-prices this month's bill", bill.total === 6000 && bill.rent === 6000);
+  check("so the new rent shows as due", bill.status === "unpaid" && bill.balance === 6000);
+  check("and the inmate's rent is saved", views.inmateById(noRent).monthlyRent === 6000);
+  check("keeping the due day leaves the joining day", bill.dueDate === `${now}-01`);
+
+  await fees.recordPayment(bill.id, 4000, "cash", today, "", "");
+  check("cutting the rent below what is already paid is refused", await rejects(fees.changeRent(noRent, { rent: 3000, from: "this", billingDay: null }), fees.OverpaymentError));
+  check("and nothing was changed", views.inmateById(noRent).monthlyRent === 6000);
+
+  await fees.changeRent(noRent, { rent: 7000, from: "next", billingDay: 20 });
+  bill = await fees.getFee(bill.id);
+  check("from next month: this month's bill keeps its amount", bill.total === 6000);
+  check("an unpaid bill moves to the new due day", bill.dueDate === fees.dueDateFor(now, 20));
+  check("the new billing day is remembered for later bills", fees.billingDayOf(views.inmateById(noRent)) === 20);
 }
 
 async function backups() {

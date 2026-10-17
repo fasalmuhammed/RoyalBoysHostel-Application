@@ -111,7 +111,7 @@ function MainStack() {
       <Stack.Screen
         name="AssignInmates"
         component={AssignInmatesScreen}
-        options={{ ...detailOptions, title: "Add existing student" }}
+        options={{ ...detailOptions, title: "Add existing inmate" }}
       />
 
       <Stack.Screen

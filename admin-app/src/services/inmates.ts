@@ -283,17 +283,6 @@ export async function assignRoom(studentId: string, roomId: string | null): Prom
 }
 
 /**
- * Updates only the agreed rent.
- *
- * Moving an inmate between rooms deliberately does not change their rent, so
- * this exists for the caller to apply the new room's rate when the admin
- * explicitly asks for it.
- */
-export async function setInmateRent(studentId: string, monthlyRent: number): Promise<void> {
-  await patch("inmates", studentId, { monthlyRent, updatedAt: Date.now() });
-}
-
-/**
  * Marks an inmate as having vacated. Their bed is freed but the record -- and
  * every bill attached to it -- is kept, because past dues stay collectable.
  */
