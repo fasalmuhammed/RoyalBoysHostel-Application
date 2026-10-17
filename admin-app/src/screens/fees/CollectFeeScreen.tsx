@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -52,10 +52,15 @@ export default function CollectFeeScreen({ navigation, route }: Props) {
     if (fee?.promisedDate && !promiseDateProblem(fee.promisedDate)) setPromisedDate((now) => now || (fee.promisedDate ?? ""));
   }, [fee]);
 
-  // Default to settling the bill outright, which is the usual case.
+  // Starts at the full balance, the usual case -- once only, so clearing the
+  // box to type a different amount leaves it empty.
+  const prefilled = useRef(false);
   useEffect(() => {
-    if (fee && amount === "") setAmount(String(Math.max(fee.balance, 0)));
-  }, [fee, amount]);
+    if (fee && !prefilled.current) {
+      prefilled.current = true;
+      setAmount(String(Math.max(fee.balance, 0)));
+    }
+  }, [fee]);
 
   if (loading && !fee) return <Loading />;
   if (!fee) return null;
@@ -119,6 +124,7 @@ export default function CollectFeeScreen({ navigation, route }: Props) {
         <Input
           label={`Amount being paid (${symbol})`}
           required
+          placeholder="Type the amount being paid"
           value={amount}
           onChangeText={(text) => {
             setAmount(text);
@@ -131,7 +137,8 @@ export default function CollectFeeScreen({ navigation, route }: Props) {
 
         <View style={styles.quickAmounts}>
           <QuickAmount label="Full balance" onPress={() => setAmount(String(fee.balance))} />
-          <QuickAmount label="Half" onPress={() => setAmount(String(Math.round(fee.balance / 2)))} />
+          {/* Any smaller amount: empties the box to type what they are paying. */}
+          <QuickAmount label="Part payment" onPress={() => setAmount("")} />
         </View>
 
         {partial ? (
