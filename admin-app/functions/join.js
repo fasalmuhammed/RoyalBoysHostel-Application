@@ -21,7 +21,8 @@ const MAX_PHOTO_BYTES = 1200 * 1024;
 const MAX_PER_HOUR = 80;
 /** A hostel never has this many forms waiting; beyond it, something is wrong. */
 const MAX_PENDING = 300;
-const BLOOD_GROUPS = ["", "A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"];
+// Kept in step with src/constants/bloodGroups.ts and the drop-down in hosting/join.html.
+const BLOOD_GROUPS = ["", "A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-", "A1+", "A1-", "A2+", "A2-", "A1B+", "A1B-", "A2B+", "A2B-", "Bombay (Oh)"];
 
 class FormError extends Error {}
 
@@ -122,8 +123,9 @@ async function saveApplication(body) {
 
   const roomId = String(body.roomId ?? "");
   if (roomId && !info.rooms.some((room) => room.id === roomId)) throw new FormError("Choose your room again.");
-  const bloodGroup = String(body.bloodGroup ?? "").toUpperCase().trim();
-  if (!BLOOD_GROUPS.includes(bloodGroup)) throw new FormError("Choose a blood group from the list.");
+  const typed = String(body.bloodGroup ?? "").trim().toUpperCase();
+  const bloodGroup = BLOOD_GROUPS.find((group) => group.toUpperCase() === typed);
+  if (bloodGroup === undefined) throw new FormError("Choose a blood group from the list.");
   const email = text(body.email, "Email", { max: 120 });
   if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new FormError("That email address looks wrong.");
 

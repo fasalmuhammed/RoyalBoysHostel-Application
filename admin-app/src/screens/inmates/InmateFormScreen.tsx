@@ -32,6 +32,7 @@ import { successFeedback } from "@/utils/haptics";
 import { AdmissionType } from "@/types";
 import type { RootStackParamList } from "@/navigation/types";
 import { roomLabelOf } from "@/store/views";
+import { BLOOD_GROUPS } from "@/constants/bloodGroups";
 
 type Props = NativeStackScreenProps<RootStackParamList, "InmateForm">;
 
@@ -92,6 +93,7 @@ export default function InmateFormScreen({ navigation, route }: Props) {
   const [capturingIdProof, setCapturingIdProof] = useState(false);
   const [capturingIdProofBack, setCapturingIdProofBack] = useState(false);
   const [roomPickerOpen, setRoomPickerOpen] = useState(false);
+  const [bloodPickerOpen, setBloodPickerOpen] = useState(false);
   const [loaded, setLoaded] = useState(!isEditing);
 
   /**
@@ -564,13 +566,12 @@ export default function InmateFormScreen({ navigation, route }: Props) {
             </View>
               </>
           )}
-          <Input
+          <PickerField
             label="Blood group"
-            value={form.bloodGroup ?? ""}
-            onChangeText={(t) => set("bloodGroup", t.toUpperCase().slice(0, 4))}
-            placeholder="Optional, e.g. O+"
             icon="water-outline"
-            autoCapitalize="characters"
+            value={form.bloodGroup || null}
+            placeholder="Optional"
+            onPress={() => setBloodPickerOpen(true)}
           />
           <PickerField
             label="Assigned room"
@@ -826,6 +827,18 @@ export default function InmateFormScreen({ navigation, route }: Props) {
           />
         </ScrollView>
       </KeyboardAvoidingView>
+
+      <OptionPicker
+        visible={bloodPickerOpen}
+        title="Blood group"
+        selectedKey={form.bloodGroup || "__none__"}
+        onClose={() => setBloodPickerOpen(false)}
+        onSelect={(key) => set("bloodGroup", key === "__none__" ? "" : key)}
+        options={[
+          { key: "__none__", label: "Not known", sublabel: "Leave it blank" },
+          ...BLOOD_GROUPS.map((group) => ({ key: group, label: group })),
+        ]}
+      />
 
       <OptionPicker
         visible={roomPickerOpen}
