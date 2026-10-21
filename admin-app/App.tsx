@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect } from "react";
 import { View } from "react-native";
 import { StatusBar } from "expo-status-bar";
 import { useFonts } from "expo-font";
@@ -18,6 +18,7 @@ import { AppProvider } from "@/context/AppContext";
 import RootNavigator from "@/navigation/RootNavigator";
 import DialogHost from "@/web/DialogHost";
 import SyncBanner from "@/components/SyncBanner";
+import { watchForUpdates } from "@/utils/appUpdates";
 import { useFrameWidth } from "@/web/frame";
 
 /**
@@ -51,6 +52,7 @@ function AppFrame({ children }: { children: React.ReactNode }) {
 }
 
 export default function App() {
+  useEffect(() => watchForUpdates(), []);
   const [fontsLoaded, fontError] = useFonts({
     Inter_400Regular,
     Inter_500Medium,

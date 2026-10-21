@@ -62,6 +62,54 @@
     background-repeat: no-repeat; background-position: right 14px center; padding-right: 40px;
   }
   textarea { min-height: 96px; resize: vertical; }
+  /* Drop-downs open our own sheet; the real <select> only holds the value. */
+  select.native { display: none; }
+  .pick {
+    width: 100%; min-height: 50px; padding: 12px 40px 12px 14px; border: 1.5px solid transparent; border-radius: 14px;
+    background: var(--fill) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='18' height='18' fill='none' stroke='%23AEAEB2' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m4 7 5 5 5-5'/%3E%3C/svg%3E") no-repeat right 14px center;
+    color: var(--text); font: inherit; text-align: left; cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    transition: border-color .15s, transform .18s cubic-bezier(.2, .9, .3, 1.3);
+  }
+  .pick.empty { color: var(--faint); }
+  .pick:active { transform: scale(.985); }
+  .pick:focus-visible { border-color: var(--primary); outline: none; }
+  .bad .pick { border-color: var(--danger); }
+
+  /* The sheet: a pane of frosted glass that rises from the bottom. */
+  .scrim {
+    position: fixed; inset: 0; z-index: 50; background: rgba(0,0,0,.32); opacity: 0; transition: opacity .22s;
+    display: flex; align-items: flex-end; justify-content: center; padding: 0 8px calc(env(safe-area-inset-bottom) + 8px);
+  }
+  .scrim.open { opacity: 1; }
+  .sheet {
+    width: 100%; max-width: 560px; max-height: 78vh; display: flex; flex-direction: column; border-radius: 30px;
+    background: rgba(250,250,252,.94); border: 1px solid rgba(255,255,255,.85);
+    -webkit-backdrop-filter: blur(40px) saturate(180%); backdrop-filter: blur(40px) saturate(180%);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.8), 0 18px 50px rgba(15,23,42,.28);
+    transform: translateY(110%); transition: transform .34s cubic-bezier(.2, .9, .25, 1.08); overflow: hidden;
+  }
+  .scrim.open .sheet { transform: none; }
+  .sheet .grab { width: 38px; height: 5px; border-radius: 3px; background: rgba(60,60,67,.25); margin: 8px auto 0; flex: none; }
+  .sheet h3 { margin: 10px 20px 6px; font-size: 17px; font-weight: 700; text-align: center; flex: none; }
+  .sheet ul { list-style: none; margin: 0; padding: 4px 10px; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+  .sheet li button {
+    width: 100%; display: flex; align-items: center; gap: 12px; min-height: 52px; padding: 10px 12px; border: 0;
+    border-radius: 14px; background: transparent; font: inherit; color: var(--text); text-align: left; cursor: pointer;
+  }
+  .sheet li { position: relative; }
+  .sheet li + li::before { content: ""; position: absolute; top: 0; left: 12px; right: 12px; height: 1px; background: var(--sep); }
+  .sheet li button:active { background: var(--fill); }
+  .sheet li button[aria-selected="true"] { background: var(--tint); }
+  .sheet .txt { flex: 1; min-width: 0; }
+  .sheet .txt b { display: block; font-weight: 600; font-size: 16px; }
+  .sheet .txt small { display: block; color: var(--muted); font-size: 13px; }
+  .sheet .ico { width: 36px; height: 36px; border-radius: 11px; display: grid; place-items: center; background: var(--tint); color: var(--primary); flex: none; }
+  .sheet .check { color: var(--primary); flex: none; }
+  .sheet .cancel {
+    flex: none; margin: 6px 10px 10px; min-height: 50px; border: 0; border-radius: 999px; background: var(--fill);
+    font: inherit; font-size: 17px; font-weight: 600; color: var(--primary); cursor: pointer;
+  }
+  .sheet .cancel:active { opacity: .7; }
   input:focus, select:focus, textarea:focus { border-color: var(--primary); background-color: #fff; }
   .bad input, .bad select, .bad textarea, .bad .drop { border-color: var(--danger); }
   .err { display: none; color: var(--danger); font-size: 13px; margin-top: 5px; }
@@ -76,7 +124,8 @@
   .drop.wide { min-height: 150px; }
   .drop svg { color: var(--primary); }
   .drop b { color: var(--text); display: block; font-size: 15px; }
-  .drop input { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%; }
+  .drop input { display: none; }
+  .drop:focus-visible { outline: 3px solid rgba(0,122,255,.35); outline-offset: 2px; }
   .drop img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
   .drop.has { border-style: solid; border-color: transparent; }
   .drop .done {
@@ -106,7 +155,17 @@
     display: flex; gap: 12px; align-items: flex-start; cursor: pointer; padding: 14px; border-radius: 16px;
     background: var(--tint); border: 1.5px solid transparent;
   }
-  .accept input { flex: none; width: 24px; height: 24px; margin: 0; accent-color: var(--primary); }
+  /* Our own tick box, not the phone's. */
+  .accept input {
+    flex: none; width: 26px; height: 26px; margin: 0; -webkit-appearance: none; appearance: none; cursor: pointer;
+    border: 2px solid #C7C7CC; border-radius: 8px; background: #fff center / 16px no-repeat;
+    transition: background-color .18s, border-color .18s, transform .18s cubic-bezier(.2, .9, .3, 1.4);
+  }
+  .accept input:checked {
+    background-color: var(--primary); border-color: var(--primary); transform: scale(1.06);
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23fff' stroke-width='3.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m5 12.5 4.5 4.5L19 7.5'/%3E%3C/svg%3E");
+  }
+  .accept input:focus-visible { outline: 3px solid rgba(0,122,255,.35); outline-offset: 2px; }
   .accept b { display: block; font-size: 15px; font-weight: 600; }
   .accept span span { display: block; color: var(--muted); font-size: 13px; margin-top: 4px; line-height: 1.6; }
   .bad .accept { border-color: var(--danger); background: var(--danger-bg); }
@@ -207,9 +266,9 @@
       </div>
       <div class="row">
         <label class="field" data-f="bloodGroup"><span class="label">Blood group <small>(optional)</small></span>
-          <select name="bloodGroup"><option value="">Select</option><option value="">Not known</option><option>A+</option><option>A-</option><option>B+</option><option>B-</option><option>AB+</option><option>AB-</option><option>O+</option><option>O-</option><option>A1+</option><option>A1-</option><option>A2+</option><option>A2-</option><option>A1B+</option><option>A1B-</option><option>A2B+</option><option>A2B-</option><option>Bombay (Oh)</option></select><span class="err"></span></label>
+          <select name="bloodGroup" class="native" data-placeholder="Select" data-title="Blood group"><option value="">Not known</option><option>A+</option><option>A-</option><option>B+</option><option>B-</option><option>AB+</option><option>AB-</option><option>O+</option><option>O-</option><option>A1+</option><option>A1-</option><option>A2+</option><option>A2-</option><option>A1B+</option><option>A1B-</option><option>A2B+</option><option>A2B-</option><option>Bombay (Oh)</option></select><span class="err"></span></label>
         <label class="field" data-f="roomId"><span class="label">Room <small>(if you know it)</small></span>
-          <select name="roomId"><option value="">Not allotted yet</option></select><span class="err"></span></label>
+          <select name="roomId" class="native" data-placeholder="Not allotted yet" data-title="Your room"><option value="">Not allotted yet</option></select><span class="err"></span></label>
       </div>
       <label class="field" data-f="address" style="margin-bottom:0"><span class="label">Home address <i>*</i></span>
         <textarea name="address" maxlength="400" autocomplete="street-address"></textarea><span class="err"></span></label>
@@ -231,33 +290,33 @@
       <p class="sub">Clear and well lit. All the writing on the Aadhaar card must be readable.</p>
       <div class="field" data-f="photo">
         <span class="label">Your photo <i>*</i></span>
-        <label class="drop wide" id="drop-photo">
+        <div class="drop wide" id="drop-photo" role="button" tabindex="0">
           <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg>
           <span class="hint"><b>Add your photo</b>Face clearly visible</span>
           <input type="file" accept="image/*" data-kind="photo">
           <span class="done">Change</span>
-        </label>
+        </div>
         <span class="err"></span>
       </div>
       <div class="photos">
         <div class="field" data-f="idFront" style="margin-bottom:0">
           <span class="label">Aadhaar front <i>*</i></span>
-          <label class="drop" id="drop-idFront">
+          <div class="drop" id="drop-idFront" role="button" tabindex="0">
             <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2.5"/><circle cx="9" cy="11" r="2"/><path d="M14 10h4M14 14h4M6 16h6"/></svg>
             <span class="hint"><b>Front side</b>Tap to add</span>
             <input type="file" accept="image/*" data-kind="idFront">
             <span class="done">Change</span>
-          </label>
+          </div>
           <span class="err"></span>
         </div>
         <div class="field" data-f="idBack" style="margin-bottom:0">
           <span class="label">Aadhaar back <i>*</i></span>
-          <label class="drop" id="drop-idBack">
+          <div class="drop" id="drop-idBack" role="button" tabindex="0">
             <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2.5"/><path d="M7 10h10M7 14h7"/></svg>
             <span class="hint"><b>Back side</b>Tap to add</span>
             <input type="file" accept="image/*" data-kind="idBack">
             <span class="done">Change</span>
-          </label>
+          </div>
           <span class="err"></span>
         </div>
       </div>
@@ -401,6 +460,104 @@
       return data;
     });
   }
+
+  var ICONS = {
+    camera: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>',
+    gallery: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="3"/><circle cx="9" cy="10" r="2"/><path d="m21 16-5-5-9 9"/></svg>',
+    check: '<svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20Zm4.7 7.7-5.5 5.5a1 1 0 0 1-1.4 0l-2.5-2.5a1 1 0 1 1 1.4-1.4l1.8 1.8 4.8-4.8a1 1 0 1 1 1.4 1.4Z"/></svg>'
+  };
+  var esc = function (text) { var d = document.createElement("div"); d.textContent = text; return d.innerHTML; };
+
+  /**
+   * The one sheet every choice on the form opens, drawn by the page itself so
+   * the phone's own plain picker never appears.
+   *   items: [{ value, label, sub, icon }]; onPick runs inside the tap, so it
+   *   may open the camera or gallery.
+   */
+  function openSheet(title, items, selected, onPick) {
+    var scrim = document.createElement("div");
+    scrim.className = "scrim";
+    scrim.innerHTML = '<div class="sheet" role="dialog" aria-modal="true" aria-label="' + esc(title) + '"><div class="grab"></div><h3>' + esc(title) +
+      '</h3><ul role="listbox"></ul><button type="button" class="cancel">Cancel</button></div>';
+    var list = scrim.querySelector("ul");
+    items.forEach(function (item) {
+      var li = document.createElement("li");
+      var on = selected !== undefined && item.value === selected;
+      li.innerHTML = '<button type="button" role="option" aria-selected="' + on + '">' +
+        (item.icon ? '<span class="ico">' + ICONS[item.icon] + '</span>' : "") +
+        '<span class="txt"><b>' + esc(item.label) + '</b>' + (item.sub ? '<small>' + esc(item.sub) + '</small>' : "") + '</span>' +
+        (on ? '<span class="check">' + ICONS.check + '</span>' : "") + '</button>';
+      li.firstChild.addEventListener("click", function () { onPick(item.value); close(); });
+      list.appendChild(li);
+    });
+    var lastFocus = document.activeElement;
+    function close() {
+      scrim.classList.remove("open");
+      document.removeEventListener("keydown", onKey);
+      setTimeout(function () { scrim.remove(); }, 340);
+      if (lastFocus && lastFocus.focus) lastFocus.focus({ preventScroll: true });
+    }
+    function onKey(event) { if (event.key === "Escape") close(); }
+    scrim.addEventListener("click", function (event) { if (event.target === scrim) close(); });
+    scrim.querySelector(".cancel").addEventListener("click", close);
+    document.addEventListener("keydown", onKey);
+    document.body.appendChild(scrim);
+    requestAnimationFrame(function () { requestAnimationFrame(function () { scrim.classList.add("open"); }); });
+    var current = list.querySelector('[aria-selected="true"]') || list.querySelector("button");
+    if (current) { current.scrollIntoView({ block: "nearest" }); current.focus({ preventScroll: true }); }
+  }
+
+  // Each drop-down: a button showing the choice, opening the sheet.
+  var subFor = {};
+  function makePicker(select) {
+    var button = document.createElement("button");
+    button.type = "button";
+    button.className = "pick";
+    button.setAttribute("aria-haspopup", "listbox");
+    select.parentNode.insertBefore(button, select);
+    function paint() {
+      var option = select.options[select.selectedIndex];
+      var chosen = option && option.value;
+      button.textContent = chosen ? option.textContent : select.dataset.placeholder;
+      button.classList.toggle("empty", !chosen);
+    }
+    button.addEventListener("click", function (event) {
+      event.preventDefault();
+      var items = Array.prototype.map.call(select.options, function (option) {
+        return { value: option.value, label: option.textContent, sub: subFor[option.value] };
+      });
+      openSheet(select.dataset.title, items, select.value || undefined, function (value) {
+        select.value = value;
+        paint();
+        select.dispatchEvent(new Event("change", { bubbles: true }));
+      });
+    });
+    select.addEventListener("change", paint);
+    paint();
+    return paint;
+  }
+  makePicker(form.elements.bloodGroup);
+  var paintRoom = makePicker(form.elements.roomId);
+
+  // Photos: our own "camera or gallery" sheet instead of the phone's chooser.
+  form.querySelectorAll(".drop").forEach(function (drop) {
+    var input = drop.querySelector("input");
+    var kind = input.dataset.kind;
+    function choose() {
+      openSheet(kind === "photo" ? "Your photo" : kind === "idFront" ? "Aadhaar front" : "Aadhaar back", [
+        { value: "camera", label: "Take a photo", sub: kind === "photo" ? "Opens the front camera" : "Hold the card flat, in good light", icon: "camera" },
+        { value: "gallery", label: "Choose from gallery", sub: "A photo already on your phone", icon: "gallery" }
+      ], undefined, function (how) {
+        if (how === "camera") input.setAttribute("capture", kind === "photo" ? "user" : "environment");
+        else input.removeAttribute("capture");
+        input.click();
+      });
+    }
+    drop.addEventListener("click", choose);
+    drop.addEventListener("keydown", function (event) {
+      if (event.key === "Enter" || event.key === " ") { event.preventDefault(); choose(); }
+    });
+  });
 
   form.querySelectorAll('input[type="file"]').forEach(function (input) {
     input.addEventListener("change", function () {
@@ -559,8 +716,10 @@
         option.value = room.id;
         option.textContent = "Room " + room.label;
         roomRent[room.id] = room.rent;
+        if (room.rent) subFor[room.id] = "₹" + Number(room.rent).toLocaleString("en-IN") + " a month";
         select.appendChild(option);
       });
+      paintRoom();
       fillRules();
       show("form");
     })

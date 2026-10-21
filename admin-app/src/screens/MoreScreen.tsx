@@ -1,4 +1,5 @@
 import React from "react";
+import { versionLabel } from "@/utils/appUpdates";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -163,7 +164,7 @@ export default function MoreScreen({ navigation }: Props) {
         </View>
 
         <Text style={styles.footer}>
-          Royal Boys Hostel · v{Constants.expoConfig?.version ?? "—"}{"\n"}
+          Royal Boys Hostel · v{versionLabel(Constants.expoConfig?.version ?? "—")}{"\n"}
           Records are kept online and update live on every device.
         </Text>
       </ScrollView>
