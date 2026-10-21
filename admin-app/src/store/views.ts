@@ -151,10 +151,13 @@ const feeIndex = memo<FeeIndex>(() => {
 // through the three lists below is narrowed to it, so every screen, total and
 // report follows without knowing about buildings at all. A room is in a
 // building by its block; an inmate by their room; a bill by its inmate. An
-// inmate with no room yet belongs to no building and shows only when the
-// whole hostel is selected.
+// inmate of that hostel with no room yet shows in every one of its buildings
+// (with a NO ROOM badge), so nobody waiting for a bed -- or their bill -- is
+// ever out of sight; once given a room, they show only in its building.
 
 let activeHouse: string | null = null;
+/** The hostel the chosen building belongs to. */
+let activeHouseBranch: string | null = null;
 
 /** Letters only, without vowels: "PUSHPAMANGLAM" and "Pushpamangalam" match. */
 const houseKey = (name: string | null | undefined): string =>
@@ -165,8 +168,9 @@ export function isHouse(block: string | null | undefined, house: string): boolea
   return houseKey(block) !== "" && houseKey(block) === houseKey(house);
 }
 
-export function setActiveHouse(house: string | null): void {
+export function setActiveHouse(house: string | null, branchId: string | null = null): void {
   activeHouse = house;
+  activeHouseBranch = house ? branchId : null;
 }
 
 export function getActiveHouse(): string | null {
@@ -174,8 +178,14 @@ export function getActiveHouse(): string | null {
 }
 
 const roomInHouse = (room: Room | null): boolean => !activeHouse || (room !== null && isHouse(room.block, activeHouse));
-const inmateInHouse = (inmate: Inmate | null): boolean =>
-  !activeHouse || (inmate !== null && roomInHouse(find<Room>("rooms", inmate.roomId)));
+const inmateInHouse = (inmate: Inmate | null): boolean => {
+  if (!activeHouse) return true;
+  if (inmate === null) return false;
+  const room = find<Room>("rooms", inmate.roomId);
+  // No room yet: shown in every building of their own hostel.
+  if (room === null) return activeHouseBranch === null || inmate.branchId === activeHouseBranch;
+  return roomInHouse(room);
+};
 
 /** Whether a room (by id) is in the building being looked at. */
 export function roomIdInActiveHouse(roomId: string | null | undefined): boolean {

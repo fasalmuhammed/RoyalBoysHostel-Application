@@ -131,15 +131,24 @@ async function singleDevice() {
     check("a long building name is shortened in room labels", (await rooms.getRoom(pRoom)) && views.roomLabelOf({ block: "PUSHPAMANGLAM", roomNumber: "101" }) === "P-101" && views.roomLabelOf({ block: "Royal House", roomNumber: "101" }) === "RH-101");
     check("a short block is left as it is", views.roomLabelOf({ block: "A", roomNumber: "7" }) === "A-7" && views.roomLabelOf({ block: "", roomNumber: "7" }) === "7");
 
-    views.setActiveHouse("Royal House");
+    // Everyone in the hostel with no room yet shows in every building.
+    const roomless = (await inmates.listInmates("", "all")).filter((i) => !i.roomId);
+    const noRoom = roomless.map((i) => i.fullName);
+    const roomlessIds = new Set(roomless.map((i) => i.id));
+    const branchOf = (await inmates.getInmate(rInmate)).branchId;
+    views.setActiveHouse("Royal House", branchOf);
     const royalRooms = await rooms.listRooms();
     check("one building: only its rooms", royalRooms.length === 1 && royalRooms[0].id === rRoom);
-    check("one building: only its inmates", JSON.stringify(await names()) === JSON.stringify(["In Royal"]));
+    check("one building: its inmates, and those with no room yet", JSON.stringify((await names()).sort()) === JSON.stringify(["In Royal", ...noRoom].sort()), JSON.stringify(await names()));
+    check("an inmate in the other building is not shown", !(await names()).includes("In Pushpa"));
     check("one building: occupancy counts only its beds", (await rooms.occupancyTotals()).beds === 3 && (await rooms.occupancyTotals()).occupied === 1);
-    check("one building: only its bills", (await fees.listFees("all", null)).every((fee) => fee.studentId === rInmate) && (await fees.listFees("all", null)).length === 1);
+    check("one building: its bills, and those of inmates with no room", (await fees.listFees("all", null)).every((fee) => fee.studentId === rInmate || roomlessIds.has(fee.studentId)) && (await fees.listFees("all", null)).some((fee) => fee.studentId === rInmate));
+    check("one building: no bill of the other building", !(await fees.listFees("all", null)).some((fee) => fee.studentId === pInmate));
 
-    views.setActiveHouse("Pushpamangalam");
-    check("the other building shows the other inmate", JSON.stringify(await names()) === JSON.stringify(["In Pushpa"]));
+    views.setActiveHouse("Pushpamangalam", branchOf);
+    check("the other building shows the other inmate", JSON.stringify((await names()).sort()) === JSON.stringify(["In Pushpa", ...noRoom].sort()));
+    views.setActiveHouse("Pushpamangalam", "some-other-hostel");
+    check("someone with no room in another hostel is not shown", roomless.length > 0 && !views.allInmates().some((i) => roomlessIds.has(i.id)));
     check("a record opens by its id whichever building is showing", (await inmates.getInmate(rInmate)) !== null && (await rooms.getRoom(rRoom)).occupied === 1);
 
     views.setActiveHouse(null);

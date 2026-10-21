@@ -400,7 +400,7 @@ export function AppProvider({ children }: PropsWithChildren) {
     async (branchId: string, house: string | null) => {
       if (access.branchId && branchId !== access.branchId) return;
       await chooseBranch(branchId);
-      setActiveHouse(house);
+      setActiveHouse(house, branchId);
       setActiveHouseState(house);
       setDataVersion((v) => v + 1);
     },
