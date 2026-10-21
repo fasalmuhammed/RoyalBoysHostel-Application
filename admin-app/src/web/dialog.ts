@@ -51,8 +51,11 @@ export function closeDialog(id: number, button: DialogButton | null): void {
   if (!request) return;
   queue = queue.filter((item) => item.id !== id);
   notify();
-  if (button) button.onPress?.();
-  else request.onDismiss?.();
+  const run = () => (button ? button.onPress?.() : request.onDismiss?.());
+  // On a phone, let the dialog finish closing first: Android will not open
+  // the camera, gallery or share sheet over a window that is still closing.
+  if (typeof document !== "undefined") run();
+  else setTimeout(run, 320);
 }
 
 export const Alert = {

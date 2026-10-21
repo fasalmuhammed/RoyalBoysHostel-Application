@@ -73,6 +73,7 @@ export default function DialogHost() {
                     // The one action the dialog is asking for reads bold.
                     strong={button.isPreferred || (others.length === 1 && button === others[0])}
                     divider={!stacked && index > 0}
+                    inRow={!stacked}
                     onPress={() => closeDialog(dialog.id, button)}
                   />
                 ))}
@@ -89,11 +90,14 @@ function DialogAction({
   button,
   strong,
   divider,
+  inRow,
   onPress,
 }: {
   button: DialogButton;
   strong: boolean;
   divider: boolean;
+  /** Side by side, the buttons share the width; stacked, each keeps its own height. */
+  inRow: boolean;
   onPress: () => void;
 }) {
   const destructive = button.style === "destructive";
@@ -103,6 +107,7 @@ function DialogAction({
       accessibilityRole="button"
       style={({ pressed }) => [
         styles.action,
+        inRow && styles.actionInRow,
         divider && styles.actionDivider,
         pressed && { backgroundColor: "rgba(120, 120, 128, 0.16)" },
       ]}
@@ -150,14 +155,17 @@ const styles = StyleSheet.create({
   },
   row: { flexDirection: "row" },
   action: {
-    flex: 1,
     minHeight: 46,
+    // Padding as well as a minimum, so a button always has the height of its
+    // label plus breathing room, whatever the parent's layout does.
+    paddingVertical: 12,
     alignItems: "center",
     justifyContent: "center",
     paddingHorizontal: spacing.sm,
     borderTopWidth: StyleSheet.hairlineWidth * 2,
     borderTopColor: HAIRLINE,
   },
+  actionInRow: { flex: 1 },
   actionDivider: { borderLeftWidth: StyleSheet.hairlineWidth * 2, borderLeftColor: HAIRLINE },
   actionText: { fontFamily: font.regular, fontSize: scaleText(17), textAlign: "center" },
 });
