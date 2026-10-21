@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
-import { Pressable, ScrollView, StyleSheet, Switch, Text, View } from "react-native";
+import { Pressable, StyleSheet, Switch, Text, View } from "react-native";
+import FormScroll from "@/components/FormScroll";
 import { Alert } from "@/web/dialog";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -128,7 +129,7 @@ export default function NoticeFormScreen({ navigation, route }: Props) {
 
   return (
     <SafeAreaView style={styles.screen} edges={["left", "right", "bottom"]}>
-      <ScrollView
+      <FormScroll
         contentContainerStyle={styles.content}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
@@ -242,7 +243,7 @@ export default function NoticeFormScreen({ navigation, route }: Props) {
           loading={saving}
           style={{ marginTop: spacing.sm }}
         />
-      </ScrollView>
+      </FormScroll>
     </SafeAreaView>
   );
 }

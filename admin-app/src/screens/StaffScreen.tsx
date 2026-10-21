@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
-import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Modal, Pressable, StyleSheet, Text, View } from "react-native";
+import FormScroll from "@/components/FormScroll";
 import { Alert } from "@/web/dialog";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -96,7 +97,7 @@ export default function StaffScreen(_: Props) {
 
   return (
     <SafeAreaView style={styles.screen} edges={["left", "right", "bottom"]}>
-      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+      <FormScroll contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         {loadError ? (
           <Callout tone="danger" icon="cloud-offline-outline">
             <CalloutText>{loadError}</CalloutText>
@@ -165,7 +166,7 @@ export default function StaffScreen(_: Props) {
             )}
           </>
         )}
-      </ScrollView>
+      </FormScroll>
 
       <Fab icon="person-add" label="Add manager" onPress={() => setSheet({ kind: "create" })} />
 
@@ -281,7 +282,7 @@ function StaffSheet({ sheet, onClose }: { sheet: Sheet | null; onClose: () => vo
       <View style={styles.sheet}>
         <View style={styles.sheetHandle} />
         <Text style={styles.sheetTitle}>{title}</Text>
-        <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+        <FormScroll keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
           {needsDetails ? (
             <Input label="Name" required value={name} onChangeText={setName} icon="person-outline" placeholder="e.g. Rahul K" />
           ) : null}
@@ -362,7 +363,7 @@ function StaffSheet({ sheet, onClose }: { sheet: Sheet | null; onClose: () => vo
             loading={saving}
           />
           <Button title="Cancel" variant="ghost" onPress={onClose} />
-        </ScrollView>
+        </FormScroll>
       </View>
       </View>
     </Modal>

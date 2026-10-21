@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
-import { Image, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Image, Pressable, StyleSheet, Text, View } from "react-native";
+import FormScroll from "@/components/FormScroll";
 import { Alert } from "@/web/dialog";
 import { SafeAreaView } from "react-native-safe-area-context";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
@@ -100,7 +101,7 @@ export default function AdmissionReviewScreen({ navigation, route }: Props) {
 
   return (
     <SafeAreaView style={styles.screen} edges={["left", "right", "bottom"]}>
-      <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+      <FormScroll contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
         <View style={styles.head}>
           <Pressable
             disabled={!application.photoFile}
@@ -195,7 +196,7 @@ export default function AdmissionReviewScreen({ navigation, route }: Props) {
         <Button title="Approve and admit" icon="checkmark-circle-outline" onPress={onApprove} loading={busy === "approve"} disabled={busy !== null} />
         <View style={{ height: spacing.sm }} />
         <Button title="Reject this form" variant="ghost" onPress={onReject} loading={busy === "reject"} disabled={busy !== null} />
-      </ScrollView>
+      </FormScroll>
 
       <OptionPicker
         visible={picking}

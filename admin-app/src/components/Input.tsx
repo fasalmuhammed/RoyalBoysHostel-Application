@@ -1,4 +1,5 @@
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
+
 import {
   Platform,
   Pressable,
@@ -12,6 +13,7 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 
 import { HIT_TARGET, colors, radius, spacing, type } from "@/constants/theme";
+import { useFormScroll } from "./FormScroll";
 
 interface Props extends TextInputProps {
   label?: string;
@@ -34,6 +36,15 @@ export default function Input({
   ...rest
 }: Props) {
   const [focused, setFocused] = useState(false);
+  const form = useFormScroll();
+  const inputRef = useRef<TextInput>(null);
+
+  // Inside a form page: take part in "Next", and come into view when tapped.
+  useEffect(() => {
+    if (!form || !inputRef.current) return;
+    return form.register(inputRef.current);
+  }, [form]);
+  const nextKey = form && !multiline && rest.editable !== false && !rest.onSubmitEditing;
 
   return (
     <View style={[styles.wrapper, containerStyle]}>
@@ -61,18 +72,27 @@ export default function Input({
           />
         ) : null}
         <TextInput
+          ref={inputRef}
           placeholderTextColor={colors.textFaint}
           multiline={multiline}
+          {...(nextKey
+            ? {
+                returnKeyType: "next" as const,
+                submitBehavior: "submit" as const,
+                onSubmitEditing: () => inputRef.current && form.focusNext(inputRef.current),
+              }
+            : {})}
+          {...rest}
           style={[styles.input, multiline && styles.inputMultiline, style]}
           onFocus={(e) => {
             setFocused(true);
+            form?.reveal();
             rest.onFocus?.(e);
           }}
           onBlur={(e) => {
             setFocused(false);
             rest.onBlur?.(e);
           }}
-          {...rest}
         />
       </View>
 

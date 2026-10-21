@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
-import { ActivityIndicator, Image, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Switch, Text, View } from "react-native";
+import { ActivityIndicator, Image, Pressable, StyleSheet, Switch, Text, View } from "react-native";
+import FormScroll from "@/components/FormScroll";
 import { Alert } from "@/web/dialog";
 import { SafeAreaView } from "react-native-safe-area-context";
 import * as ImagePicker from "expo-image-picker";
@@ -443,11 +444,8 @@ export default function InmateFormScreen({ navigation, route }: Props) {
 
   return (
     <SafeAreaView style={styles.screen} edges={["left", "right", "bottom"]}>
-      <KeyboardAvoidingView
-        style={{ flex: 1 }}
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
-      >
-        <ScrollView
+      <View style={{ flex: 1 }}>
+        <FormScroll
           contentContainerStyle={styles.content}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
@@ -825,8 +823,8 @@ export default function InmateFormScreen({ navigation, route }: Props) {
             onPress={onSave}
             loading={saving}
           />
-        </ScrollView>
-      </KeyboardAvoidingView>
+        </FormScroll>
+      </View>
 
       <OptionPicker
         visible={bloodPickerOpen}

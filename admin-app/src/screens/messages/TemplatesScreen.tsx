@@ -1,5 +1,6 @@
 import React, { useState } from "react";
-import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Modal, Pressable, StyleSheet, Text, View } from "react-native";
+import FormScroll from "@/components/FormScroll";
 import { Alert } from "@/web/dialog";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -75,7 +76,7 @@ export default function TemplatesScreen({}: Props) {
 
   return (
     <SafeAreaView style={styles.screen} edges={["left", "right", "bottom"]}>
-      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+      <FormScroll contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <Text style={styles.hint}>
           Templates save you retyping. Placeholders like {"{{name}}"} are filled in per inmate when
           you send.
@@ -104,13 +105,13 @@ export default function TemplatesScreen({}: Props) {
             </View>
           </Card>
         ))}
-      </ScrollView>
+      </FormScroll>
 
       <Fab label="New" onPress={() => openEditor(null)} />
 
       <Modal visible={isOpen} animationType="slide" onRequestClose={closeEditor}>
         <SafeAreaView style={styles.screen}>
-          <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+          <FormScroll contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
             <View style={styles.modalHead}>
               <Text style={styles.modalTitle}>
                 {creating ? "New template" : "Edit template"}
@@ -170,7 +171,7 @@ export default function TemplatesScreen({}: Props) {
             </View>
 
             <Button title="Save template" onPress={onSave} loading={saving} />
-          </ScrollView>
+          </FormScroll>
         </SafeAreaView>
       </Modal>
     </SafeAreaView>

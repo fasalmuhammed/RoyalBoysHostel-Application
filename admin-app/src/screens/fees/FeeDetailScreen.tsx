@@ -1,5 +1,6 @@
 import React, { useState } from "react";
-import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Modal, Pressable, StyleSheet, Text, View } from "react-native";
+import FormScroll from "@/components/FormScroll";
 import { Alert } from "@/web/dialog";
 import { SafeAreaView } from "react-native-safe-area-context";
 import * as Print from "expo-print";
@@ -138,7 +139,7 @@ export default function FeeDetailScreen({ navigation, route }: Props) {
 
   return (
     <SafeAreaView style={styles.screen} edges={["left", "right", "bottom"]}>
-      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+      <FormScroll contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <Card
           style={styles.studentCard}
           onPress={() => navigation.navigate("InmateDetail", { studentId: fee.studentId })}
@@ -306,7 +307,7 @@ export default function FeeDetailScreen({ navigation, route }: Props) {
             style={{ marginTop: spacing.sm }}
           />
         ) : null}
-      </ScrollView>
+      </FormScroll>
       <Modal visible={promiseOpen} transparent animationType="fade" onRequestClose={() => setPromiseOpen(false)} statusBarTranslucent>
         <View style={styles.sheetStage}>
           <Pressable style={styles.sheetBackdrop} onPress={() => setPromiseOpen(false)} />
