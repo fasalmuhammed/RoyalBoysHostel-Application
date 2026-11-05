@@ -211,7 +211,6 @@ export function AnimatedBar({
 }) {
   const clamped = Math.min(Math.max(Number.isFinite(fraction) ? fraction : 0, 0), 1);
   const progress = useRef(new Animated.Value(0)).current;
-  const [width, setWidth] = useState(0);
 
   useEffect(() => {
     const animation = Animated.timing(progress, {
@@ -226,7 +225,6 @@ export function AnimatedBar({
 
   return (
     <View
-      onLayout={(e) => setWidth(e.nativeEvent.layout.width)}
       style={[styles.track, { backgroundColor: track, height, borderRadius: height / 2 }]}
     >
       <Animated.View
@@ -236,12 +234,10 @@ export function AnimatedBar({
             backgroundColor: color,
             height,
             borderRadius: height / 2,
-            width: width || 1,
-            transform: [
-              { translateX: -(width || 1) / 2 },
-              { scaleX: progress },
-              { translateX: (width || 1) / 2 },
-            ],
+            width: "100%",
+            // Grows from the left edge; translate tricks apply in a different order on Android.
+            transformOrigin: "left",
+            transform: [{ scaleX: progress }],
           },
         ]}
       />
