@@ -54,6 +54,9 @@ async function pureLogic() {
   check("due date follows the join day", fees.dueDateFor("2026-02", fees.anchorDayFor("2026-01-31")) === "2026-02-28");
   check("stay due date adds the stay length", fees.stayDueDateFor("2026-01-30", 3) === "2026-02-02");
   check("money in Indian format", format.formatMoney(1234567, "₹") === "₹12,34,567");
+  check("dates shown day first", format.toDisplayDate("2026-08-14") === "14-08-2026");
+  check("dates typed day first are read", format.fromDisplayDate("14-08-2026") === "2026-08-14" && format.fromDisplayDate("4/8/26") === "2026-08-04");
+  check("an impossible typed date is refused", format.fromDisplayDate("31-02-2026") === null && format.fromDisplayDate("2026-08-14") === null && format.fromDisplayDate("14-08") === null);
   check("phone normalised for wa.me", validate.toWhatsAppNumber("98765 43210", "91") === "919876543210");
   check("template placeholders merge", messaging.renderTemplate("Hi {{first_name}}, {{room}}", { name: "Arjun Menon", room: "A-1" }) === "Hi Arjun, A-1");
   check("notice keeps placeholders", notices.noticeToMessage({ title: "T", body: "B" }).includes("{{name}}"));

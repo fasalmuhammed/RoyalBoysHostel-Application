@@ -2,6 +2,7 @@ import { Directory, File, Paths } from "expo-file-system";
 
 import { loadSettings } from "./settings";
 import { toXlsx } from "./xlsx";
+import { toDisplayDate } from "@/utils/format";
 import { inActiveBranch } from "./branches";
 import {
   allBills,
@@ -117,8 +118,8 @@ export async function exportReport(kind: ReportKind, period: string | null = nul
       { header: "Course", value: (r) => r.course },
       { header: "Year", value: (r) => r.year },
       { header: "Status", value: (r) => r.status },
-      { header: "Joined On", value: (r) => r.joinedOn },
-      { header: "Left On", value: (r) => r.leftOn },
+      { header: "Joined On", value: (r) => toDisplayDate(r.joinedOn) },
+      { header: "Left On", value: (r) => toDisplayDate(r.leftOn) },
       { header: "Blood Group", value: (r) => r.bloodGroup ?? "" },
       { header: "Monthly Rent", value: (r) => r.monthlyRent },
       { header: "Address", value: (r) => r.address },
@@ -186,7 +187,7 @@ export async function exportReport(kind: ReportKind, period: string | null = nul
       { header: "Paid", value: (r) => r.amountPaid },
       { header: "Balance", value: (r) => r.balance },
       { header: "Status", value: (r) => r.status },
-      { header: "Due Date", value: (r) => r.dueDate },
+      { header: "Due Date", value: (r) => toDisplayDate(r.dueDate) },
       { header: "Balance Promised By", value: (r) => r.promisedDate ?? "" },
     ]);
     const fileName = period ? `Fees_${period}.xlsx` : `Fees_All_${stamp()}.xlsx`;
@@ -204,7 +205,7 @@ export async function exportReport(kind: ReportKind, period: string | null = nul
     )
     .sort((a, b) => compareRaw(b.paidOn, a.paidOn) || b.createdAt - a.createdAt);
   const book = toXlsx("Payments", rows, [
-    { header: "Date", value: (r) => r.paidOn },
+    { header: "Date", value: (r) => toDisplayDate(r.paidOn) },
     { header: "Admission No", value: (r) => r.admissionNo },
     { header: "Name", value: (r) => r.fullName },
     { header: "For Month", value: (r) => r.period },

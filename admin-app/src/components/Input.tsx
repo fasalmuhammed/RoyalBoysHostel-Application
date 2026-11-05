@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
+import { fromDisplayDate, toDisplayDate } from "@/utils/format";
 
 import {
   Platform,
@@ -102,6 +103,40 @@ export default function Input({
         <Text style={styles.hint}>{hint}</Text>
       ) : null}
     </View>
+  );
+}
+
+/**
+ * A date typed the Indian way, DD-MM-YYYY. Holds an ISO yyyy-MM-dd value, and
+ * only ever hands back a real date (or "" when cleared), so a typo is never saved.
+ */
+export function DateInput({
+  value,
+  onChange,
+  error,
+  ...rest
+}: Omit<Props, "value" | "onChangeText" | "onChange"> & { value: string; onChange: (iso: string) => void }) {
+  const [text, setText] = useState(toDisplayDate(value));
+  // A date set from outside (a quick-pick chip, a loaded record) replaces what is shown.
+  useEffect(() => {
+    if ((fromDisplayDate(text) ?? "") !== value) setText(toDisplayDate(value));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [value]);
+  const typo = text.trim() !== "" && fromDisplayDate(text) === null;
+  return (
+    <Input
+      {...rest}
+      value={text}
+      onChangeText={(next) => {
+        setText(next);
+        const iso = next.trim() === "" ? "" : fromDisplayDate(next);
+        if (iso !== null) onChange(iso);
+      }}
+      placeholder="DD-MM-YYYY"
+      keyboardType="numbers-and-punctuation"
+      autoCorrect={false}
+      error={typo ? "Enter the date as DD-MM-YYYY, for example 14-08-2026." : error}
+    />
   );
 }
 

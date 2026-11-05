@@ -9,7 +9,7 @@ import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 
 import { Callout, CalloutText, SectionTitle } from "@/components/Base";
 import Button from "@/components/Button";
-import Input, { PickerField } from "@/components/Input";
+import Input, { DateInput, PickerField } from "@/components/Input";
 import { OptionPicker, SegmentedTabs } from "@/components/Controls";
 import { colors, font, fontSize, radius, spacing, type } from "@/constants/theme";
 import { useApp } from "@/context/AppContext";
@@ -796,13 +796,7 @@ export default function InmateFormScreen({ navigation, route }: Props) {
               />
             </>
           )}
-          <Input
-            label="Joined on"
-            value={form.joinedOn}
-            onChangeText={(t) => set("joinedOn", t)}
-            placeholder="YYYY-MM-DD"
-            icon="calendar-outline"
-          />
+          <DateInput label="Joined on" value={form.joinedOn} onChange={(iso) => set("joinedOn", iso)} icon="calendar-outline" />
           <Input
             label="Notes"
             value={form.notes}

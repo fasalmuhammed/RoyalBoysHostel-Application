@@ -8,7 +8,7 @@ import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 
 import { Card, Loading, SectionTitle } from "@/components/Base";
 import Button from "@/components/Button";
-import Input, { PickerField } from "@/components/Input";
+import Input, { DateInput, PickerField } from "@/components/Input";
 import { OptionPicker } from "@/components/Controls";
 import PromiseDateField from "@/components/PromiseDateField";
 import { HIT_TARGET, colors, fontSize, radius, spacing, type } from "@/constants/theme";
@@ -171,13 +171,7 @@ export default function CollectFeeScreen({ navigation, route }: Props) {
           onPress={() => setMethodPickerOpen(true)}
         />
 
-        <Input
-          label="Paid on"
-          value={paidOn}
-          onChangeText={setPaidOn}
-          placeholder="YYYY-MM-DD"
-          icon="calendar-outline"
-        />
+        <DateInput label="Paid on" value={paidOn} onChange={setPaidOn} icon="calendar-outline" />
         <Input
           label="Reference"
           value={reference}

@@ -7,7 +7,7 @@ import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 
 import { Card, SectionTitle } from "@/components/Base";
 import Button from "@/components/Button";
-import Input, { PickerField } from "@/components/Input";
+import Input, { DateInput, PickerField } from "@/components/Input";
 import { OptionPicker } from "@/components/Controls";
 import { colors, spacing, type } from "@/constants/theme";
 import { useApp } from "@/context/AppContext";
@@ -155,13 +155,7 @@ export default function FeeFormScreen({ navigation, route }: Props) {
           placeholder="Choose"
           onPress={() => setPeriodPickerOpen(true)}
         />
-        <Input
-          label="Due date"
-          value={dueDate}
-          onChangeText={setDueDate}
-          placeholder="YYYY-MM-DD"
-          icon="alarm-outline"
-        />
+        <DateInput label="Due date" value={dueDate} onChange={setDueDate} icon="alarm-outline" />
 
         <SectionTitle title="Charges" />
         <Input

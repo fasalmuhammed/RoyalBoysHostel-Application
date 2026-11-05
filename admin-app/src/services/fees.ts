@@ -7,6 +7,7 @@ import {
   formatPeriod,
   parseIsoDate,
   relativeDays,
+  toDisplayDate,
   toIsoDate,
   toPeriod,
 } from "@/utils/format";
@@ -56,7 +57,7 @@ function promiseOn(bill: Pick<FeeRecord, "total" | "amountPaid" | "promisedDate"
 export function promiseDateProblem(iso: string | null | undefined): string | null {
   if (!iso) return "Choose the date they will pay the balance.";
   if (!/^\d{4}-\d{2}-\d{2}$/.test(iso) || Number.isNaN(parseIsoDate(iso).getTime()) || toIsoDate(parseIsoDate(iso)) !== iso) {
-    return "Enter the date as YYYY-MM-DD, for example " + toIsoDate() + ".";
+    return "Enter the date as DD-MM-YYYY, for example " + toDisplayDate(toIsoDate()) + ".";
   }
   const days = daysUntil(iso);
   if (days < 0) return "That date has already passed. Choose today or a later date.";
