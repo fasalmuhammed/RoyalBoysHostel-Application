@@ -1,5 +1,7 @@
 import React, { useEffect, useState } from "react";
-import { Alert, Modal, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Modal, Pressable, StyleSheet, Text, View } from "react-native";
+import FormScroll from "@/components/FormScroll";
+import { Alert } from "@/web/dialog";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
@@ -95,7 +97,7 @@ export default function StaffScreen(_: Props) {
 
   return (
     <SafeAreaView style={styles.screen} edges={["left", "right", "bottom"]}>
-      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+      <FormScroll contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         {loadError ? (
           <Callout tone="danger" icon="cloud-offline-outline">
             <CalloutText>{loadError}</CalloutText>
@@ -141,11 +143,13 @@ export default function StaffScreen(_: Props) {
                       <Text style={styles.avatarText}>{initials(person.name || person.username)}</Text>
                     </View>
                     <View style={{ flex: 1 }}>
-                      <Text style={styles.name} numberOfLines={1}>{person.name || person.username}</Text>
+                      <View style={styles.nameRow}>
+                        <Text style={[styles.name, { flexShrink: 1 }]} numberOfLines={1}>{person.name || person.username}</Text>
+                        {person.disabled ? <Badge label="OFF" tone="danger" /> : <Badge label="ACTIVE" tone="success" />}
+                      </View>
                       <Text style={styles.meta} numberOfLines={1}>User ID: {person.username}</Text>
                       <Text style={styles.meta} numberOfLines={1}>{branchName(person.branchId)} hostel</Text>
                     </View>
-                    {person.disabled ? <Badge label="SWITCHED OFF" tone="danger" /> : <Badge label="ACTIVE" tone="success" />}
                   </View>
                   <View style={styles.actions}>
                     <ActionChip icon="key-outline" label="Reset password" onPress={() => setSheet({ kind: "reset", staff: person })} />
@@ -162,7 +166,7 @@ export default function StaffScreen(_: Props) {
             )}
           </>
         )}
-      </ScrollView>
+      </FormScroll>
 
       <Fab icon="person-add" label="Add manager" onPress={() => setSheet({ kind: "create" })} />
 
@@ -278,7 +282,7 @@ function StaffSheet({ sheet, onClose }: { sheet: Sheet | null; onClose: () => vo
       <View style={styles.sheet}>
         <View style={styles.sheetHandle} />
         <Text style={styles.sheetTitle}>{title}</Text>
-        <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+        <FormScroll keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
           {needsDetails ? (
             <Input label="Name" required value={name} onChangeText={setName} icon="person-outline" placeholder="e.g. Rahul K" />
           ) : null}
@@ -359,7 +363,7 @@ function StaffSheet({ sheet, onClose }: { sheet: Sheet | null; onClose: () => vo
             loading={saving}
           />
           <Button title="Cancel" variant="ghost" onPress={onClose} />
-        </ScrollView>
+        </FormScroll>
       </View>
       </View>
     </Modal>
@@ -398,6 +402,7 @@ const styles = StyleSheet.create({
   avatarAdmin: { backgroundColor: colors.primaryDark },
   avatarText: { ...type.bodyStrong, color: colors.primary },
   name: { ...type.bodyStrong, color: colors.text },
+  nameRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
   meta: { ...type.support, color: colors.textMuted, marginTop: 1 },
   actions: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },
   chip: {

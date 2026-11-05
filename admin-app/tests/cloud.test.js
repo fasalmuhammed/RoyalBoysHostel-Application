@@ -54,11 +54,31 @@ async function pureLogic() {
   check("due date follows the join day", fees.dueDateFor("2026-02", fees.anchorDayFor("2026-01-31")) === "2026-02-28");
   check("stay due date adds the stay length", fees.stayDueDateFor("2026-01-30", 3) === "2026-02-02");
   check("money in Indian format", format.formatMoney(1234567, "₹") === "₹12,34,567");
+  check("dates shown day first", format.toDisplayDate("2026-08-14") === "14-08-2026");
+  check("dates typed day first are read", format.fromDisplayDate("14-08-2026") === "2026-08-14" && format.fromDisplayDate("4/8/26") === "2026-08-04");
+  check("an impossible typed date is refused", format.fromDisplayDate("31-02-2026") === null && format.fromDisplayDate("2026-08-14") === null && format.fromDisplayDate("14-08") === null);
   check("phone normalised for wa.me", validate.toWhatsAppNumber("98765 43210", "91") === "919876543210");
   check("template placeholders merge", messaging.renderTemplate("Hi {{first_name}}, {{room}}", { name: "Arjun Menon", room: "A-1" }) === "Hi Arjun, A-1");
   check("notice keeps placeholders", notices.noticeToMessage({ title: "T", body: "B" }).includes("{{name}}"));
   const out = csv.toCsv([{ a: "=SUM(1)", b: 'x,"y"' }], [{ header: "A", value: (r) => r.a }, { header: "B", value: (r) => r.b }]);
   check("CSV guards formulas and quotes commas", out.includes("'=SUM(1)") && out.includes('"x,""y"""'));
+
+  {
+    const { unzipSync, strFromU8 } = require("fflate");
+    const bytes = app.xlsx.toXlsx("Inmates / 2026", [{ n: "Arun <K>", rent: 6000, note: "=SUM(1)" }, { n: "Bala", rent: 4500.5, note: null }], [
+      { header: "Name", value: (r) => r.n },
+      { header: "Rent", value: (r) => r.rent },
+      { header: "Note", value: (r) => r.note },
+    ]);
+    const files = unzipSync(bytes);
+    const sheet = strFromU8(files["xl/worksheets/sheet1.xml"]);
+    check("an Excel report is a real workbook", bytes[0] === 0x50 && bytes[1] === 0x4b && Boolean(files["[Content_Types].xml"]) && Boolean(files["xl/styles.xml"]));
+    check("its header row is styled and frozen", sheet.includes('<c r="A1" s="1"') && sheet.includes('state="frozen"') && sheet.includes('<autoFilter ref="A1:C3"/>'));
+    check("numbers are stored as numbers, so Excel can total them", sheet.includes('<c r="B2" s="0"><v>6000</v></c>') && sheet.includes("<v>4500.5</v>"));
+    check("text is stored as text, so it can never run as a formula", sheet.includes('<c r="C2" s="0" t="inlineStr"><is><t xml:space="preserve">=SUM(1)</t>'));
+    check("special characters are escaped", sheet.includes("Arun &lt;K&gt;"));
+    check("the tab name drops characters Excel refuses", strFromU8(files["xl/workbook.xml"]).includes('name="Inmates   2026"'));
+  }
 }
 
 async function singleDevice() {
@@ -98,6 +118,51 @@ async function singleDevice() {
   check("branches do not see each other's rooms", (await rooms.listRooms()).length === 1);
   const tNotices = (await notices.listNotices()).map((n) => n.id);
   check("shared notices show on both boards", tNotices.includes(shared) && tNotices.length === 1);
+
+  // One building of a hostel. Thammanam is Pushpamangalam and Royal House;
+  // a room is in a building by its block, an inmate by their room.
+  {
+    const { views } = app;
+    const before = { rooms: (await rooms.listRooms()).length, inmates: (await inmates.listInmates("", "all")).length };
+    const pRoom = await rooms.createRoom({ ...room("101", 2), block: "PUSHPAMANGLAM" });
+    const rRoom = await rooms.createRoom({ ...room("101", 3), block: "Royal House" });
+    const pInmate = await inmates.createInmate(inmate("In Pushpa", pRoom));
+    const rInmate = await inmates.createInmate(inmate("In Royal", rRoom));
+    const names = async () => (await inmates.listInmates("", "all")).map((i) => i.fullName);
+
+    check("a building's name matches despite a spelling slip", views.isHouse("PUSHPAMANGLAM", "Pushpamangalam") && !views.isHouse("A", "Pushpamangalam") && !views.isHouse("", "Royal House"));
+    check("a long building name is shortened in room labels", (await rooms.getRoom(pRoom)) && views.roomLabelOf({ block: "PUSHPAMANGLAM", roomNumber: "101" }) === "P-101" && views.roomLabelOf({ block: "Royal House", roomNumber: "101" }) === "RH-101");
+    check("a short block is left as it is", views.roomLabelOf({ block: "A", roomNumber: "7" }) === "A-7" && views.roomLabelOf({ block: "", roomNumber: "7" }) === "7");
+
+    // Everyone in the hostel with no room yet shows in every building.
+    const roomless = (await inmates.listInmates("", "all")).filter((i) => !i.roomId);
+    const noRoom = roomless.map((i) => i.fullName);
+    const roomlessIds = new Set(roomless.map((i) => i.id));
+    const branchOf = (await inmates.getInmate(rInmate)).branchId;
+    views.setActiveHouse("Royal House", branchOf);
+    const royalRooms = await rooms.listRooms();
+    check("one building: only its rooms", royalRooms.length === 1 && royalRooms[0].id === rRoom);
+    check("one building: its inmates, and those with no room yet", JSON.stringify((await names()).sort()) === JSON.stringify(["In Royal", ...noRoom].sort()), JSON.stringify(await names()));
+    check("an inmate in the other building is not shown", !(await names()).includes("In Pushpa"));
+    check("one building: occupancy counts only its beds", (await rooms.occupancyTotals()).beds === 3 && (await rooms.occupancyTotals()).occupied === 1);
+    check("one building: its bills, and those of inmates with no room", (await fees.listFees("all", null)).every((fee) => fee.studentId === rInmate || roomlessIds.has(fee.studentId)) && (await fees.listFees("all", null)).some((fee) => fee.studentId === rInmate));
+    check("one building: no bill of the other building", !(await fees.listFees("all", null)).some((fee) => fee.studentId === pInmate));
+
+    views.setActiveHouse("Pushpamangalam", branchOf);
+    check("the other building shows the other inmate", JSON.stringify((await names()).sort()) === JSON.stringify(["In Pushpa", ...noRoom].sort()));
+    views.setActiveHouse("Pushpamangalam", "some-other-hostel");
+    check("someone with no room in another hostel is not shown", roomless.length > 0 && !views.allInmates().some((i) => roomlessIds.has(i.id)));
+    check("a record opens by its id whichever building is showing", (await inmates.getInmate(rInmate)) !== null && (await rooms.getRoom(rRoom)).occupied === 1);
+
+    views.setActiveHouse(null);
+    check("the whole hostel shows both buildings and everyone else", (await rooms.listRooms()).length === before.rooms + 2 && (await inmates.listInmates("", "all")).length === before.inmates + 2);
+
+    // Left as found, so the checks below count what they always counted.
+    await inmates.deleteInmate(pInmate);
+    await inmates.deleteInmate(rInmate);
+    await rooms.deleteRoom(pRoom);
+    await rooms.deleteRoom(rRoom);
+  }
 
   // Fees
   const billId = await fees.createFee({ studentId: b, period: "2026-03", rent: 5000, electricity: 200, water: 0, other: 0, discount: 200, dueDate: "2026-03-15", note: "" });
@@ -144,7 +209,7 @@ async function singleDevice() {
   check("a promised bill leaves the reminder queue", !has(await fees.listDueForReminder(today)));
   check("it comes back on the promised day", has(await fees.listDueForReminder(day(5))));
   check("it is listed under this week, not overdue", (await inBucket("week")) && !(await inBucket("overdue")));
-  check("its label says when the balance is promised", fees.dueLabel(bill) === "balance promised in 5 days", fees.dueLabel(bill));
+  check("its label says when the balance is promised", fees.dueLabel(bill) === "promised in 5 days", fees.dueLabel(bill));
 
   await fees.setPromiseDate(billId, day(1));
   bill = await fees.getFee(billId);
@@ -249,6 +314,26 @@ async function automaticBilling() {
   check("an inmate who has left is not billed", (await fees.raiseDueBills()) === 0);
   await inmates.reinstate(roomPriced);
   check("reinstating an inmate bills them for this month", billsOf(roomPriced).length === 1);
+
+  // Admitted before a rent was agreed: a ₹0 bill, which reads as paid.
+  const noRent = await inmates.createInmate(inmate("No rent yet", null, { joinedOn: `${now}-01`, monthlyRent: 0 }));
+  check("admitted with no rent and no room: a ₹0 bill", billsOf(noRent)[0]?.total === 0);
+  await fees.changeRent(noRent, { rent: 6000, from: "this", billingDay: null });
+  let bill = await fees.getFee(billsOf(noRent)[0].id);
+  check("changing rent from this month re-prices this month's bill", bill.total === 6000 && bill.rent === 6000);
+  check("so the new rent shows as due", bill.status === "unpaid" && bill.balance === 6000);
+  check("and the inmate's rent is saved", views.inmateById(noRent).monthlyRent === 6000);
+  check("keeping the due day leaves the joining day", bill.dueDate === `${now}-01`);
+
+  await fees.recordPayment(bill.id, 4000, "cash", today, "", "");
+  check("cutting the rent below what is already paid is refused", await rejects(fees.changeRent(noRent, { rent: 3000, from: "this", billingDay: null }), fees.OverpaymentError));
+  check("and nothing was changed", views.inmateById(noRent).monthlyRent === 6000);
+
+  await fees.changeRent(noRent, { rent: 7000, from: "next", billingDay: 20 });
+  bill = await fees.getFee(bill.id);
+  check("from next month: this month's bill keeps its amount", bill.total === 6000);
+  check("an unpaid bill moves to the new due day", bill.dueDate === fees.dueDateFor(now, 20));
+  check("the new billing day is remembered for later bills", fees.billingDayOf(views.inmateById(noRent)) === 20);
 }
 
 async function backups() {

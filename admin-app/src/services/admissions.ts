@@ -6,6 +6,7 @@
  * student as an inmate -- or reject it, which deletes it and its photos.
  */
 import { find, list, logActivity, remove } from "@/store/cloud";
+import { roomIdInActiveHouse } from "@/store/views";
 import { getActiveBranchId, inActiveBranch } from "./branches";
 import { RoomFullError, createInmate } from "./inmates";
 import { formatRoomLabel, getRoom, listRooms } from "./rooms";
@@ -44,6 +45,9 @@ export interface Application {
 export function listApplications(): Application[] {
   return list<Application>("applications")
     .filter((a) => inActiveBranch(a.branchId))
+    // With one building selected: the forms asking for a room in it, plus
+    // those that named no room, which either building may take.
+    .filter((a) => !a.roomId || roomIdInActiveHouse(a.roomId))
     .sort((a, b) => a.createdAt - b.createdAt);
 }
 

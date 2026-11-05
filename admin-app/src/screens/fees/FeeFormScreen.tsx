@@ -1,17 +1,19 @@
 import React, { useEffect, useState } from "react";
-import { Alert, ScrollView, StyleSheet, Text, View } from "react-native";
+import { StyleSheet, Text, View } from "react-native";
+import FormScroll from "@/components/FormScroll";
+import { Alert } from "@/web/dialog";
 import { SafeAreaView } from "react-native-safe-area-context";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 
 import { Card, SectionTitle } from "@/components/Base";
 import Button from "@/components/Button";
-import Input, { PickerField } from "@/components/Input";
+import Input, { DateInput, PickerField } from "@/components/Input";
 import { OptionPicker } from "@/components/Controls";
 import { colors, spacing, type } from "@/constants/theme";
 import { useApp } from "@/context/AppContext";
 import { useAsyncData } from "@/utils/hooks";
 import {
-  anchorDayFor,
+  billingDayOf,
   createFee,
   currentPeriod,
   DuplicateInvoiceError,
@@ -81,7 +83,7 @@ export default function FeeFormScreen({ navigation, route }: Props) {
       if (!inmate) return;
       setInmateName(inmate.fullName);
       setRent(String(inmate.monthlyRent > 0 ? inmate.monthlyRent : (inmate.roomRent ?? 0)));
-      const anchor = anchorDayFor(inmate.joinedOn);
+      const anchor = billingDayOf(inmate);
       setAnchorDay(anchor);
       setDueDate(dueDateFor(period, anchor));
     })();
@@ -131,7 +133,7 @@ export default function FeeFormScreen({ navigation, route }: Props) {
 
   return (
     <SafeAreaView style={styles.screen} edges={["left", "right", "bottom"]}>
-      <ScrollView
+      <FormScroll
         contentContainerStyle={styles.content}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
@@ -153,13 +155,7 @@ export default function FeeFormScreen({ navigation, route }: Props) {
           placeholder="Choose"
           onPress={() => setPeriodPickerOpen(true)}
         />
-        <Input
-          label="Due date"
-          value={dueDate}
-          onChangeText={setDueDate}
-          placeholder="YYYY-MM-DD"
-          icon="alarm-outline"
-        />
+        <DateInput label="Due date" value={dueDate} onChange={setDueDate} icon="alarm-outline" />
 
         <SectionTitle title="Charges" />
         <Input
@@ -224,7 +220,7 @@ export default function FeeFormScreen({ navigation, route }: Props) {
           onPress={onSave}
           loading={saving}
         />
-      </ScrollView>
+      </FormScroll>
 
       <OptionPicker
         visible={inmatePickerOpen}

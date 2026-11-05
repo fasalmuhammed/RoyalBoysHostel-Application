@@ -228,11 +228,32 @@ export function Fab({
       accessibilityRole="button"
       accessibilityLabel={label ?? "Add"}
     >
-      <Glass tone="tinted" radius={28} style={styles.fab}>
+      <View style={styles.fab}>
         <Ionicons name={icon} size={22} color={colors.primaryOn} />
         {label ? <Text style={styles.fabLabel}>{label}</Text> : null}
-      </Glass>
+      </View>
     </Pressable>
+  );
+}
+
+/**
+ * The "add" button for a tab's own header, beside its title -- where iOS puts
+ * it, and where it never sits on top of a row of the list.
+ */
+export function HeaderAction({
+  icon = "add",
+  label,
+  onPress,
+}: {
+  icon?: keyof typeof Ionicons.glyphMap;
+  label: string;
+  onPress: () => void;
+}) {
+  return (
+    <PressableScale onPress={onPress} scaleTo={0.94} style={styles.headerAction} accessibilityRole="button" accessibilityLabel={label}>
+      <Ionicons name={icon} size={18} color={colors.primaryOn} />
+      <Text style={styles.headerActionText}>{label}</Text>
+    </PressableScale>
   );
 }
 
@@ -338,7 +359,23 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: spacing.sm,
     paddingHorizontal: spacing.md + 4,
-    height: 56,
+    height: 54,
+    borderRadius: 27,
+    backgroundColor: colors.primary,
+    ...shadow.raised,
+    shadowColor: colors.primary,
+    shadowOpacity: 0.3,
   },
+  headerAction: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    height: 38,
+    paddingLeft: spacing.sm + 2,
+    paddingRight: spacing.md,
+    borderRadius: 19,
+    backgroundColor: colors.primary,
+  },
+  headerActionText: { color: colors.primaryOn, fontFamily: font.semibold, fontSize: fontSize.sm + 1 },
   fabLabel: { color: colors.primaryOn, fontFamily: font.bold, fontSize: fontSize.md },
 });

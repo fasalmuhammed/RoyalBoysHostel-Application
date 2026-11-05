@@ -197,7 +197,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
     marginBottom: spacing.sm,
-    marginTop: spacing.xs,
+    marginTop: spacing.sm + 4,
   },
   sectionTitle: { ...type.section, color: colors.text },
   empty: { alignItems: "center", paddingVertical: spacing.xl },

@@ -56,13 +56,24 @@ export default function FeesScreen({ navigation, route }: Props) {
 
   return (
     <SafeAreaView style={styles.screen} edges={["top", "left", "right"]}>
-      <HostelSwitch style={styles.hostelSwitch} />
       <View style={styles.header}>
-        <View style={{ flex: 1 }}>
-          <Text style={styles.title}>Fees</Text>
-          <Text style={styles.subtitle}>
-            {period ? formatPeriod(period) : "All months"}
-          </Text>
+        <Text style={[styles.title, { flex: 1 }]}>Fees</Text>
+      </View>
+      <View style={styles.subHeader}>
+        <PressableScale
+          onPress={() => setPeriodPickerOpen(true)}
+          scaleTo={0.95}
+          style={styles.periodChip}
+          accessibilityRole="button"
+          accessibilityLabel="Change month"
+        >
+          {/* Short month ("Oct 2026"), so the hostel name beside it is never cut off on a phone. */}
+          <Text style={styles.periodText}>{period ? formatPeriod(period).replace(/^([A-Za-z]{3})[A-Za-z]*/, "$1") : "All months"}</Text>
+          <Ionicons name="chevron-down" size={14} color={colors.primary} />
+        </PressableScale>
+        {/* Month on the left; hostel and the dues shortcut together on the right. */}
+        <View style={{ flexShrink: 1, marginLeft: "auto" }}>
+          <HostelSwitch compact />
         </View>
         <PressableScale
           onPress={() => navigation.navigate("Dues")}
@@ -72,17 +83,6 @@ export default function FeesScreen({ navigation, route }: Props) {
           accessibilityLabel="Dues and collections"
         >
           <Ionicons name="alarm-outline" size={19} color={colors.primary} />
-        </PressableScale>
-        <PressableScale
-          onPress={() => setPeriodPickerOpen(true)}
-          scaleTo={0.95}
-          style={styles.periodChip}
-          accessibilityRole="button"
-          accessibilityLabel="Change month"
-        >
-          <Ionicons name="calendar-outline" size={15} color={colors.primary} />
-          <Text style={styles.periodText}>{period ? formatPeriod(period) : "All months"}</Text>
-          <Ionicons name="chevron-down" size={14} color={colors.primary} />
         </PressableScale>
       </View>
 
@@ -260,10 +260,11 @@ const styles = StyleSheet.create({
     paddingTop: spacing.sm,
   },
   title: { ...type.title, color: colors.text },
+  subHeader: { flexDirection: "row", alignItems: "center", gap: spacing.sm, paddingHorizontal: spacing.lg, paddingTop: spacing.sm },
   subtitle: { ...type.support, color: colors.textMuted, marginTop: 2 },
   duesButton: {
-    width: HIT_TARGET,
-    height: HIT_TARGET,
+    width: HIT_TARGET - 4,
+    height: HIT_TARGET - 4,
     borderRadius: radius.md,
     backgroundColor: colors.surface,
     alignItems: "center",
@@ -302,7 +303,7 @@ const styles = StyleSheet.create({
   summaryFoot: { ...type.caption, color: colors.textMuted },
 
   controls: { paddingHorizontal: spacing.lg, paddingTop: spacing.md, gap: spacing.sm },
-  list: { padding: spacing.lg, paddingBottom: 190 },
+  list: { padding: spacing.lg, paddingBottom: 130 },
 
   row: { flexDirection: "row", alignItems: "center", gap: spacing.sm + 4 },
   rowBody: { flex: 1, gap: 2 },

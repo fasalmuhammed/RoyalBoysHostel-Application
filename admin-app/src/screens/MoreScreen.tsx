@@ -1,4 +1,5 @@
 import React from "react";
+import { versionLabel } from "@/utils/appUpdates";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -30,7 +31,10 @@ export default function MoreScreen({ navigation }: Props) {
   return (
     <SafeAreaView style={styles.screen} edges={["top", "left", "right"]}>
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        <Text style={styles.title}>More</Text>
+        <View style={styles.titleRow}>
+          <Text style={[styles.title, { flex: 1, marginBottom: 0 }]}>More</Text>
+          <HostelSwitch />
+        </View>
 
         <View style={styles.profile}>
           <LinearGradient colors={[...gradients.hero]} start={gradients.heroStart} end={gradients.heroEnd} style={StyleSheet.absoluteFill} />
@@ -44,13 +48,11 @@ export default function MoreScreen({ navigation }: Props) {
                 {displayName}
               </Text>
               <Text style={styles.profileRole} numberOfLines={1}>
-                {access.isOwner ? (allHostels ? "Admin · showing both hostels" : "Admin") : "Branch manager"}
+                {access.isOwner ? (allHostels ? "Full access · showing both hostels" : "Full access · both hostels") : "Hostel manager"}
               </Text>
             </View>
           </View>
-          {access.isOwner ? (
-            <HostelSwitch variant="dark" />
-          ) : (
+          {access.isOwner ? null : (
             <View style={styles.branchRow}>
               <Ionicons name="business-outline" size={17} color={colors.goldLight} />
               <View style={{ flex: 1 }}>
@@ -134,7 +136,7 @@ export default function MoreScreen({ navigation }: Props) {
           <Row
             icon="document-text-outline"
             label="Reports"
-            sublabel="Download spreadsheets for printing and accounts"
+            sublabel="Excel sheets for printing and accounts"
             onPress={() => navigation.navigate("Reports")}
             last
           />
@@ -162,7 +164,7 @@ export default function MoreScreen({ navigation }: Props) {
         </View>
 
         <Text style={styles.footer}>
-          Royal Boys Hostel · v{Constants.expoConfig?.version ?? "—"}{"\n"}
+          Royal Boys Hostel · v{versionLabel(Constants.expoConfig?.version ?? "—")}{"\n"}
           Records are kept online and update live on every device.
         </Text>
       </ScrollView>
@@ -215,6 +217,7 @@ const styles = StyleSheet.create({
   content: { padding: spacing.lg, paddingBottom: 130 },
   title: { ...type.title, color: colors.text, marginBottom: spacing.md },
 
+  titleRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm, marginBottom: spacing.md },
   profile: {
     backgroundColor: colors.primary,
     borderRadius: radius.xl,

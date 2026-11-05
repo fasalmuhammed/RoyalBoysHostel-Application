@@ -1,5 +1,6 @@
 import React from "react";
-import { Alert, Linking, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Linking, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Alert } from "@/web/dialog";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
@@ -14,6 +15,7 @@ import { deleteRoom, getRoom } from "@/services/rooms";
 import { assignRoom, listInmatesInRoom } from "@/services/inmates";
 import { formatMoney } from "@/utils/format";
 import type { RootStackParamList } from "@/navigation/types";
+import { roomLabelOf } from "@/store/views";
 
 type Props = NativeStackScreenProps<RootStackParamList, "RoomDetail">;
 
@@ -54,7 +56,7 @@ export default function RoomDetailScreen({ navigation, route }: Props) {
       Alert.alert("Could not place the call");
     });
   };
-  const label = `${room.block ? `${room.block}-` : ""}${room.roomNumber}`;
+  const label = roomLabelOf(room) ?? "";
 
   const onVacate = (studentId: string, name: string) => {
     Alert.alert("Move out", `Free up ${name}'s bed in room ${label}?`, [
@@ -185,14 +187,16 @@ export default function RoomDetailScreen({ navigation, route }: Props) {
         {room.vacant > 0 ? (
           <View style={styles.addRow}>
             <Button
-              title="Add existing inmate"
+              title="Add existing"
               variant="secondary"
+              compact
               icon="person-add-outline"
               onPress={() => navigation.navigate("AssignInmates", { roomId })}
               style={{ flex: 1 }}
             />
             <Button
               title="New inmate"
+              compact
               icon="add"
               onPress={() => navigation.navigate("InmateForm", { presetRoomId: roomId })}
               style={{ flex: 1 }}

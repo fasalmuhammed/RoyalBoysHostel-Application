@@ -1,5 +1,6 @@
 import React, { useState } from "react";
-import { Alert, FlatList, Pressable, StyleSheet, Text, View } from "react-native";
+import { FlatList, Pressable, StyleSheet, Text, View } from "react-native";
+import { Alert } from "@/web/dialog";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
@@ -11,9 +12,12 @@ import { colors, font, fontSize, radius, spacing, type } from "@/constants/theme
 import { useApp } from "@/context/AppContext";
 import { useAsyncData, useDebounced } from "@/utils/hooks";
 import { getRoom } from "@/services/rooms";
-import { assignRoom, listInmates, RoomFullError, setInmateRent } from "@/services/inmates";
+import { assignRoom, listInmates, RoomFullError } from "@/services/inmates";
+import { billingDayOf, changeRent, currentPeriod, OverpaymentError } from "@/services/fees";
+import RentChangeSheet from "@/components/RentChangeSheet";
 import { formatMoney } from "@/utils/format";
 import type { RootStackParamList } from "@/navigation/types";
+import { roomLabelOf } from "@/store/views";
 
 type Props = NativeStackScreenProps<RootStackParamList, "AssignInmates">;
 
@@ -31,6 +35,8 @@ export default function AssignInmatesScreen({ navigation, route }: Props) {
 
   const [search, setSearch] = useState("");
   const [busyId, setBusyId] = useState<string | null>(null);
+  /** The inmate just moved in whose rent differs from the room's. */
+  const [rentAsk, setRentAsk] = useState<{ id: string; name: string; rent: number; billingDay: number } | null>(null);
   const debounced = useDebounced(search);
 
   const { data: room, reload: reloadRoom } = useAsyncData(() => getRoom(roomId), [roomId]);
@@ -40,41 +46,37 @@ export default function AssignInmatesScreen({ navigation, route }: Props) {
     return target ? everyone.filter((inmate) => inmate.branchId === target.branchId) : everyone;
   }, [debounced, roomId]);
 
-  const label = room ? `${room.block ? `${room.block}-` : ""}${room.roomNumber}` : "";
+  const label = roomLabelOf(room) ?? "";
 
   /**
    * Rent follows the inmate, not the bed, so a move never rewrites it
    * silently. When the new room is priced differently the admin is asked --
    * they are the only one who knows whether the rate was renegotiated.
    */
-  const offerRentUpdate = (studentId: string, name: string, currentRent: number) => {
+  const offerRentUpdate = (studentId: string, name: string, currentRent: number, billingDay: number) => {
     if (!room || room.rent <= 0 || Math.abs(room.rent - currentRent) < 0.01) return;
-
-    Alert.alert(
-      "Update rent?",
-      `${name} pays ${formatMoney(currentRent, settings.currencySymbol)}, but room ${label} is ` +
-        `${formatMoney(room.rent, settings.currencySymbol)}. Change their rent to match?`,
-      [
-        { text: "Keep current rent", style: "cancel" },
-        {
-          text: "Update rent",
-          onPress: async () => {
-            await setInmateRent(studentId, room.rent);
-            invalidate();
-            reload();
-          },
-        },
-      ]
-    );
+    setRentAsk({ id: studentId, name, rent: currentRent, billingDay });
   };
 
-  const onAssign = async (studentId: string, name: string, currentRent: number) => {
+  const applyRent = async (change: Parameters<typeof changeRent>[1]) => {
+    if (!rentAsk) return;
+    try {
+      await changeRent(rentAsk.id, change);
+      setRentAsk(null);
+      invalidate();
+      reload();
+    } catch (e) {
+      Alert.alert("Rent not changed", e instanceof OverpaymentError ? e.message : "Please try again.");
+    }
+  };
+
+  const onAssign = async (studentId: string, name: string, currentRent: number, billingDay: number) => {
     setBusyId(studentId);
     try {
       await assignRoom(studentId, roomId);
       invalidate();
       await Promise.all([reload(), reloadRoom()]);
-      offerRentUpdate(studentId, name, currentRent);
+      offerRentUpdate(studentId, name, currentRent, billingDay);
     } catch (e) {
       Alert.alert(
         "Could not move that inmate",
@@ -168,7 +170,7 @@ export default function AssignInmatesScreen({ navigation, route }: Props) {
                 ) : (
                   <Pressable
                     disabled={busy || vacant <= 0}
-                    onPress={() => onAssign(item.id, item.fullName, item.monthlyRent)}
+                    onPress={() => onAssign(item.id, item.fullName, item.monthlyRent, billingDayOf(item))}
                     style={({ pressed }) => [
                       styles.addButton,
                       pressed && { opacity: 0.8 },
@@ -192,6 +194,19 @@ export default function AssignInmatesScreen({ navigation, route }: Props) {
       <Pressable style={styles.doneBar} onPress={() => navigation.goBack()}>
         <Text style={styles.doneText}>Done</Text>
       </Pressable>
+
+      <RentChangeSheet
+        visible={rentAsk !== null}
+        name={rentAsk?.name ?? ""}
+        roomLabel={label}
+        currentRent={rentAsk?.rent ?? 0}
+        newRent={room?.rent ?? 0}
+        billingDay={rentAsk?.billingDay ?? 1}
+        period={currentPeriod()}
+        symbol={settings.currencySymbol}
+        onKeep={() => setRentAsk(null)}
+        onConfirm={applyRent}
+      />
     </SafeAreaView>
   );
 }

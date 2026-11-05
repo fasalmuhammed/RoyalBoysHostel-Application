@@ -90,6 +90,7 @@ async function device(store, user = OWNER) {
     messaging: load("services/messaging"),
     overview: load("services/overview"),
     csv: load("services/csv"),
+    xlsx: load("services/xlsx"),
     backup: load("services/backup"),
     photos: load("services/photos"),
     format: load("utils/format"),

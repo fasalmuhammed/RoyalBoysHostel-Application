@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from "react";
-import { Alert, Platform, ScrollView, Share, StyleSheet, Text, View } from "react-native";
+import { Platform, ScrollView, Share, StyleSheet, Text, View } from "react-native";
+import { Alert } from "@/web/dialog";
 import { SafeAreaView } from "react-native-safe-area-context";
 import * as Print from "expo-print";
 import qrcode from "qrcode-generator";

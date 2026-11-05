@@ -19,6 +19,7 @@ import { listRooms, occupancyTotals } from "@/services/rooms";
 import type { RoomWithOccupancy } from "@/types";
 import { formatMoney } from "@/utils/format";
 import type { MainTabParamList, RootStackParamList } from "@/navigation/types";
+import { roomLabelOf } from "@/store/views";
 
 type Props = CompositeScreenProps<
   BottomTabScreenProps<MainTabParamList, "Rooms">,
@@ -75,12 +76,14 @@ export default function RoomsScreen({ navigation }: Props) {
 
   return (
     <SafeAreaView style={styles.screen} edges={["top", "left", "right"]}>
-      <HostelSwitch style={styles.hostelSwitch} />
       <View style={styles.header}>
-        <Text style={styles.title}>Rooms</Text>
-        <Text style={styles.subtitle}>
-          {totals ? `${totals.rooms} ${totals.rooms === 1 ? "room" : "rooms"}` : " "}
-        </Text>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.title}>Rooms</Text>
+          <Text style={styles.subtitle}>
+            {totals ? `${totals.rooms} ${totals.rooms === 1 ? "room" : "rooms"}` : " "}
+          </Text>
+        </View>
+        <HostelSwitch />
       </View>
 
       <Card style={styles.summary}>
@@ -200,7 +203,7 @@ function RoomRow({
   onPress: () => void;
 }) {
   const full = room.vacant <= 0;
-  const label = `Room ${room.block ? `${room.block}-` : ""}${room.roomNumber}`;
+  const label = `Room ${roomLabelOf(room) ?? ""}`;
   const { allHostels, branches } = useApp();
   const hostel = allHostels ? branches.find((b) => b.id === room.branchId) : null;
 
@@ -217,6 +220,7 @@ function RoomRow({
           <Text style={styles.roomMeta} numberOfLines={1}>
             {[
               hostel ? hostel.shortName || hostel.name : null,
+              room.block.trim().length > 4 ? room.block : null,
               room.floor ? `Floor ${room.floor}` : null,
               room.rent > 0 ? `${formatMoney(room.rent, symbol)}/mo` : null,
             ]
@@ -275,7 +279,7 @@ const styles = StyleSheet.create({
   sizePillText: { ...type.bodyStrong, fontSize: type.support.fontSize, color: colors.primary },
   hostelSwitch: { marginHorizontal: spacing.lg, marginTop: spacing.sm },
   screen: { flex: 1, backgroundColor: colors.background },
-  header: { paddingHorizontal: spacing.lg, paddingTop: spacing.sm },
+  header: { flexDirection: "row", alignItems: "center", gap: spacing.sm, paddingHorizontal: spacing.lg, paddingTop: spacing.sm },
   title: { ...type.title, color: colors.text },
   subtitle: { ...type.support, color: colors.textMuted, marginTop: 2 },
 

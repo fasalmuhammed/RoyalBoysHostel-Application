@@ -16,6 +16,7 @@ import { DEFAULT_SETTINGS, loadSettings, saveSettings } from "@/services/setting
 import { seedTemplates } from "@/services/messaging";
 import { getBranch, listBranches, seedBranches, setActiveBranchId } from "@/services/branches";
 import { closeStore, openStore, storePending, storeProblem, subscribeStore } from "@/store/cloud";
+import { setActiveHouse } from "@/store/views";
 import { currentPeriod, raiseDueBills } from "@/services/fees";
 import { startBackend } from "@/backend";
 import type { FirebaseBackend, Session } from "@/backend/firebase";
@@ -103,6 +104,12 @@ interface AppContextValue {
    */
   allHostels: boolean;
   chooseAll: () => void;
+  /**
+   * One building of the hostel being looked at ("Pushpamangalam"), or null
+   * for the whole hostel. Only hostels made of several buildings have any.
+   */
+  activeHouse: string | null;
+  chooseHouse: (branchId: string, house: string | null) => Promise<void>;
   clearBranch: () => void;
 
   /**
@@ -139,6 +146,7 @@ export function AppProvider({ children }: PropsWithChildren) {
   const [branches, setBranches] = useState<Branch[]>([]);
   const [activeBranch, setActiveBranch] = useState<Branch | null>(null);
   const [allHostels, setAllHostels] = useState(false);
+  const [activeHouse, setActiveHouseState] = useState<string | null>(null);
   const [dataVersion, setDataVersion] = useState(0);
   const [access, setAccess] = useState<Access>(NO_ACCESS);
   const [syncProblem, setSyncProblem] = useState<string | null>(null);
@@ -171,6 +179,8 @@ export function AppProvider({ children }: PropsWithChildren) {
     setActiveBranchId(null);
     setActiveBranch(null);
     setAllHostels(false);
+    setActiveHouse(null);
+    setActiveHouseState(null);
     setBranches([]);
     setUser(null);
     setAccess(NO_ACCESS);
@@ -208,6 +218,8 @@ export function AppProvider({ children }: PropsWithChildren) {
       setActiveBranchId(start ? start.id : null);
       setActiveBranch(start);
       setAllHostels(false);
+      setActiveHouse(null);
+      setActiveHouseState(null);
 
       setUser({ username: session.staff.username, name: session.staff.name, role: session.staff.role });
       setDataVersion((v) => v + 1);
@@ -363,6 +375,9 @@ export function AppProvider({ children }: PropsWithChildren) {
       setActiveBranchId(branch.id);
       setActiveBranch(branch);
       setAllHostels(false);
+      // Choosing a hostel shows all of it; a building is picked separately.
+      setActiveHouse(null);
+      setActiveHouseState(null);
       await saveSettings({ activeBranchId: branch.id });
       setSettings((current) => ({ ...current, activeBranchId: branch.id }));
       setDataVersion((v) => v + 1);
@@ -375,8 +390,22 @@ export function AppProvider({ children }: PropsWithChildren) {
     if (access.branchId || !access.isOwner) return;
     setActiveBranchId(null);
     setAllHostels(true);
+    setActiveHouse(null);
+    setActiveHouseState(null);
     setDataVersion((v) => v + 1);
   }, [access.branchId, access.isOwner]);
+
+  /** One building of a hostel, or (with null) the whole hostel again. */
+  const chooseHouse = useCallback(
+    async (branchId: string, house: string | null) => {
+      if (access.branchId && branchId !== access.branchId) return;
+      await chooseBranch(branchId);
+      setActiveHouse(house, branchId);
+      setActiveHouseState(house);
+      setDataVersion((v) => v + 1);
+    },
+    [access.branchId, chooseBranch]
+  );
 
   const clearBranch = useCallback(() => {
     if (access.branchId) return;
@@ -401,6 +430,8 @@ export function AppProvider({ children }: PropsWithChildren) {
       chooseBranch,
       allHostels,
       chooseAll,
+      activeHouse,
+      chooseHouse,
       clearBranch,
       dataVersion,
       invalidate,
@@ -412,7 +443,7 @@ export function AppProvider({ children }: PropsWithChildren) {
     }),
     [
       ready, startupError, user, loginNotice, opening, signIn, signOut, settings, branches,
-      activeBranch, chooseBranch, allHostels, chooseAll, clearBranch, dataVersion, invalidate, access, syncProblem, pendingSync,
+      activeBranch, chooseBranch, allHostels, chooseAll, activeHouse, chooseHouse, clearBranch, dataVersion, invalidate, access, syncProblem, pendingSync,
       updateSettings, refreshSettings,
     ]
   );

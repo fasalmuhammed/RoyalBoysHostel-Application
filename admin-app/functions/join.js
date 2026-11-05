@@ -21,7 +21,8 @@ const MAX_PHOTO_BYTES = 1200 * 1024;
 const MAX_PER_HOUR = 80;
 /** A hostel never has this many forms waiting; beyond it, something is wrong. */
 const MAX_PENDING = 300;
-const BLOOD_GROUPS = ["", "A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"];
+// Kept in step with src/constants/bloodGroups.ts and the drop-down in hosting/join.html.
+const BLOOD_GROUPS = ["", "A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-", "A1+", "A1-", "A2+", "A2-", "A1B+", "A1B-", "A2B+", "A2B-", "Bombay (Oh)"];
 
 class FormError extends Error {}
 
@@ -51,6 +52,13 @@ function jpeg(value, label) {
   return bytes;
 }
 
+/** As in the app (src/store/views.ts): a building's name in front of a room number becomes its initials. */
+function shortBlock(block) {
+  const text = String(block ?? "").trim();
+  if (text.length <= 4) return text;
+  return text.split(/[^A-Za-z0-9]+/).filter(Boolean).map((word) => word[0].toUpperCase()).join("");
+}
+
 /** The hostel a form is for, with its rooms and how many beds each has free. */
 async function hostelInfo(branchId) {
   const db = getFirestore();
@@ -70,7 +78,7 @@ async function hostelInfo(branchId) {
   const list = rooms.docs
     .map((doc) => {
       const room = doc.data();
-      const label = [room.block, room.roomNumber].filter(Boolean).join("-");
+      const label = [shortBlock(room.block), room.roomNumber].filter(Boolean).join("-");
       return {
         id: doc.id,
         label,
@@ -81,6 +89,18 @@ async function hostelInfo(branchId) {
     })
     .sort((a, b) => a.label.localeCompare(b.label, undefined, { numeric: true }));
   return { branch: { id: branch.id, name: branch.data().name }, rooms: list };
+}
+
+/**
+ * The visitor's own address. Requests arrive through Firebase Hosting, so the
+ * connection itself comes from Google's front end; Hosting passes the
+ * visitor's address along in a header. A forged header only changes which
+ * bucket a sender counts against -- the per-hostel cap on waiting forms still
+ * bounds any flood.
+ */
+function clientAddress(req) {
+  const fromHosting = req.get("fastly-client-ip") || String(req.get("x-forwarded-for") || "").split(",")[0].trim();
+  return fromHosting || req.ip || "unknown";
 }
 
 /** Refuses a flood from one place without keeping the address itself. */
@@ -103,8 +123,9 @@ async function saveApplication(body) {
 
   const roomId = String(body.roomId ?? "");
   if (roomId && !info.rooms.some((room) => room.id === roomId)) throw new FormError("Choose your room again.");
-  const bloodGroup = String(body.bloodGroup ?? "").toUpperCase().trim();
-  if (!BLOOD_GROUPS.includes(bloodGroup)) throw new FormError("Choose a blood group from the list.");
+  const typed = String(body.bloodGroup ?? "").trim().toUpperCase();
+  const bloodGroup = BLOOD_GROUPS.find((group) => group.toUpperCase() === typed);
+  if (bloodGroup === undefined) throw new FormError("Choose a blood group from the list.");
   const email = text(body.email, "Email", { max: 120 });
   if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new FormError("That email address looks wrong.");
 
@@ -192,7 +213,7 @@ exports.join = onRequest({ memory: "512MiB", timeoutSeconds: 60 }, async (req, r
     const body = req.body && typeof req.body === "object" ? req.body : {};
     // A field people never see; only a script fills it in.
     if (body.website) return res.json({ ok: true });
-    await throttle(req.ip);
+    await throttle(clientAddress(req));
     const id = await saveApplication(body);
     return res.json({ ok: true, id });
   } catch (error) {

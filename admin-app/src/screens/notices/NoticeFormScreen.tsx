@@ -1,12 +1,14 @@
 import React, { useEffect, useState } from "react";
-import { Alert, Pressable, ScrollView, StyleSheet, Switch, Text, View } from "react-native";
+import { Pressable, StyleSheet, Switch, Text, View } from "react-native";
+import FormScroll from "@/components/FormScroll";
+import { Alert } from "@/web/dialog";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 
 import { Callout, CalloutText, SectionTitle } from "@/components/Base";
 import Button from "@/components/Button";
-import Input from "@/components/Input";
+import Input, { DateInput } from "@/components/Input";
 import { colors, font, fontSize, radius, spacing, type } from "@/constants/theme";
 import { useApp } from "@/context/AppContext";
 import { getActiveBranchId } from "@/services/branches";
@@ -30,7 +32,7 @@ export default function NoticeFormScreen({ navigation, route }: Props) {
   const noticeId = route.params?.noticeId;
   const isEditing = Boolean(noticeId);
   const { invalidate, activeBranch, access, allHostels } = useApp();
-  const branchLabel = activeBranch?.shortName ?? "this branch";
+  const branchLabel = activeBranch?.shortName ?? "this hostel";
 
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
@@ -127,7 +129,7 @@ export default function NoticeFormScreen({ navigation, route }: Props) {
 
   return (
     <SafeAreaView style={styles.screen} edges={["left", "right", "bottom"]}>
-      <ScrollView
+      <FormScroll
         contentContainerStyle={styles.content}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
@@ -168,18 +170,12 @@ export default function NoticeFormScreen({ navigation, route }: Props) {
           error={errors.body}
         />
 
-        <Input
-          label="Posted on"
-          value={postedOn}
-          onChangeText={setPostedOn}
-          placeholder="YYYY-MM-DD"
-          icon="calendar-outline"
-        />
+        <DateInput label="Posted on" value={postedOn} onChange={setPostedOn} icon="calendar-outline" />
 
         {/* Only the admin posts to both hostels; a manager's notices are their branch's. */}
         <View style={[styles.switchRow, access.isOwner ? null : { display: "none" }]}>
           <View style={{ flex: 1 }}>
-            <Text style={styles.switchLabel}>Applies to both branches</Text>
+            <Text style={styles.switchLabel}>Applies to both hostels</Text>
             <Text style={styles.switchHint}>
               {allBranches
                 ? "Shows on the board at both hostels."
@@ -241,7 +237,7 @@ export default function NoticeFormScreen({ navigation, route }: Props) {
           loading={saving}
           style={{ marginTop: spacing.sm }}
         />
-      </ScrollView>
+      </FormScroll>
     </SafeAreaView>
   );
 }

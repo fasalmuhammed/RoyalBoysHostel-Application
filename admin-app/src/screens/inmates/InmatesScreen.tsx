@@ -94,23 +94,14 @@ export default function InmatesScreen({ navigation, route }: Props) {
 
   return (
     <SafeAreaView style={styles.screen} edges={["top", "left", "right"]}>
-      <HostelSwitch style={styles.hostelSwitch} />
       <View style={styles.header}>
         <View style={{ flex: 1 }}>
           <Text style={styles.title}>Inmates</Text>
           <Text style={styles.subtitle}>
-            {counts ? `${counts.active} active · ${counts.total} on the register` : " "}
+            {counts ? `${counts.active} active · ${counts.total} in all` : " "}
           </Text>
         </View>
-        <PressableScale
-          onPress={() => navigation.navigate("Search")}
-          scaleTo={0.9}
-          style={styles.headerIcon}
-          accessibilityRole="button"
-          accessibilityLabel="Search everything"
-        >
-          <Ionicons name="search" size={19} color={colors.text} />
-        </PressableScale>
+        <HostelSwitch />
       </View>
 
       <View style={styles.controls}>

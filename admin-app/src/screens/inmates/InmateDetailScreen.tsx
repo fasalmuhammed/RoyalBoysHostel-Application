@@ -1,5 +1,6 @@
 import React, { useState } from "react";
-import { ActivityIndicator, Alert, Image, Linking, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Image, Linking, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Alert } from "@/web/dialog";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
@@ -216,8 +217,8 @@ export default function InmateDetailScreen({ navigation, route }: Props) {
                 {outstanding > 0.01 ? formatMoney(outstanding, symbol) : "All settled"}
               </Text>
               {oldestDue ? (
-                <Text style={styles.balanceNote} numberOfLines={1}>
-                  {oldestDue.promisedDate ? "Balance" : "Oldest bill"} {dueLabel(oldestDue).replace(/^balance /, "")}
+                <Text style={styles.balanceNote} numberOfLines={2}>
+                  {oldestDue.promisedDate ? "Balance" : "Oldest bill"} {dueLabel(oldestDue)}
                 </Text>
               ) : null}
             </View>
@@ -285,7 +286,7 @@ export default function InmateDetailScreen({ navigation, route }: Props) {
 
         <SectionTitle title="Hostel" />
         <Card>
-          <DetailRow label="Branch" value={inmate.branchName ?? "—"} />
+          <DetailRow label="Hostel" value={inmate.branchName ?? "—"} />
           <Divider />
           <DetailRow label="Room" value={inmate.roomLabel ?? "Not assigned"} />
           <Divider />

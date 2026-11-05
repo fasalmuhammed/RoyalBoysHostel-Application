@@ -1,7 +1,7 @@
 import React from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 
-import Input from "./Input";
+import { DateInput } from "./Input";
 import { colors, radius, spacing, type } from "@/constants/theme";
 import { formatDate, toIsoDate } from "@/utils/format";
 import { promiseDateProblem } from "@/services/fees";
@@ -60,15 +60,12 @@ export default function PromiseDateField({
           );
         })}
       </View>
-      <Input
+      <DateInput
         label="Balance promised by"
         required
         value={value}
-        onChangeText={(text) => onChange(text.trim())}
-        placeholder="YYYY-MM-DD"
+        onChange={onChange}
         icon="calendar-outline"
-        autoCapitalize="none"
-        autoCorrect={false}
         error={error}
         hint={readable ? `${readable}. They will show in the dues list again on this day.` : "The day they said they will pay the rest."}
       />

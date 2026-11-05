@@ -10,6 +10,8 @@ export interface MenuItem {
   key: string;
   label: string;
   sublabel?: string;
+  /** Set in from the edge: an entry that belongs under the one above it. */
+  indent?: boolean;
   icon?: keyof typeof Ionicons.glyphMap;
   /** Shown in red, for actions that remove something. */
   destructive?: boolean;
@@ -95,8 +97,8 @@ export default function PopoverMenu({
                 style={({ pressed }) => [styles.item, index > 0 && styles.itemBorder, pressed && styles.itemPressed]}
                 accessibilityRole="menuitem"
               >
-                <View style={{ flex: 1 }}>
-                  <Text style={[styles.label, { color: tint }]} numberOfLines={1}>{item.label}</Text>
+                <View style={{ flex: 1, paddingLeft: item.indent ? 18 : 0 }}>
+                  <Text style={[styles.label, { color: tint }, item.indent && styles.labelIndented]} numberOfLines={1}>{item.label}</Text>
                   {item.sublabel ? <Text style={styles.sublabel} numberOfLines={2}>{item.sublabel}</Text> : null}
                 </View>
                 {selectedKey === item.key ? (
@@ -134,5 +136,6 @@ const styles = StyleSheet.create({
   itemBorder: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: "rgba(60, 60, 67, 0.2)" },
   itemPressed: { backgroundColor: "rgba(0, 0, 0, 0.06)" },
   label: { ...type.body, fontFamily: type.bodyStrong.fontFamily },
+  labelIndented: { fontFamily: type.body.fontFamily },
   sublabel: { ...type.caption, color: colors.textMuted, marginTop: 1 },
 });

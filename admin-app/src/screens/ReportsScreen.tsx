@@ -1,5 +1,6 @@
 import React, { useState } from "react";
-import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Alert } from "@/web/dialog";
 import { SafeAreaView } from "react-native-safe-area-context";
 import * as Sharing from "expo-sharing";
 import { Ionicons } from "@expo/vector-icons";
@@ -63,9 +64,9 @@ export default function ReportsScreen({}: Props) {
       }
       if (await Sharing.isAvailableAsync()) {
         await Sharing.shareAsync(result.uri, {
-          mimeType: "text/csv",
+          mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
           dialogTitle: result.fileName,
-          UTI: "public.comma-separated-values-text",
+          UTI: "org.openxmlformats.spreadsheetml.sheet",
         });
       } else {
         Alert.alert("Report saved", `${result.rowCount} rows written to:\n${result.uri}`);
@@ -80,7 +81,7 @@ export default function ReportsScreen({}: Props) {
   return (
     <SafeAreaView style={styles.screen} edges={["left", "right", "bottom"]}>
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        <SectionTitle title="Available reports" />
+        <SectionTitle title="Excel reports" />
         {REPORTS.map((report) => (
           <Pressable
             key={report.kind}

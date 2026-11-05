@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect } from "react";
 import { View } from "react-native";
 import { StatusBar } from "expo-status-bar";
 import { useFonts } from "expo-font";
@@ -18,6 +18,7 @@ import { AppProvider } from "@/context/AppContext";
 import RootNavigator from "@/navigation/RootNavigator";
 import DialogHost from "@/web/DialogHost";
 import SyncBanner from "@/components/SyncBanner";
+import { watchForUpdates } from "@/utils/appUpdates";
 import { useFrameWidth } from "@/web/frame";
 
 /**
@@ -27,13 +28,31 @@ import { useFrameWidth } from "@/web/frame";
 function AppFrame({ children }: { children: React.ReactNode }) {
   const maxWidth = useFrameWidth();
   return (
-    <View style={{ flex: 1, width: "100%", maxWidth, alignSelf: "center", backgroundColor: colors.background }}>
-      {children}
+    // On a wide screen the app is a pane on a slightly darker desk, with a soft
+    // edge, so it reads as a deliberate column and not a page with empty sides.
+    <View style={{ flex: 1, backgroundColor: "#E6E6EC" }}>
+      <View
+        style={{
+          flex: 1,
+          width: "100%",
+          maxWidth,
+          alignSelf: "center",
+          backgroundColor: colors.background,
+          overflow: "hidden",
+          shadowColor: "#000000",
+          shadowOpacity: 0.1,
+          shadowRadius: 40,
+          shadowOffset: { width: 0, height: 0 },
+        }}
+      >
+        {children}
+      </View>
     </View>
   );
 }
 
 export default function App() {
+  useEffect(() => watchForUpdates(), []);
   const [fontsLoaded, fontError] = useFonts({
     Inter_400Regular,
     Inter_500Medium,

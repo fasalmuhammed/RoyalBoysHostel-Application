@@ -1,4 +1,6 @@
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
+import { fromDisplayDate, toDisplayDate } from "@/utils/format";
+
 import {
   Platform,
   Pressable,
@@ -12,6 +14,7 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 
 import { HIT_TARGET, colors, radius, spacing, type } from "@/constants/theme";
+import { useFormScroll } from "./FormScroll";
 
 interface Props extends TextInputProps {
   label?: string;
@@ -34,6 +37,15 @@ export default function Input({
   ...rest
 }: Props) {
   const [focused, setFocused] = useState(false);
+  const form = useFormScroll();
+  const inputRef = useRef<TextInput>(null);
+
+  // Inside a form page: take part in "Next", and come into view when tapped.
+  useEffect(() => {
+    if (!form || !inputRef.current) return;
+    return form.register(inputRef.current);
+  }, [form]);
+  const nextKey = form && !multiline && rest.editable !== false && !rest.onSubmitEditing;
 
   return (
     <View style={[styles.wrapper, containerStyle]}>
@@ -61,18 +73,27 @@ export default function Input({
           />
         ) : null}
         <TextInput
+          ref={inputRef}
           placeholderTextColor={colors.textFaint}
           multiline={multiline}
+          {...(nextKey
+            ? {
+                returnKeyType: "next" as const,
+                submitBehavior: "submit" as const,
+                onSubmitEditing: () => inputRef.current && form.focusNext(inputRef.current),
+              }
+            : {})}
+          {...rest}
           style={[styles.input, multiline && styles.inputMultiline, style]}
           onFocus={(e) => {
             setFocused(true);
+            form?.reveal();
             rest.onFocus?.(e);
           }}
           onBlur={(e) => {
             setFocused(false);
             rest.onBlur?.(e);
           }}
-          {...rest}
         />
       </View>
 
@@ -82,6 +103,40 @@ export default function Input({
         <Text style={styles.hint}>{hint}</Text>
       ) : null}
     </View>
+  );
+}
+
+/**
+ * A date typed the Indian way, DD-MM-YYYY. Holds an ISO yyyy-MM-dd value, and
+ * only ever hands back a real date (or "" when cleared), so a typo is never saved.
+ */
+export function DateInput({
+  value,
+  onChange,
+  error,
+  ...rest
+}: Omit<Props, "value" | "onChangeText" | "onChange"> & { value: string; onChange: (iso: string) => void }) {
+  const [text, setText] = useState(toDisplayDate(value));
+  // A date set from outside (a quick-pick chip, a loaded record) replaces what is shown.
+  useEffect(() => {
+    if ((fromDisplayDate(text) ?? "") !== value) setText(toDisplayDate(value));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [value]);
+  const typo = text.trim() !== "" && fromDisplayDate(text) === null;
+  return (
+    <Input
+      {...rest}
+      value={text}
+      onChangeText={(next) => {
+        setText(next);
+        const iso = next.trim() === "" ? "" : fromDisplayDate(next);
+        if (iso !== null) onChange(iso);
+      }}
+      placeholder="DD-MM-YYYY"
+      keyboardType="numbers-and-punctuation"
+      autoCorrect={false}
+      error={typo ? "Enter the date as DD-MM-YYYY, for example 14-08-2026." : error}
+    />
   );
 }
 

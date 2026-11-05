@@ -1,12 +1,14 @@
-import React, { useEffect, useState } from "react";
-import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import React, { useEffect, useRef, useState } from "react";
+import { Pressable, StyleSheet, Text, View } from "react-native";
+import FormScroll from "@/components/FormScroll";
+import { Alert } from "@/web/dialog";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 
 import { Card, Loading, SectionTitle } from "@/components/Base";
 import Button from "@/components/Button";
-import Input, { PickerField } from "@/components/Input";
+import Input, { DateInput, PickerField } from "@/components/Input";
 import { OptionPicker } from "@/components/Controls";
 import PromiseDateField from "@/components/PromiseDateField";
 import { HIT_TARGET, colors, fontSize, radius, spacing, type } from "@/constants/theme";
@@ -52,10 +54,15 @@ export default function CollectFeeScreen({ navigation, route }: Props) {
     if (fee?.promisedDate && !promiseDateProblem(fee.promisedDate)) setPromisedDate((now) => now || (fee.promisedDate ?? ""));
   }, [fee]);
 
-  // Default to settling the bill outright, which is the usual case.
+  // Starts at the full balance, the usual case -- once only, so clearing the
+  // box to type a different amount leaves it empty.
+  const prefilled = useRef(false);
   useEffect(() => {
-    if (fee && amount === "") setAmount(String(Math.max(fee.balance, 0)));
-  }, [fee, amount]);
+    if (fee && !prefilled.current) {
+      prefilled.current = true;
+      setAmount(String(Math.max(fee.balance, 0)));
+    }
+  }, [fee]);
 
   if (loading && !fee) return <Loading />;
   if (!fee) return null;
@@ -93,7 +100,7 @@ export default function CollectFeeScreen({ navigation, route }: Props) {
 
   return (
     <SafeAreaView style={styles.screen} edges={["left", "right", "bottom"]}>
-      <ScrollView
+      <FormScroll
         contentContainerStyle={styles.content}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
@@ -119,6 +126,7 @@ export default function CollectFeeScreen({ navigation, route }: Props) {
         <Input
           label={`Amount being paid (${symbol})`}
           required
+          placeholder="Type the amount being paid"
           value={amount}
           onChangeText={(text) => {
             setAmount(text);
@@ -131,7 +139,8 @@ export default function CollectFeeScreen({ navigation, route }: Props) {
 
         <View style={styles.quickAmounts}>
           <QuickAmount label="Full balance" onPress={() => setAmount(String(fee.balance))} />
-          <QuickAmount label="Half" onPress={() => setAmount(String(Math.round(fee.balance / 2)))} />
+          {/* Any smaller amount: empties the box to type what they are paying. */}
+          <QuickAmount label="Part payment" onPress={() => setAmount("")} />
         </View>
 
         {partial ? (
@@ -162,13 +171,7 @@ export default function CollectFeeScreen({ navigation, route }: Props) {
           onPress={() => setMethodPickerOpen(true)}
         />
 
-        <Input
-          label="Paid on"
-          value={paidOn}
-          onChangeText={setPaidOn}
-          placeholder="YYYY-MM-DD"
-          icon="calendar-outline"
-        />
+        <DateInput label="Paid on" value={paidOn} onChange={setPaidOn} icon="calendar-outline" />
         <Input
           label="Reference"
           value={reference}
@@ -190,7 +193,7 @@ export default function CollectFeeScreen({ navigation, route }: Props) {
           loading={saving}
           disabled={entered <= 0}
         />
-      </ScrollView>
+      </FormScroll>
 
       <OptionPicker
         visible={methodPickerOpen}

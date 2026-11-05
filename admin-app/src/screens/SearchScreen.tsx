@@ -85,13 +85,13 @@ export default function SearchScreen({ navigation }: Props) {
           <EmptyState
             icon="search-outline"
             title="Search everything"
-            message="Type at least two characters to look across inmates, rooms, bills and notices in this branch."
+            message="Type at least two characters to look across inmates, rooms, bills and notices."
           />
         ) : nothingFound ? (
           <EmptyState
             icon="search-outline"
             title="No matches"
-            message={`Nothing in this branch matches "${debounced}".`}
+            message={`Nothing matches "${debounced}".`}
           />
         ) : (
           <>

@@ -105,7 +105,7 @@ async function assertRoomHasSpace(roomId: string, excludeInmateId: string | null
   ).length;
 
   if (occupied >= room.capacity) {
-    const label = room.block ? `${room.block}-${room.roomNumber}` : room.roomNumber;
+    const label = roomLabelOf(room) ?? room.roomNumber;
     throw new RoomFullError(
       `Room ${label} is full (${room.capacity} of ${room.capacity} beds taken). ` +
         "Free a bed or pick another room."
@@ -243,6 +243,7 @@ export async function updateInmate(id: string, input: InmateInput): Promise<void
       joinedOn: input.joinedOn,
       leftOn: input.leftOn,
       notes: input.notes,
+      institutionType: input.institutionType ?? existing.institutionType ?? "",
       // Recorded once; an edit can add it but never clears or re-dates it.
       ...(input.termsAcceptedAt && !existing.termsAcceptedAt
         ? { termsAcceptedAt: input.termsAcceptedAt, termsVersion: input.termsVersion ?? "" }
@@ -279,17 +280,6 @@ export async function assignRoom(studentId: string, roomId: string | null): Prom
   if (inmate) {
     logActivity({ action: "updated", entity: "inmate", entityId: studentId, label: inmate.fullName, branchId: inmate.branchId });
   }
-}
-
-/**
- * Updates only the agreed rent.
- *
- * Moving an inmate between rooms deliberately does not change their rent, so
- * this exists for the caller to apply the new room's rate when the admin
- * explicitly asks for it.
- */
-export async function setInmateRent(studentId: string, monthlyRent: number): Promise<void> {
-  await patch("inmates", studentId, { monthlyRent, updatedAt: Date.now() });
 }
 
 /**

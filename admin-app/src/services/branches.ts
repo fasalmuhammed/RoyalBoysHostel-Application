@@ -77,8 +77,22 @@ function byOrder(a: Branch, b: Branch): number {
   return a.sortOrder - b.sortOrder || compareRaw(a.name, b.name);
 }
 
+/**
+ * Hostels made of more than one building, until the list is kept with the
+ * hostel's own record. Thammanam is two buildings a short walk apart.
+ */
+const DEFAULT_HOUSES: Record<string, string[]> = {
+  "branch-thammanam": ["Pushpamangalam", "Royal House"],
+};
+
+/** The buildings of a hostel; empty when it is a single building. */
+export function housesOf(branch: Pick<Branch, "id" | "houses"> | null | undefined): string[] {
+  if (!branch) return [];
+  return branch.houses && branch.houses.length > 0 ? branch.houses : (DEFAULT_HOUSES[branch.id] ?? []);
+}
+
 export async function listBranches(): Promise<Branch[]> {
-  return [...allBranches()].sort(byOrder);
+  return [...allBranches()].sort(byOrder).map((branch) => ({ ...branch, houses: housesOf(branch) }));
 }
 
 export async function getBranch(id: string): Promise<Branch | null> {
