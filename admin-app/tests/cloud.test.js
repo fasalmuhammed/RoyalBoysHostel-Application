@@ -315,6 +315,15 @@ async function automaticBilling() {
   await inmates.reinstate(roomPriced);
   check("reinstating an inmate bills them for this month", billsOf(roomPriced).length === 1);
 
+  // Approved today, then the real join date is entered: unpaid bills follow it, paid ones do not.
+  const lateFix = await inmates.createInmate(inmate("Late fix", r, { joinedOn: `${now}-01`, monthlyRent: 3000 }));
+  const settled = await inmates.createInmate(inmate("Settled", r, { joinedOn: `${now}-01`, monthlyRent: 3000 }));
+  await fees.recordPayment(billsOf(settled)[0].id, 3000, "cash", today, "", "");
+  await inmates.updateInmate(lateFix, inmate("Late fix", r, { joinedOn: "2026-06-28", monthlyRent: 3000 }));
+  await inmates.updateInmate(settled, inmate("Settled", r, { joinedOn: "2026-06-28", monthlyRent: 3000 }));
+  check("a corrected join date moves the unpaid bill to the new due day", billsOf(lateFix)[0].dueDate === fees.dueDateFor(now, 28));
+  check("a paid bill keeps its due date", billsOf(settled)[0].dueDate === `${now}-01`);
+
   // Admitted before a rent was agreed: a ₹0 bill, which reads as paid.
   const noRent = await inmates.createInmate(inmate("No rent yet", null, { joinedOn: `${now}-01`, monthlyRent: 0 }));
   check("admitted with no rent and no room: a ₹0 bill", billsOf(noRent)[0]?.total === 0);

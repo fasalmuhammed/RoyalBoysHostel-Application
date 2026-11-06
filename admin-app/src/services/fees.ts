@@ -631,6 +631,26 @@ export async function recordPayment(
 }
 
 /**
+ * Moves an inmate's unpaid monthly bills to their current billing day -- used
+ * when their join date is corrected after bills were already raised. Paid
+ * bills keep the date they were settled against.
+ */
+export async function redateOpenBills(inmate: Inmate): Promise<number> {
+  if (inmate.admissionType === "stay") return 0;
+  const day = billingDayOf(inmate);
+  let moved = 0;
+  for (const bill of billsForStudent(inmate.id)) {
+    const dueDate = dueDateFor(bill.period, day);
+    if (bill.dueDate === dueDate || bill.total - paidSoFar(bill) <= 0.01) continue;
+    await withLock("fees", bill.docId, () =>
+      patch("fees", bill.docId, { ...ownerOf(bill.docId), bills: { [bill.period]: { dueDate, updatedAt: Date.now() } } })
+    );
+    moved += 1;
+  }
+  return moved;
+}
+
+/**
  * Changes the day a part-paid bill's balance is promised for -- the inmate
  * rang to ask for more time -- or, with null, removes the promise so the bill
  * goes back to its original due date.

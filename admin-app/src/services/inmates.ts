@@ -15,7 +15,7 @@ import {
   roomLabelOf,
 } from "@/store/views";
 import { deletePhoto, movePhotoToBranch } from "./photos";
-import { raiseBillFor } from "./fees";
+import { raiseBillFor, redateOpenBills } from "./fees";
 import { getActiveBranchId, inActiveBranch, requireActiveBranchId } from "./branches";
 
 export type InmateInput = Omit<Inmate, "id" | "createdAt" | "updatedAt">;
@@ -261,6 +261,11 @@ export async function updateInmate(id: string, input: InmateInput): Promise<void
   if (existing.idProofFile && existing.idProofFile !== input.idProofFile) deletePhoto(existing.idProofFile);
   if (existing.idProofBackFile && existing.idProofBackFile !== input.idProofBackFile) {
     deletePhoto(existing.idProofBackFile);
+  }
+
+  // A corrected join date moves the bills still waiting to be paid to the new due day.
+  if (input.joinedOn !== existing.joinedOn) {
+    await redateOpenBills({ ...existing, joinedOn: input.joinedOn, admissionType }).catch(() => 0);
   }
 
   logActivity({ action: "updated", entity: "inmate", entityId: id, label: input.fullName, branchId: existing.branchId });
