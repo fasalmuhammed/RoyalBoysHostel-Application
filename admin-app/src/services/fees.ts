@@ -559,6 +559,14 @@ export async function raiseDueBills(period = currentPeriod()): Promise<number> {
 
 export class OverpaymentError extends Error {}
 
+export const PAYMENT_METHODS: { key: PaymentMethod; label: string }[] = [
+  { key: "cash", label: "Cash" },
+  { key: "upi", label: "UPI" },
+  { key: "card", label: "Card" },
+  { key: "bank", label: "Bank transfer" },
+  { key: "cheque", label: "Cheque" },
+];
+
 /**
  * Records a payment against a bill.
  *
@@ -846,7 +854,8 @@ export const DEFAULT_CYCLE_DAYS = 30;
 
 /** The day-of-month a monthly bill is due, taken from when the inmate joined. */
 export function anchorDayFor(joinedOn: string): number {
-  const day = Number(joinedOn.slice(8, 10));
+  // Split, not slice: some saved dates lack leading zeros ("2026-6-28").
+  const day = Number(String(joinedOn ?? "").split("-")[2]);
   return Number.isFinite(day) && day > 0 ? day : 1;
 }
 

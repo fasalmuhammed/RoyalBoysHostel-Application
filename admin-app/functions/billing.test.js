@@ -32,6 +32,7 @@ const billsOf = async (id, year = "2026") => (await db.collection("fees").doc(`$
   check("a leap February has 29 days", dueDateFor("2028-02", "2026-01-31") === "2028-02-29");
   check("a 30-day month uses the 30th", dueDateFor("2026-04", "2026-01-31") === "2026-04-30");
   check("no join date falls back to the 1st", dueDateFor("2026-02", "") === "2026-02-01");
+  check("a join date saved without leading zeros is read right", dueDateFor("2026-02", "2026-6-28") === "2026-02-28" && dueDateFor("2026-02", "2026-7-7") === "2026-02-07");
   check("a moved billing day is used as given", dueDateFor("2026-02", 17) === "2026-02-17");
   check("a moved billing day still fits a short month", dueDateFor("2026-02", 30) === "2026-02-28");
   check("the day rolls over at midnight in India, not in London", indiaDate(new Date("2026-01-31T18:45:00Z")) === "2026-02-01");

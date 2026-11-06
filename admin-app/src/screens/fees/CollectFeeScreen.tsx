@@ -14,7 +14,7 @@ import PromiseDateField from "@/components/PromiseDateField";
 import { HIT_TARGET, colors, fontSize, radius, spacing, type } from "@/constants/theme";
 import { useApp } from "@/context/AppContext";
 import { useAsyncData } from "@/utils/hooks";
-import { getFee, OverpaymentError, promiseDateProblem, recordPayment } from "@/services/fees";
+import { getFee, OverpaymentError, PAYMENT_METHODS, promiseDateProblem, recordPayment } from "@/services/fees";
 import { PaymentMethod } from "@/types";
 import { formatMoney, formatPeriod, toIsoDate } from "@/utils/format";
 import { parseAmount } from "@/utils/validate";
@@ -23,13 +23,7 @@ import type { RootStackParamList } from "@/navigation/types";
 
 type Props = NativeStackScreenProps<RootStackParamList, "CollectFee">;
 
-const METHODS: { key: PaymentMethod; label: string }[] = [
-  { key: "cash", label: "Cash" },
-  { key: "upi", label: "UPI" },
-  { key: "card", label: "Card" },
-  { key: "bank", label: "Bank transfer" },
-  { key: "cheque", label: "Cheque" },
-];
+const METHODS = PAYMENT_METHODS;
 
 export default function CollectFeeScreen({ navigation, route }: Props) {
   const { feeId } = route.params;

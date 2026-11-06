@@ -11,7 +11,8 @@ import { getActiveBranchId, inActiveBranch } from "./branches";
 import { RoomFullError, createInmate } from "./inmates";
 import { formatRoomLabel, getRoom, listRooms } from "./rooms";
 import { deletePhoto } from "./photos";
-import { DEFAULT_CYCLE_DAYS } from "./fees";
+import { DEFAULT_CYCLE_DAYS, listFeesForStudent, recordPayment } from "./fees";
+import type { PaymentMethod } from "@/types";
 import { toIsoDate } from "@/utils/format";
 
 export interface Application {
@@ -88,6 +89,8 @@ export interface ApproveOptions {
   roomId: string | null;
   monthlyRent: number;
   joinedOn?: string;
+  /** Set when the first month's rent was already paid before admission, and how. */
+  firstMonthPaidBy?: PaymentMethod | null;
 }
 
 /**
@@ -134,6 +137,14 @@ export async function approveApplication(id: string, options: ApproveOptions): P
     notes: "Registered with the QR form.",
   });
   await remove("applications", id);
+
+  // Rent already paid before admission: settle the first bill so it never shows as due.
+  if (options.firstMonthPaidBy) {
+    const first = (await listFeesForStudent(inmateId)).find((bill) => bill.balance > 0.01);
+    if (first) {
+      await recordPayment(first.id, first.balance, options.firstMonthPaidBy, toIsoDate(), "", "Paid before admission");
+    }
+  }
   return inmateId;
 }
 

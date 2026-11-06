@@ -7,8 +7,8 @@ import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 
 import { Callout, CalloutText, Card, DetailRow, Divider, EmptyState, SectionTitle } from "@/components/Base";
 import Button from "@/components/Button";
-import Input, { PickerField } from "@/components/Input";
-import { OptionPicker } from "@/components/Controls";
+import Input, { DateInput, PickerField } from "@/components/Input";
+import { OptionPicker, SegmentedTabs } from "@/components/Controls";
 import Avatar from "@/components/Avatar";
 import PhotoViewer, { ViewedPhoto } from "@/components/PhotoViewer";
 import { colors, radius, spacing, type } from "@/constants/theme";
@@ -17,7 +17,9 @@ import { useAsyncData } from "@/utils/hooks";
 import { approveApplication, getApplication, rejectApplication } from "@/services/admissions";
 import { formatRoomLabel, listRooms } from "@/services/rooms";
 import { photoFailed, usePhotoUri } from "@/services/photos";
-import { formatDateTime } from "@/utils/format";
+import { formatDateTime, toIsoDate } from "@/utils/format";
+import { PAYMENT_METHODS } from "@/services/fees";
+import type { PaymentMethod } from "@/types";
 import type { RootStackParamList } from "@/navigation/types";
 
 type Props = NativeStackScreenProps<RootStackParamList, "AdmissionReview">;
@@ -37,6 +39,9 @@ export default function AdmissionReviewScreen({ navigation, route }: Props) {
   const [roomId, setRoomId] = useState<string | null>(application?.roomId ?? null);
   const [rent, setRent] = useState("");
   const [rentTouched, setRentTouched] = useState(false);
+  const [joinedOn, setJoinedOn] = useState(toIsoDate());
+  const [firstPaid, setFirstPaid] = useState<"no" | "yes">("no");
+  const [paidBy, setPaidBy] = useState<PaymentMethod>("cash");
   const [picking, setPicking] = useState(false);
   const [busy, setBusy] = useState<"approve" | "reject" | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -67,7 +72,12 @@ export default function AdmissionReviewScreen({ navigation, route }: Props) {
     setBusy("approve");
     setError(null);
     try {
-      const studentId = await approveApplication(application.id, { roomId, monthlyRent: amount });
+      const studentId = await approveApplication(application.id, {
+        roomId,
+        monthlyRent: amount,
+        joinedOn,
+        firstMonthPaidBy: firstPaid === "yes" ? paidBy : null,
+      });
       navigation.replace("InmateDetail", { studentId });
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not admit this student. Try again.");
@@ -184,8 +194,33 @@ export default function AdmissionReviewScreen({ navigation, route }: Props) {
           keyboardType="number-pad"
           placeholder="0"
           icon="cash-outline"
-          hint="The first bill is raised as soon as you approve."
         />
+        <DateInput
+          label="Joined on"
+          value={joinedOn}
+          onChange={setJoinedOn}
+          hint="The day they started staying. Rent falls due on this day every month."
+        />
+        <Text style={styles.fieldLabel}>First month's rent</Text>
+        <SegmentedTabs<"no" | "yes">
+          value={firstPaid}
+          onChange={setFirstPaid}
+          options={[
+            { key: "no", label: "Not paid yet" },
+            { key: "yes", label: "Already paid" },
+          ]}
+        />
+        {firstPaid === "yes" ? (
+          <>
+            <Text style={styles.fieldLabel}>Paid by</Text>
+            <SegmentedTabs<PaymentMethod> value={paidBy} onChange={setPaidBy} options={PAYMENT_METHODS} />
+          </>
+        ) : null}
+        <Text style={styles.fieldHint}>
+          {firstPaid === "yes"
+            ? "The first bill is recorded as paid, so it will not show in dues."
+            : "The first bill is raised as due on the joining day."}
+        </Text>
 
         {error ? (
           <Callout tone="danger" icon="alert-circle-outline">
@@ -257,6 +292,8 @@ const styles = StyleSheet.create({
   head: { alignItems: "center", marginBottom: spacing.lg, gap: spacing.xs },
   name: { ...type.title, color: colors.text, textAlign: "center", marginTop: spacing.sm },
   sent: { ...type.support, color: colors.textMuted },
+  fieldLabel: { ...type.support, fontFamily: type.bodyStrong.fontFamily, color: colors.text, marginBottom: spacing.xs + 2, marginTop: spacing.xs },
+  fieldHint: { ...type.caption, color: colors.textMuted, marginTop: spacing.xs, marginBottom: spacing.md },
   documents: { gap: spacing.md, marginBottom: spacing.md },
   document: {
     backgroundColor: colors.surface,

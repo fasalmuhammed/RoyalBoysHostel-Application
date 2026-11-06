@@ -15,22 +15,8 @@ export function toIsoDate(date: Date = new Date()): string {
 
 /** "2026-08-14" -> "14-08-2026", the Indian order. Passes through anything else. */
 export function toDisplayDate(iso: string | null | undefined): string {
-  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso ?? "");
-  return m ? `${m[3]}-${m[2]}-${m[1]}` : (iso ?? "");
-}
-
-/**
- * Typed "14-08-2026" (also 14/8/2026, 14.08.26) -> "2026-08-14".
- * Null when it is not a real calendar date.
- */
-export function fromDisplayDate(text: string): string | null {
-  const m = /^(\d{1,2})[-/.](\d{1,2})[-/.](\d{2}|\d{4})$/.exec(text.trim());
-  if (!m) return null;
-  const year = m[3].length === 2 ? 2000 + Number(m[3]) : Number(m[3]);
-  const date = new Date(year, Number(m[2]) - 1, Number(m[1]));
-  // Rejects 31-02-2026 and the like, which Date would roll into March.
-  if (date.getFullYear() !== year || date.getMonth() !== Number(m[2]) - 1 || date.getDate() !== Number(m[1])) return null;
-  return toIsoDate(date);
+  const m = /^(\d{4})-(\d{1,2})-(\d{1,2})$/.exec(iso ?? "");
+  return m ? `${m[3].padStart(2, "0")}-${m[2].padStart(2, "0")}-${m[1]}` : (iso ?? "");
 }
 
 /** Billing period key `yyyy-MM`. */

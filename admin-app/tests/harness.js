@@ -85,6 +85,7 @@ async function device(store, user = OWNER) {
     rooms: load("services/rooms"),
     inmates: load("services/inmates"),
     fees: load("services/fees"),
+    admissions: load("services/admissions"),
     complaints: load("services/complaints"),
     notices: load("services/notices"),
     messaging: load("services/messaging"),

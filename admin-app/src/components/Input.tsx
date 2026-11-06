@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
-import { fromDisplayDate, toDisplayDate } from "@/utils/format";
+import { toDisplayDate } from "@/utils/format";
+import CalendarSheet from "./CalendarSheet";
 
 import {
   Platform,
@@ -107,36 +108,41 @@ export default function Input({
 }
 
 /**
- * A date typed the Indian way, DD-MM-YYYY. Holds an ISO yyyy-MM-dd value, and
- * only ever hands back a real date (or "" when cleared), so a typo is never saved.
+ * A date chosen on a calendar and shown day first (DD-MM-YYYY). Holds an ISO
+ * yyyy-MM-dd value; nothing is typed, so no date can be saved in a wrong form.
  */
 export function DateInput({
+  label = "Date",
   value,
   onChange,
   error,
-  ...rest
-}: Omit<Props, "value" | "onChangeText" | "onChange"> & { value: string; onChange: (iso: string) => void }) {
-  const [text, setText] = useState(toDisplayDate(value));
-  // A date set from outside (a quick-pick chip, a loaded record) replaces what is shown.
-  useEffect(() => {
-    if ((fromDisplayDate(text) ?? "") !== value) setText(toDisplayDate(value));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [value]);
-  const typo = text.trim() !== "" && fromDisplayDate(text) === null;
+  hint,
+  required,
+  icon = "calendar-outline",
+}: {
+  label?: string;
+  value: string;
+  onChange: (iso: string) => void;
+  error?: string;
+  hint?: string;
+  required?: boolean;
+  icon?: keyof typeof Ionicons.glyphMap;
+}) {
+  const [open, setOpen] = useState(false);
   return (
-    <Input
-      {...rest}
-      value={text}
-      onChangeText={(next) => {
-        setText(next);
-        const iso = next.trim() === "" ? "" : fromDisplayDate(next);
-        if (iso !== null) onChange(iso);
-      }}
-      placeholder="DD-MM-YYYY"
-      keyboardType="numbers-and-punctuation"
-      autoCorrect={false}
-      error={typo ? "Enter the date as DD-MM-YYYY, for example 14-08-2026." : error}
-    />
+    <>
+      <PickerField
+        label={label}
+        value={value ? toDisplayDate(value) : null}
+        placeholder="Choose a date"
+        onPress={() => setOpen(true)}
+        error={error}
+        hint={hint}
+        required={required}
+        icon={icon}
+      />
+      <CalendarSheet visible={open} title={label} value={value} onSelect={onChange} onClose={() => setOpen(false)} />
+    </>
   );
 }
 
@@ -147,6 +153,7 @@ export function PickerField({
   placeholder,
   onPress,
   error,
+  hint,
   required,
   icon,
 }: {
@@ -155,6 +162,7 @@ export function PickerField({
   placeholder: string;
   onPress: () => void;
   error?: string;
+  hint?: string;
   required?: boolean;
   icon?: keyof typeof Ionicons.glyphMap;
 }) {
@@ -178,7 +186,7 @@ export function PickerField({
         </Text>
         <Ionicons name="chevron-down" size={18} color={colors.textFaint} />
       </Pressable>
-      {error ? <Text style={styles.error}>{error}</Text> : null}
+      {error ? <Text style={styles.error}>{error}</Text> : hint ? <Text style={styles.hint}>{hint}</Text> : null}
     </View>
   );
 }

@@ -35,7 +35,7 @@ function indiaDate(now = new Date()) {
  */
 function dueDateFor(period, joinedOn) {
   const [year, month] = period.split("-").map(Number);
-  const joinedDay = typeof joinedOn === "number" ? joinedOn : Number(String(joinedOn ?? "").slice(8, 10));
+  const joinedDay = typeof joinedOn === "number" ? joinedOn : Number(String(joinedOn ?? "").split("-")[2]);
   const anchor = Number.isFinite(joinedDay) && joinedDay > 0 ? joinedDay : 1;
   const daysInMonth = new Date(Date.UTC(year, month, 0)).getUTCDate();
   return `${period}-${two(Math.min(anchor, daysInMonth))}`;

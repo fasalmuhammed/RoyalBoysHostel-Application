@@ -55,8 +55,6 @@ async function pureLogic() {
   check("stay due date adds the stay length", fees.stayDueDateFor("2026-01-30", 3) === "2026-02-02");
   check("money in Indian format", format.formatMoney(1234567, "₹") === "₹12,34,567");
   check("dates shown day first", format.toDisplayDate("2026-08-14") === "14-08-2026");
-  check("dates typed day first are read", format.fromDisplayDate("14-08-2026") === "2026-08-14" && format.fromDisplayDate("4/8/26") === "2026-08-04");
-  check("an impossible typed date is refused", format.fromDisplayDate("31-02-2026") === null && format.fromDisplayDate("2026-08-14") === null && format.fromDisplayDate("14-08") === null);
   check("phone normalised for wa.me", validate.toWhatsAppNumber("98765 43210", "91") === "919876543210");
   check("template placeholders merge", messaging.renderTemplate("Hi {{first_name}}, {{room}}", { name: "Arjun Menon", room: "A-1" }) === "Hi Arjun, A-1");
   check("notice keeps placeholders", notices.noticeToMessage({ title: "T", body: "B" }).includes("{{name}}"));
@@ -314,6 +312,19 @@ async function automaticBilling() {
   check("an inmate who has left is not billed", (await fees.raiseDueBills()) === 0);
   await inmates.reinstate(roomPriced);
   check("reinstating an inmate bills them for this month", billsOf(roomPriced).length === 1);
+
+  // Approving a QR form: the real join day sets the due day; rent paid before admission leaves nothing due.
+  for (const [id, paid] of [["form-unpaid", null], ["form-paid", "upi"]]) {
+    await app.cloud.put("applications", id, {
+      fullName: id, phone: "9876500000", guardianName: "G", guardianPhone: "9876500001", emergencyPhone: "9876500002",
+      bloodGroup: "", institution: "X", email: "", course: "", year: "", address: "A", photoFile: null,
+      idProofFile: null, idProofBackFile: null, roomId: null, branchId: views.inmateById(monthly).branchId, createdAt: 1,
+    });
+    const admitted = await app.admissions.approveApplication(id, { roomId: null, monthlyRent: 4000, joinedOn: `${now}-21`, firstMonthPaidBy: paid });
+    const first = (await fees.listFeesForStudent(admitted))[0];
+    if (!paid) check("an approved form uses the real join day for the due date", first && first.dueDate === `${now}-21` && first.balance === 4000);
+    else check("rent paid before admission leaves the first bill settled", first && first.status === "paid" && first.balance === 0);
+  }
 
   // Approved today, then the real join date is entered: unpaid bills follow it, paid ones do not.
   const lateFix = await inmates.createInmate(inmate("Late fix", r, { joinedOn: `${now}-01`, monthlyRent: 3000 }));

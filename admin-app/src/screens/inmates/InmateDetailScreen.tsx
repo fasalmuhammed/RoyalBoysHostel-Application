@@ -13,7 +13,7 @@ import { FadeIn, PressableScale } from "@/components/Motion";
 import { useApp } from "@/context/AppContext";
 import { useAsyncData } from "@/utils/hooks";
 import { deleteInmate, getInmate, markLeft, reinstate } from "@/services/inmates";
-import { dueLabel, listFeesForStudent } from "@/services/fees";
+import { billingDayOf, dueLabel, listFeesForStudent } from "@/services/fees";
 import { savePhotoToDevice, usePhotoUri } from "@/services/photos";
 import PhotoViewer, { ViewedPhoto } from "@/components/PhotoViewer";
 import { toWhatsAppNumber } from "@/utils/validate";
@@ -306,7 +306,7 @@ export default function InmateDetailScreen({ navigation, route }: Props) {
               <Divider />
               <DetailRow
                 label="Bills due"
-                value={`Day ${Number(inmate.joinedOn.slice(8, 10)) || 1} of each month`}
+                value={`Day ${billingDayOf(inmate)} of each month`}
               />
             </>
           ) : null}
