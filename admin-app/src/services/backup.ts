@@ -924,6 +924,7 @@ function inmateDoc(row: Row): Inmate {
     admissionType,
     stayDays: admissionType === "stay" ? numOrNull(row.stayDays) : null,
     monthlyRent: num(row.monthlyRent),
+    deposit: num(row.deposit),
     billingCycleDays: num(row.billingCycleDays, 30),
     joinedOn: str(row.joinedOn),
     leftOn: strOrNull(row.leftOn),

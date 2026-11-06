@@ -39,6 +39,8 @@ export default function AdmissionReviewScreen({ navigation, route }: Props) {
   const [roomId, setRoomId] = useState<string | null>(application?.roomId ?? null);
   const [rent, setRent] = useState("");
   const [rentTouched, setRentTouched] = useState(false);
+  const [deposit, setDeposit] = useState("");
+  const [depositTouched, setDepositTouched] = useState(false);
   const [joinedOn, setJoinedOn] = useState(toIsoDate());
   const [firstPaid, setFirstPaid] = useState<"no" | "yes">("no");
   const [paidBy, setPaidBy] = useState<PaymentMethod>("cash");
@@ -53,6 +55,9 @@ export default function AdmissionReviewScreen({ navigation, route }: Props) {
   useEffect(() => {
     if (!rentTouched && room) setRent(room.rent ? String(room.rent) : "");
   }, [room, rentTouched]);
+  useEffect(() => {
+    if (!depositTouched && room) setDeposit(room.deposit ? String(room.deposit) : "");
+  }, [room, depositTouched]);
 
   if (!application) {
     return (
@@ -75,6 +80,7 @@ export default function AdmissionReviewScreen({ navigation, route }: Props) {
       const studentId = await approveApplication(application.id, {
         roomId,
         monthlyRent: amount,
+        deposit: Number(deposit) || 0,
         joinedOn,
         firstMonthPaidBy: firstPaid === "yes" ? paidBy : null,
       });
@@ -194,6 +200,18 @@ export default function AdmissionReviewScreen({ navigation, route }: Props) {
           keyboardType="number-pad"
           placeholder="0"
           icon="cash-outline"
+        />
+        <Input
+          label={`Deposit (${settings.currencySymbol})`}
+          value={deposit}
+          onChangeText={(t) => {
+            setDepositTouched(true);
+            setDeposit(t.replace(/[^\d]/g, ""));
+          }}
+          keyboardType="number-pad"
+          placeholder="0"
+          icon="shield-checkmark-outline"
+          hint="Collected once at admission, refundable. Kept as a record; it is never billed."
         />
         <DateInput
           label="Joined on"

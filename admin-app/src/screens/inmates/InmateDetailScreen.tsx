@@ -301,6 +301,8 @@ export default function InmateDetailScreen({ navigation, route }: Props) {
             label={inmate.admissionType === "stay" ? "Rent for the stay" : "Monthly rent"}
             value={inmate.monthlyRent > 0 ? formatMoney(inmate.monthlyRent, symbol) : "Not set"}
           />
+          <Divider />
+          <DetailRow label="Deposit" value={inmate.deposit ? formatMoney(inmate.deposit, symbol) : "Not recorded"} />
           {inmate.admissionType === "monthly" ? (
             <>
               <Divider />

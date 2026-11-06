@@ -88,6 +88,8 @@ export default function InmateFormScreen({ navigation, route }: Props) {
   const [rentText, setRentText] = useState("");
   const [stayDaysText, setStayDaysText] = useState("");
   const [rentTouched, setRentTouched] = useState(false);
+  const [depositText, setDepositText] = useState("");
+  const [depositTouched, setDepositTouched] = useState(false);
   const [errors, setErrors] = useState<Partial<Record<keyof InmateInput, string>>>({});
   const [saving, setSaving] = useState(false);
   const [capturing, setCapturing] = useState(false);
@@ -185,6 +187,8 @@ export default function InmateFormScreen({ navigation, route }: Props) {
         notes: inmate.notes,
       });
       setRentText(inmate.monthlyRent > 0 ? String(inmate.monthlyRent) : "");
+      setDepositText(inmate.deposit ? String(inmate.deposit) : "");
+      setDepositTouched(true);
       setStayDaysText(inmate.stayDays ? String(inmate.stayDays) : "");
       // An existing inmate already has an agreed rent; never overwrite it.
       setRentTouched(true);
@@ -212,6 +216,13 @@ export default function InmateFormScreen({ navigation, route }: Props) {
     const room = rooms.find((r) => r.id === form.roomId);
     if (room && room.rent > 0) setRentText(String(room.rent));
   }, [form.roomId, form.admissionType, rooms, rentTouched]);
+
+  // The room's deposit is the starting figure, until someone types another.
+  useEffect(() => {
+    if (depositTouched || !form.roomId || !rooms) return;
+    const room = rooms.find((r) => r.id === form.roomId);
+    if (room && room.deposit > 0) setDepositText(String(room.deposit));
+  }, [form.roomId, rooms, depositTouched]);
 
   const set = <K extends keyof InmateInput>(key: K, value: InmateInput[K]) => {
     setForm((current) => ({ ...current, [key]: value }));
@@ -330,6 +341,7 @@ export default function InmateFormScreen({ navigation, route }: Props) {
     if (!form.idProofBackFile) next.idProofBackFile = "Add a clear photo of the Aadhaar back.";
 
     if (parseAmount(rentText) < 0) next.monthlyRent = "Rent cannot be negative.";
+    if (parseAmount(depositText) < 0) next.deposit = "Deposit cannot be negative.";
 
     if (form.admissionType === "stay") {
       const days = Number.parseInt(stayDaysText, 10);
@@ -354,6 +366,7 @@ export default function InmateFormScreen({ navigation, route }: Props) {
         ...form,
         fullName: form.fullName.trim(),
         monthlyRent: parseAmount(rentText),
+        deposit: parseAmount(depositText),
         stayDays,
       };
 
@@ -796,6 +809,20 @@ export default function InmateFormScreen({ navigation, route }: Props) {
               />
             </>
           )}
+          <Input
+            label="Deposit"
+            value={depositText}
+            onChangeText={(t) => {
+              setDepositText(t);
+              setDepositTouched(true);
+              setErrors((current) => ({ ...current, deposit: undefined }));
+            }}
+            placeholder="0"
+            keyboardType="numeric"
+            icon="shield-checkmark-outline"
+            error={errors.deposit}
+            hint="Collected once at admission, refundable. Kept as a record; it is never billed."
+          />
           <DateInput label="Joined on" value={form.joinedOn} onChange={(iso) => set("joinedOn", iso)} icon="calendar-outline" />
           <Input
             label="Notes"

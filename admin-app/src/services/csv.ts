@@ -122,6 +122,7 @@ export async function exportReport(kind: ReportKind, period: string | null = nul
       { header: "Left On", value: (r) => toDisplayDate(r.leftOn) },
       { header: "Blood Group", value: (r) => r.bloodGroup ?? "" },
       { header: "Monthly Rent", value: (r) => r.monthlyRent },
+      { header: "Deposit", value: (r) => r.deposit ?? 0 },
       { header: "Address", value: (r) => r.address },
       { header: "Rules Accepted", value: (r) => (r.termsAcceptedAt ? "Yes" : "") },
       { header: "ID Proof", value: (r) => r.idProof },

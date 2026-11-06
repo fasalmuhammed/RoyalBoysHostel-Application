@@ -85,6 +85,8 @@ export interface Inmate {
    * for the whole stay, typed directly (no per-day proration).
    */
   monthlyRent: number;
+  /** Refundable deposit collected at admission, in rupees. A record only: never billed. */
+  deposit?: number;
   /**
    * Legacy field, no longer editable or read by billing logic -- a monthly
    * bill's due date is now the day-of-month the student joined on (see

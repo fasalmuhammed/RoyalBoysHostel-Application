@@ -320,7 +320,8 @@ async function automaticBilling() {
       bloodGroup: "", institution: "X", email: "", course: "", year: "", address: "A", photoFile: null,
       idProofFile: null, idProofBackFile: null, roomId: null, branchId: views.inmateById(monthly).branchId, createdAt: 1,
     });
-    const admitted = await app.admissions.approveApplication(id, { roomId: null, monthlyRent: 4000, joinedOn: `${now}-21`, firstMonthPaidBy: paid });
+    const admitted = await app.admissions.approveApplication(id, { roomId: null, monthlyRent: 4000, deposit: 5000, joinedOn: `${now}-21`, firstMonthPaidBy: paid });
+    check("the deposit is recorded on the inmate, not billed", views.inmateById(admitted).deposit === 5000 && (await fees.listFeesForStudent(admitted)).every((b) => b.total === 4000));
     const first = (await fees.listFeesForStudent(admitted))[0];
     if (!paid) check("an approved form uses the real join day for the due date", first && first.dueDate === `${now}-21` && first.balance === 4000);
     else check("rent paid before admission leaves the first bill settled", first && first.status === "paid" && first.balance === 0);

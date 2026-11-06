@@ -88,6 +88,8 @@ export interface ApproveOptions {
   /** The room to admit into; may differ from what the student picked. */
   roomId: string | null;
   monthlyRent: number;
+  /** Refundable deposit collected at admission. */
+  deposit?: number;
   joinedOn?: string;
   /** Set when the first month's rent was already paid before admission, and how. */
   firstMonthPaidBy?: PaymentMethod | null;
@@ -127,6 +129,7 @@ export async function approveApplication(id: string, options: ApproveOptions): P
     branchId: application.branchId,
     status: "active",
     monthlyRent: options.monthlyRent,
+    deposit: options.deposit ?? 0,
     billingCycleDays: DEFAULT_CYCLE_DAYS,
     admissionType: "monthly",
     stayDays: null,
